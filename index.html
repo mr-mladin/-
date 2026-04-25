@@ -6,6 +6,21 @@
     <meta name="theme-color" content="#0b0f1a" />
     <title>Финансы</title>
     <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%82%BD%3C/text%3E%3C/svg%3E" />
+    <script>
+      // Применяем тему до загрузки CSS, чтобы избежать «голого» рендера
+      (function () {
+        try {
+          var saved = localStorage.getItem("fin.theme");
+          var mode = saved || "auto";
+          var resolved = mode === "auto"
+            ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+            : mode;
+          document.documentElement.setAttribute("data-theme", resolved);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
     <link rel="stylesheet" href="./src/styles.css" />
     <script type="importmap">
       {
