@@ -376,6 +376,7 @@ export function applyTheme(mode) {
     resolved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
   html.setAttribute("data-theme", resolved);
+  try { localStorage.setItem("fin.theme", mode); } catch (e) {}
 }
 
 // Подписка на изменение системной темы (для режима "auto")

@@ -70,6 +70,10 @@ function translate(msg) {
   if (m.includes("already registered") || m.includes("user already")) return "Этот email уже зарегистрирован";
   if (m.includes("password should be")) return "Пароль должен быть минимум 6 символов";
   if (m.includes("rate limit")) return "Слишком много попыток. Подождите минуту";
-  if (m.includes("network")) return "Нет связи с сервером";
+  if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("network")) {
+    return "Не удалось связаться с сервером. Проверьте подключение к интернету или сообщите автору сайта.";
+  }
+  if (m.includes("email not confirmed")) return "Email не подтверждён. Откройте ссылку из письма";
+  if (m.includes("invalid email")) return "Введите корректный email";
   return msg;
 }
