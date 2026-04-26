@@ -523,6 +523,129 @@ input, select, textarea { font: inherit; color: inherit; }
 .list-row .lr-amount.expense { color: var(--expense); }
 .list-row .lr-amount.transfer { color: var(--transfer); }
 
+/* ---------- Plans chart ---------- */
+.plans-chart {
+  width: 100%;
+  position: relative;
+}
+.pc-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 18px;
+  align-items: end;
+  padding: 4px 4px 12px;
+}
+.pc-summary .pc-label { font-size: 13px; color: var(--text-mute); }
+.pc-summary .pc-value {
+  font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 2px;
+}
+.pc-summary .pc-value.income { color: var(--income); }
+.pc-summary .pc-value.expense { color: var(--text); }
+.pc-summary-date {
+  align-self: end;
+  color: var(--text-mute); font-size: 13px;
+  padding-bottom: 4px;
+}
+
+.pc-svg {
+  display: block;
+  width: 100%;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: pan-y;
+  cursor: crosshair;
+}
+.pc-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.pc-tick {
+  fill: var(--text-mute);
+  font-size: 11px;
+  font-family: var(--font);
+}
+.pc-line {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.pc-line.income { stroke: var(--income); }
+.pc-line.expense {
+  stroke: #1f2937;
+}
+:root[data-theme="dark"] .pc-line.expense { stroke: #cbd5e1; }
+.pc-line.plan {
+  stroke-dasharray: 5 5;
+  opacity: 0.85;
+}
+.pc-today {
+  stroke: var(--text-mute);
+  stroke-width: 1;
+  opacity: 0.4;
+}
+.pc-hover-line {
+  stroke: var(--text-mute);
+  stroke-width: 1;
+  opacity: 0.6;
+}
+.pc-dot {
+  stroke: var(--surface);
+  stroke-width: 2;
+}
+.pc-dot.income { fill: var(--income); }
+.pc-dot.expense { fill: var(--text); }
+:root[data-theme="dark"] .pc-dot.expense { fill: #cbd5e1; }
+.pc-over {
+  fill: var(--expense);
+  opacity: 0.10;
+}
+
+.pc-info {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  margin-top: 8px;
+  background: var(--bg-soft);
+  border-radius: 14px;
+}
+.pc-info.neg { background: var(--expense-soft); }
+.pc-info-icon {
+  width: 28px; height: 28px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 18px;
+}
+.pc-info.neg .pc-info-icon { background: var(--expense-soft); color: var(--expense); }
+.pc-info-bal {
+  font-weight: 700; font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.pc-info.neg .pc-info-bal { color: var(--expense); }
+.pc-info-side {
+  text-align: right;
+  display: flex; flex-direction: column; gap: 2px;
+}
+.pc-info-day {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+.pc-info-day .income { color: var(--income); }
+.pc-info-day .expense { color: var(--expense); }
+
+@media (max-width: 600px) {
+  .pc-summary { grid-template-columns: 1fr 1fr; }
+  .pc-summary-date { grid-column: 1 / -1; padding-top: 2px; padding-bottom: 0; }
+  .pc-summary .pc-value { font-size: 18px; }
+}
+
 /* ---------- Income vs Expense card ---------- */
 .ive-card { padding: 22px 24px 20px; }
 .ive-card .ive-head {
