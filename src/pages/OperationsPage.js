@@ -90,10 +90,6 @@ export function OperationsPage() {
   const setF = (k, v) => setFilters(p => ({ ...p, [k]: v }));
   const hasFilter = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
 
-  async function duplicate(op) {
-    await store.actions.operations.duplicate(op.id);
-    store.pushToast("Операция продублирована", "success");
-  }
   async function remove(op) {
     await store.actions.operations.remove(op.id);
     setConfirmDel(null);
@@ -227,7 +223,6 @@ export function OperationsPage() {
                       ${op.kind === "income" ? "+" : op.kind === "expense" ? "−" : ""}${fmt(op.amount, acc?.currency)}
                     </div>
                     <div class="row-actions" style="margin-left:8px;" onClick=${e => e.stopPropagation()}>
-                      <button class="btn-mini" title="Дублировать" onClick=${() => duplicate(op)}>${Icon.copy()}</button>
                       <button class="btn-mini" title="Удалить" onClick=${() => setConfirmDel(op)}>${Icon.trash()}</button>
                     </div>
                   </div>
