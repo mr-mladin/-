@@ -531,13 +531,13 @@ input, select, textarea { font: inherit; color: inherit; }
 .pc-summary {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 18px;
+  gap: 14px;
   align-items: end;
-  padding: 4px 4px 12px;
+  padding: 0 0 8px;
 }
-.pc-summary .pc-label { font-size: 13px; color: var(--text-mute); }
+.pc-summary .pc-label { font-size: 12px; color: var(--text-mute); }
 .pc-summary .pc-value {
-  font-size: 22px; font-weight: 700; letter-spacing: -0.02em;
+  font-size: 18px; font-weight: 700; letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   margin-top: 2px;
 }
@@ -607,24 +607,24 @@ input, select, textarea { font: inherit; color: inherit; }
   display: grid;
   grid-template-columns: auto 1fr auto;
   align-items: center;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 12px;
+  padding: 10px 14px;
   margin-top: 8px;
   background: var(--bg-soft);
-  border-radius: 14px;
+  border-radius: 12px;
 }
 .pc-info.neg { background: var(--expense-soft); }
 .pc-info-icon {
-  width: 28px; height: 28px;
+  width: 22px; height: 22px;
   display: grid; place-items: center;
   border-radius: 50%;
   background: var(--accent-soft);
   color: var(--accent);
-  font-size: 18px;
+  font-size: 14px;
 }
 .pc-info.neg .pc-info-icon { background: var(--expense-soft); color: var(--expense); }
 .pc-info-bal {
-  font-weight: 700; font-size: 18px;
+  font-weight: 700; font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
 .pc-info.neg .pc-info-bal { color: var(--expense); }
