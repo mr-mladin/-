@@ -116,6 +116,14 @@ const MONTHS = [
   "июля", "августа", "сентября", "октября", "ноября", "декабря"
 ];
 const MONTHS_SHORT = ["янв", "фев", "мар", "апр", "май", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+const MONTHS_NOM = [
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"
+];
+const MONTHS_LOC = [
+  "январе", "феврале", "марте", "апреле", "мае", "июне",
+  "июле", "августе", "сентябре", "октябре", "ноябре", "декабре"
+];
 const WEEKDAYS = ["вс", "пн", "вт", "ср", "чт", "пт", "сб"];
 
 export function todayISO() {
@@ -191,7 +199,15 @@ export function shiftFinMonth(date, delta, financialMonthStart = 1) {
 }
 
 export function finMonthLabel(date) {
-  return `${MONTHS[date.getMonth()][0].toUpperCase()}${MONTHS[date.getMonth()].slice(1)} ${date.getFullYear()}`;
+  return `${MONTHS_NOM[date.getMonth()]} ${date.getFullYear()}`;
+}
+
+export function monthLocative(date) {
+  return MONTHS_LOC[date.getMonth()];
+}
+
+export function monthNominative(date) {
+  return MONTHS_NOM[date.getMonth()];
 }
 
 export function startOfWeek(date, firstDay = 1) {
