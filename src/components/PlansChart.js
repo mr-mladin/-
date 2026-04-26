@@ -9,8 +9,8 @@ import { useState, useRef, useEffect, useMemo } from "preact/hooks";
 import { useStore } from "../lib/store.js";
 import { formatAmount, fromISO, toISO } from "../lib/format.js";
 
-const PAD = { top: 16, right: 16, bottom: 28, left: 56 };
-const HEIGHT = 240;
+const PAD = { top: 14, right: 16, bottom: 24, left: 50 };
+const HEIGHT = 170;
 
 // Округлить максимум до «красивого» числа: 1k, 2.5k, 5k, 10k, ...
 function niceMax(value) {

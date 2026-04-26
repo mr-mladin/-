@@ -122,7 +122,7 @@ export function DashboardPage() {
       </div>
     </div>
 
-    <div class="row cols-2" style="align-items:start;margin-bottom:18px;">
+    <div class="row cols-2" style="align-items:stretch;margin-bottom:18px;">
     <div class="card ive-card">
       <div class="ive-head">
         <h2>Доходы vs Расходы</h2>
