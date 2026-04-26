@@ -111,11 +111,28 @@ export function OperationForm({ initial, onClose }) {
     `;
   }
 
+  async function onDuplicate() {
+    setBusy(true);
+    try {
+      await store.actions.operations.duplicate(initial.id);
+      store.pushToast("Операция продублирована", "success");
+      onClose?.();
+    } catch (e) {
+      setError(e.message || "Не удалось продублировать");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return html`
     <${Modal}
       title=${editing ? "Редактировать операцию" : "Новая операция"}
       onClose=${onClose}
       footer=${html`
+        ${editing && html`
+          <button class="btn ghost" onClick=${onDuplicate} disabled=${busy}
+            style="margin-right:auto;">${Icon.copy()} Дублировать</button>
+        `}
         <button class="btn ghost" onClick=${onClose}>Отмена</button>
         <button class="btn primary" onClick=${submit} disabled=${busy}>
           ${busy ? "Сохранение…" : (editing ? "Сохранить" : "Добавить")}
