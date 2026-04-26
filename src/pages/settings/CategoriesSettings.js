@@ -3,8 +3,9 @@ import { useState, useMemo } from "preact/hooks";
 import { useStore } from "../../lib/store.js";
 import { Icon } from "../../lib/icons.js";
 import { Modal, ConfirmModal } from "../../components/Modal.js";
+import { IconPicker, renderIcon } from "../../components/IconPicker.js";
 
-const COLORS = ["#6366f1", "#10b981", "#0ea5e9", "#f59e0b", "#ec4899", "#8b5cf6", "#22c55e", "#ef4444", "#06b6d4", "#94a3b8"];
+const COLORS = ["#16a34a", "#0ea5e9", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#22c55e", "#14b8a6", "#f97316", "#6366f1", "#94a3b8"];
 
 export function CategoriesSettings() {
   const store = useStore();
@@ -80,7 +81,7 @@ function CategoryRow({ cat, idx, total, children, onEdit, onDelete, onAddChild }
   return html`
     <div>
       <div class="list-row">
-        <span class="color-dot" style=${`background:${cat.color || "var(--accent)"};`}></span>
+        <span class="lr-icon" style=${`color:${cat.color || "var(--accent)"};background:${(cat.color || "#16a34a")}1f;`}>${renderIcon(cat.icon, "tag")}</span>
         <div class="lr-main"><div class="lr-title">${cat.name}</div></div>
         <div class="row-actions">
           <button class="btn-mini" title="Подкатегория" onClick=${() => onAddChild(cat)}>${Icon.plus()}</button>
@@ -98,7 +99,7 @@ function CategoryRow({ cat, idx, total, children, onEdit, onDelete, onAddChild }
         <div style="padding-left:32px;">
           ${children.map((c, i) => html`
             <div class="list-row" key=${c.id}>
-              <span class="color-dot" style=${`background:${c.color || "var(--accent)"};`}></span>
+              <span class="lr-icon" style=${`color:${c.color || "var(--accent)"};background:${(c.color || "#16a34a")}1f;width:28px;height:28px;flex:0 0 28px;`}>${renderIcon(c.icon, "tag")}</span>
               <div class="lr-main"><div class="lr-title">${c.name}</div></div>
               <div class="row-actions">
                 <button class="btn-mini" title="Выше"
@@ -126,6 +127,7 @@ function CategoryForm({ initial, defaultKind, defaultParentId, onClose }) {
   const [kind, setKind] = useState(initial?.kind || defaultKind || "expense");
   const [parentId, setParentId] = useState(initial?.parent_id || defaultParentId || "");
   const [color, setColor] = useState(initial?.color || COLORS[0]);
+  const [icon, setIcon] = useState(initial?.icon || "tag");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -140,7 +142,7 @@ function CategoryForm({ initial, defaultKind, defaultParentId, onClose }) {
     if (!name.trim()) { setError("Введите название"); return; }
     setBusy(true);
     try {
-      const payload = { name: name.trim(), kind, parent_id: parentId || null, color };
+      const payload = { name: name.trim(), kind, parent_id: parentId || null, color, icon };
       if (editing) await store.actions.categories.update(initial.id, payload);
       else await store.actions.categories.create(payload);
       store.pushToast(editing ? "Категория обновлена" : "Категория создана", "success");
@@ -176,6 +178,10 @@ function CategoryForm({ initial, defaultKind, defaultParentId, onClose }) {
             <option value="">— нет, верхний уровень —</option>
             ${possibleParents.map(p => html`<option value=${p.id} key=${p.id}>${p.name}</option>`)}
           </select>
+        </div>
+        <div class="field">
+          <label>Иконка</label>
+          <${IconPicker} value=${icon} onChange=${setIcon} />
         </div>
         <div class="field">
           <label>Цвет</label>

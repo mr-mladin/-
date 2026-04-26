@@ -4,6 +4,7 @@ import { useStore } from "../lib/store.js";
 import { CURRENCIES, parseAmount } from "../lib/format.js";
 import { Modal } from "./Modal.js";
 import { AmountInput } from "./AmountInput.js";
+import { IconPicker } from "./IconPicker.js";
 
 const COLORS = ["#16a34a", "#0ea5e9", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#22c55e", "#14b8a6", "#f97316", "#6366f1", "#94a3b8"];
 
@@ -14,6 +15,7 @@ export function AccountForm({ initial, onClose }) {
   const [currency, setCurrency] = useState(initial?.currency || store.profile?.base_currency || "RUB");
   const [initialBalance, setInitialBalance] = useState(initial ? String(initial.initial_balance) : "0");
   const [color, setColor] = useState(initial?.color || COLORS[0]);
+  const [icon, setIcon] = useState(initial?.icon || "wallet");
   const [archived, setArchived] = useState(initial?.archived || false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +28,7 @@ export function AccountForm({ initial, onClose }) {
     if (isNaN(bal)) { setError("Стартовый баланс должен быть числом"); return; }
     setBusy(true);
     try {
-      const payload = { name: name.trim(), currency, initial_balance: bal, color, archived };
+      const payload = { name: name.trim(), currency, initial_balance: bal, color, icon, archived };
       if (editing) await store.actions.accounts.update(initial.id, payload);
       else await store.actions.accounts.create(payload);
       store.pushToast(editing ? "Счёт обновлён" : "Счёт создан", "success");
@@ -61,6 +63,10 @@ export function AccountForm({ initial, onClose }) {
             <label>Стартовый баланс</label>
             <${AmountInput} value=${initialBalance} onChange=${setInitialBalance} />
           </div>
+        </div>
+        <div class="field">
+          <label>Иконка</label>
+          <${IconPicker} value=${icon} onChange=${setIcon} />
         </div>
         <div class="field">
           <label>Цвет</label>

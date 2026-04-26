@@ -8,6 +8,7 @@ import {
 import { Icon } from "../lib/icons.js";
 import { Modal, ConfirmModal } from "../components/Modal.js";
 import { AmountInput } from "../components/AmountInput.js";
+import { renderIcon } from "../components/IconPicker.js";
 
 export function BudgetsPage() {
   const store = useStore();
@@ -76,7 +77,7 @@ export function BudgetsPage() {
             <div class="card" style="padding:18px;" key=${budget.id}>
               <div class="between">
                 <div class="flex">
-                  <span class="color-dot" style=${`background:${category.color || "var(--accent)"};`}></span>
+                  <span class="lr-icon" style=${`color:${category.color || "var(--accent)"};background:${(category.color || "#16a34a")}1f;width:32px;height:32px;flex:0 0 32px;border-radius:9px;`}>${renderIcon(category.icon, "tag")}</span>
                   <div>
                     <div style="font-weight:600;">${category.name}</div>
                     <div class="muted" style="font-size:12px;">из ${fmt(limit)}</div>
