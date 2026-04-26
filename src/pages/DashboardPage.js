@@ -17,6 +17,7 @@ export function DashboardPage() {
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
   const [creatingAccount, setCreatingAccount] = useState(false);
+  const [editingAccount, setEditingAccount] = useState(null);
   const [monthOffset, setMonthOffset] = useState(0);
 
   const fmt = (v, c) => formatAmount(v, c || profile?.base_currency || "RUB", profile?.number_format || "space");
@@ -180,7 +181,9 @@ export function DashboardPage() {
               ${accounts.filter(a => !a.archived).map(a => {
                 const bal = accountBalance(a, operations);
                 return html`
-                  <div class="list-row" key=${a.id}>
+                  <div class="list-row clickable" key=${a.id}
+                       onClick=${() => setEditingAccount(a)}
+                       style="cursor:pointer;">
                     <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};background:${(a.color || "#16a34a")}1f;`}>${renderIcon(a.icon, "wallet")}</div>
                     <div class="lr-main">
                       <div class="lr-title">${a.name}</div>
@@ -263,6 +266,7 @@ export function DashboardPage() {
     ${adding && html`<${OperationForm} onClose=${() => setAdding(false)} />`}
     ${editing && html`<${OperationForm} initial=${editing} onClose=${() => setEditing(null)} />`}
     ${creatingAccount && html`<${AccountForm} onClose=${() => setCreatingAccount(false)} />`}
+    ${editingAccount && html`<${AccountForm} initial=${editingAccount} onClose=${() => setEditingAccount(null)} />`}
   `;
 }
 
