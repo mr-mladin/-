@@ -66,14 +66,19 @@ export function AuthPage() {
 
 function translate(msg) {
   const m = String(msg).toLowerCase();
-  if (m.includes("invalid login")) return "Неверный email или пароль";
+  if (m.includes("invalid login") || m.includes("invalid credentials")) return "Неверный email или пароль";
   if (m.includes("already registered") || m.includes("user already")) return "Этот email уже зарегистрирован";
   if (m.includes("password should be")) return "Пароль должен быть минимум 6 символов";
-  if (m.includes("rate limit")) return "Слишком много попыток. Подождите минуту";
+  if (m.includes("rate limit") || m.includes("too many")) return "Слишком много попыток. Подождите минуту";
   if (m.includes("failed to fetch") || m.includes("networkerror") || m.includes("network")) {
     return "Не удалось связаться с сервером. Проверьте подключение к интернету или сообщите автору сайта.";
   }
   if (m.includes("email not confirmed")) return "Email не подтверждён. Откройте ссылку из письма";
   if (m.includes("invalid email")) return "Введите корректный email";
+  if (m.includes("database error") || m.includes("unexpected_failure")) {
+    return "Ошибка базы данных. Возможно, не до конца настроен Supabase — сообщите автору сайта.";
+  }
+  if (m.includes("signup") && m.includes("disabled")) return "Регистрация временно отключена администратором";
+  if (m.includes("captcha")) return "Не пройдена проверка captcha";
   return msg;
 }
