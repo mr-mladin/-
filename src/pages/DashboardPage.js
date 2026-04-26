@@ -121,7 +121,8 @@ export function DashboardPage() {
       </div>
     </div>
 
-    <div class="card ive-card" style="margin-bottom:18px;">
+    <div class="row cols-2" style="align-items:start;margin-bottom:18px;">
+    <div class="card ive-card">
       <div class="ive-head">
         <h2>Доходы vs Расходы</h2>
       </div>
@@ -155,12 +156,13 @@ export function DashboardPage() {
       </div>
     </div>
 
-    <div class="card" style="padding:18px 20px;margin-bottom:18px;">
+    <div class="card" style="padding:18px 20px;">
       <div class="section-head" style="margin-bottom:8px;">
         <h2>Динамика и планы</h2>
-        <span class="more">Наведите курсор на график</span>
+        <span class="more">Наведите курсор</span>
       </div>
       <${PlansChart} monthStart=${monthStart} monthEnd=${monthEnd} />
+    </div>
     </div>
 
     <div class="row cols-2" style="align-items:start;">
