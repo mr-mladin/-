@@ -3,7 +3,7 @@ import { useMemo, useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
 import {
   formatAmount, fromISO, toISO,
-  startOfFinMonth, endOfFinMonth, shiftFinMonth, finMonthLabel,
+  startOfFinMonth, endOfFinMonth, shiftFinMonth, finMonthLabel, monthLocative,
 } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
 import { OperationForm } from "../components/OperationForm.js";
@@ -38,6 +38,25 @@ export function DashboardPage() {
   const expenseFrac = income > 0
     ? Math.min(1, expense / income)
     : (expense > 0 ? 1 : 0);
+
+  // Прошлый период — для сравнения
+  const prevAnchor = useMemo(() => shiftFinMonth(monthAnchor, -1, finStart), [monthAnchor, finStart]);
+  const prevStart = startOfFinMonth(prevAnchor, finStart);
+  const prevEnd = endOfFinMonth(prevAnchor, finStart);
+  const prevStartISO = toISO(prevStart);
+  const prevEndISO = toISO(prevEnd);
+  const prevOps = operations.filter(o => o.date >= prevStartISO && o.date <= prevEndISO);
+  const prevIncome = sum(prevOps.filter(o => o.kind === "income"), o => o.amount);
+  const prevExpense = sum(prevOps.filter(o => o.kind === "expense"), o => o.amount);
+
+  const expensePct = income > 0 ? Math.round((expense / income) * 100) : (expense > 0 ? 100 : 0);
+  const prevExpensePct = prevIncome > 0 ? Math.round((prevExpense / prevIncome) * 100) : (prevExpense > 0 ? 100 : 0);
+
+  // Доли для полосок (масштаб от max(income, expense) — на случай перерасхода)
+  const ivMax = Math.max(income, expense, 1);
+  const incomeBarPct = (income / ivMax) * 100;
+  const expenseBarPct = (expense / ivMax) * 100;
+  const balancePct = ivMax > 0 ? (Math.max(0, diff) / ivMax) * 100 : 0;
 
   const totalBalance = useMemo(() => {
     let total = 0;
@@ -98,6 +117,40 @@ export function DashboardPage() {
            style=${`--expense-frac: ${(expenseFrac * 100).toFixed(2)}%;`}>
         <div class="h-bar-expense"></div>
         <div class="h-bar-balance"></div>
+      </div>
+    </div>
+
+    <div class="card ive-card" style="margin-bottom:18px;">
+      <div class="ive-head">
+        <h2>Доходы vs Расходы</h2>
+      </div>
+      <div class=${"ive-pct" + (expensePct > 100 ? " over" : "")}>${expensePct}%</div>
+      <div class="ive-sub">Доля расходов в ${monthLocative(monthStart)}</div>
+      <div class="ive-rows">
+        <div class="ive-row">
+          <div class="label">Доходы</div>
+          <div class="ive-bar income from-left">
+            <div class="fill" style=${`width:${incomeBarPct}%;`}></div>
+          </div>
+          <div class="amount" style="color:var(--income);">${fmt(income)}</div>
+        </div>
+        <div class="ive-row">
+          <div class="label">Расходы</div>
+          <div class="ive-bar expense from-left">
+            <div class="fill" style=${`width:${Math.min(100, expenseBarPct)}%;`}></div>
+          </div>
+          <div class="amount">${fmt(expense)}</div>
+        </div>
+        <div class="ive-row">
+          <div class="label">Остаток</div>
+          <div class="ive-bar balance from-right">
+            <div class="fill" style=${`width:${balancePct}%;`}></div>
+          </div>
+          <div class="amount" style=${diff < 0 ? "color:var(--expense);" : ""}>${fmt(diff)}</div>
+        </div>
+      </div>
+      <div class="ive-note">
+        ${ivNote(expensePct, prevExpensePct, monthLocative(monthStart))}
       </div>
     </div>
 
@@ -200,6 +253,20 @@ export function DashboardPage() {
 
 function sum(arr, getter) {
   return arr.reduce((s, x) => s + Number(getter(x) || 0), 0);
+}
+
+function ivNote(curPct, prevPct, locMonth) {
+  const cur = `В ${locMonth} на расходы ушло ${curPct}% от дохода.`;
+  if (prevPct === 0 && curPct === 0) {
+    return cur + " Данных за прошлый период пока нет.";
+  }
+  if (prevPct === 0) {
+    return cur + " В прошлом периоде доходов ещё не было.";
+  }
+  const delta = curPct - prevPct;
+  if (delta === 0) return cur + " Это столько же, сколько в прошлом периоде.";
+  if (delta > 0) return cur + ` В прошлом периоде было ${prevPct}% — стало больше на ${delta} п.п.`;
+  return cur + ` В прошлом периоде было ${prevPct}% — стало меньше на ${-delta} п.п.`;
 }
 
 function accountBalance(account, operations) {

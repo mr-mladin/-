@@ -523,6 +523,78 @@ input, select, textarea { font: inherit; color: inherit; }
 .list-row .lr-amount.expense { color: var(--expense); }
 .list-row .lr-amount.transfer { color: var(--transfer); }
 
+/* ---------- Income vs Expense card ---------- */
+.ive-card { padding: 22px 24px 20px; }
+.ive-card .ive-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+}
+.ive-card .ive-head h2 {
+  margin: 0; font-size: 17px; letter-spacing: -0.01em;
+}
+.ive-card .ive-pct {
+  margin-top: 14px;
+  font-size: 36px; font-weight: 700; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+.ive-card .ive-pct.over { color: var(--expense); }
+.ive-card .ive-sub {
+  color: var(--text-mute);
+  font-size: 14px;
+  margin-top: 2px;
+}
+.ive-rows {
+  display: flex; flex-direction: column;
+  gap: 14px;
+  margin-top: 22px;
+}
+.ive-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 130px;
+  gap: 16px;
+  align-items: center;
+}
+@media (max-width: 600px) {
+  .ive-row { grid-template-columns: 80px 1fr auto; }
+}
+.ive-row .label { color: var(--text); font-size: 14px; }
+.ive-row .amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ive-bar {
+  position: relative;
+  height: 8px;
+  background: var(--bg-soft);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.ive-bar > .fill {
+  position: absolute;
+  top: 0; bottom: 0;
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+.ive-bar.from-left > .fill { left: 0; }
+.ive-bar.from-right > .fill { right: 0; }
+.ive-bar.income > .fill { background: var(--income); }
+.ive-bar.expense > .fill { background: #1f2937; }
+:root[data-theme="dark"] .ive-bar.expense > .fill { background: #cbd5e1; }
+.ive-bar.balance > .fill { background: #14b8a6; }
+
+.ive-note {
+  margin-top: 18px;
+  padding: 14px 16px;
+  background: var(--bg-soft);
+  border-radius: 14px;
+  font-size: 14px;
+  color: var(--text-soft);
+  line-height: 1.5;
+}
+.ive-note b { color: var(--text); font-weight: 600; }
+
 /* ---------- Empty state ---------- */
 .empty {
   text-align: center;
