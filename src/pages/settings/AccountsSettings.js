@@ -60,7 +60,9 @@ export function AccountsSettings() {
               const bal = balance(a);
               const idx = visibleActive.findIndex(x => x.id === a.id);
               return html`
-                <div class="list-row" key=${a.id}>
+                <div class="list-row clickable" key=${a.id}
+                     onClick=${() => setEditing(a)}
+                     style="cursor:pointer;">
                   <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};background:${(a.color || "#16a34a")}1f;`}>${renderIcon(a.icon, "wallet")}</div>
                   <div class="lr-main">
                     <div class="lr-title">
@@ -70,7 +72,7 @@ export function AccountsSettings() {
                     <div class="lr-sub">${a.currency || "RUB"} • стартовый ${fmt(a.initial_balance, a.currency)}</div>
                   </div>
                   <div class="lr-amount">${fmt(bal, a.currency)}</div>
-                  <div class="row-actions" style="margin-left:8px;">
+                  <div class="row-actions" style="margin-left:8px;" onClick=${e => e.stopPropagation()}>
                     ${!a.archived && html`
                       <button class="btn-mini" title="Выше"
                         onClick=${() => store.actions.accounts.move(a.id, -1)}
@@ -79,7 +81,6 @@ export function AccountsSettings() {
                         onClick=${() => store.actions.accounts.move(a.id, +1)}
                         disabled=${idx >= visibleActive.length - 1}>${Icon.down()}</button>
                     `}
-                    <button class="btn-mini" title="Изменить" onClick=${() => setEditing(a)}>${Icon.edit()}</button>
                     <button class="btn-mini" title="Удалить" onClick=${() => setConfirmDel(a)}>${Icon.trash()}</button>
                   </div>
                 </div>
