@@ -205,7 +205,9 @@ export function OperationsPage() {
                 const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
 
                 return html`
-                  <div class="list-row" key=${op.id}>
+                  <div class="list-row clickable" key=${op.id}
+                       onClick=${() => setEditing(op)}
+                       style="cursor:pointer;">
                     <span class="lr-icon" style=${`color:${dotColor};background:${dotColor}1f;`}>${renderIcon(iconName, "dot")}</span>
                     <div class="lr-main">
                       <div class="lr-title">${title}</div>
@@ -224,8 +226,7 @@ export function OperationsPage() {
                     <div class=${"lr-amount " + op.kind}>
                       ${op.kind === "income" ? "+" : op.kind === "expense" ? "−" : ""}${fmt(op.amount, acc?.currency)}
                     </div>
-                    <div class="row-actions" style="margin-left:8px;">
-                      <button class="btn-mini" title="Редактировать" onClick=${() => setEditing(op)}>${Icon.edit()}</button>
+                    <div class="row-actions" style="margin-left:8px;" onClick=${e => e.stopPropagation()}>
                       <button class="btn-mini" title="Дублировать" onClick=${() => duplicate(op)}>${Icon.copy()}</button>
                       <button class="btn-mini" title="Удалить" onClick=${() => setConfirmDel(op)}>${Icon.trash()}</button>
                     </div>

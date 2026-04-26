@@ -15,6 +15,7 @@ import { href } from "../lib/router.js";
 export function DashboardPage() {
   const { profile, accounts, categories, operations } = useStore();
   const [adding, setAdding] = useState(false);
+  const [editing, setEditing] = useState(null);
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
 
@@ -241,7 +242,9 @@ export function DashboardPage() {
               const dotColor = cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)");
               const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
               return html`
-                <div class="list-row" key=${op.id}>
+                <div class="list-row clickable" key=${op.id}
+                     onClick=${() => setEditing(op)}
+                     style="cursor:pointer;">
                   <span class="lr-icon" style=${`color:${dotColor};background:${dotColor}1f;`}>${renderIcon(iconName, "dot")}</span>
                   <div class="lr-main">
                     <div class="lr-title">${rowTitle(op, accounts, cat, parentCat)}</div>
@@ -258,6 +261,7 @@ export function DashboardPage() {
     </div>
 
     ${adding && html`<${OperationForm} onClose=${() => setAdding(false)} />`}
+    ${editing && html`<${OperationForm} initial=${editing} onClose=${() => setEditing(null)} />`}
     ${creatingAccount && html`<${AccountForm} onClose=${() => setCreatingAccount(false)} />`}
   `;
 }
