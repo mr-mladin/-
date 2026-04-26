@@ -5,6 +5,7 @@ import { formatAmount, parseAmount, formatDate } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
 import { Modal, ConfirmModal } from "../components/Modal.js";
 import { AmountInput } from "../components/AmountInput.js";
+import { renderIcon } from "../components/IconPicker.js";
 import { navigate } from "../lib/router.js";
 
 const COLORS = ["#16a34a", "#0ea5e9", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#22c55e", "#14b8a6", "#f97316", "#6366f1"];
@@ -96,7 +97,7 @@ export function GoalsPage() {
                     ${left > 0 ? `Осталось ${fmt(left)}` : "Цель достигнута"}
                   </span>
                   ${acc
-                    ? html`<span class="muted" style="font-size:12px;">${Icon.wallet()} ${acc.name}</span>`
+                    ? html`<span class="muted flex" style="font-size:12px;gap:4px;">${renderIcon(acc.icon, "wallet")} ${acc.name}</span>`
                     : html`<button class="btn sm ghost" onClick=${() => setEditing(g)}>Привязать счёт</button>`}
                 </div>
               </div>

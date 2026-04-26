@@ -8,6 +8,7 @@ import {
 import { Icon } from "../lib/icons.js";
 import { OperationForm } from "../components/OperationForm.js";
 import { AccountForm } from "../components/AccountForm.js";
+import { renderIcon } from "../components/IconPicker.js";
 import { href } from "../lib/router.js";
 
 export function DashboardPage() {
@@ -115,7 +116,7 @@ export function DashboardPage() {
                 const bal = accountBalance(a, operations);
                 return html`
                   <div class="list-row" key=${a.id}>
-                    <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};`}>${Icon.wallet()}</div>
+                    <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};background:${(a.color || "#16a34a")}1f;`}>${renderIcon(a.icon, "wallet")}</div>
                     <div class="lr-main">
                       <div class="lr-title">${a.name}</div>
                       <div class="lr-sub">${a.currency || "RUB"}</div>
@@ -146,7 +147,7 @@ export function DashboardPage() {
                 const pct = total > 0 ? Math.round((amount / total) * 100) : 0;
                 return html`
                   <div class="list-row" key=${category.id}>
-                    <span class="color-dot" style=${`background:${category.color || "var(--accent)"};`}></span>
+                    <span class="lr-icon" style=${`color:${category.color || "var(--accent)"};background:${(category.color || "#16a34a")}1f;`}>${renderIcon(category.icon, "tag")}</span>
                     <div class="lr-main">
                       <div class="lr-title">${category.name}</div>
                       <div class="progress" style="margin-top:6px;"><div style=${`width:${pct}%;background:${category.color || "var(--accent)"};`}></div></div>
@@ -174,9 +175,10 @@ export function DashboardPage() {
               const cat = op.category_id ? categories.find(c => c.id === op.category_id) : null;
               const parentCat = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : null;
               const dotColor = cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)");
+              const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
               return html`
                 <div class="list-row" key=${op.id}>
-                  <span class="color-dot" style=${`background:${dotColor};`}></span>
+                  <span class="lr-icon" style=${`color:${dotColor};background:${dotColor}1f;`}>${renderIcon(iconName, "dot")}</span>
                   <div class="lr-main">
                     <div class="lr-title">${rowTitle(op, accounts, cat, parentCat)}</div>
                     <div class="lr-sub">${rowSub(op, acc, accounts)}</div>

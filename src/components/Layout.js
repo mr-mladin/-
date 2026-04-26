@@ -1,5 +1,4 @@
 import { html } from "htm/preact";
-import { useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
 import { href } from "../lib/router.js";
 import { Icon } from "../lib/icons.js";
@@ -13,7 +12,7 @@ const NAV = [
 ];
 
 export function Layout({ active, children }) {
-  const { user, auth } = useStore();
+  const { user } = useStore();
 
   return html`
     <div class="shell">
@@ -34,9 +33,6 @@ export function Layout({ active, children }) {
             <span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Аккаунт</span>
             <span class="email">${user?.email}</span>
           </div>
-          <button class="linklike" onClick=${() => auth.signOut()}>
-            ${Icon.signout()} <span style="margin-left:8px;">Выйти</span>
-          </button>
         </div>
       </aside>
 
@@ -46,9 +42,6 @@ export function Layout({ active, children }) {
             <span class="brand-mark">₽</span>
             <span>Финансы</span>
           </div>
-          <button class="icon-btn" onClick=${() => auth.signOut()} title="Выйти">
-            ${Icon.signout()}
-          </button>
         </div>
         <div class="content">
           ${children}

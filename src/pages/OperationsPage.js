@@ -5,6 +5,7 @@ import { formatAmount, formatDateRelative, parseAmount } from "../lib/format.js"
 import { Icon } from "../lib/icons.js";
 import { OperationForm } from "../components/OperationForm.js";
 import { ConfirmModal } from "../components/Modal.js";
+import { renderIcon } from "../components/IconPicker.js";
 
 const EMPTY_FILTERS = {
   search: "",
@@ -201,9 +202,11 @@ export function OperationsPage() {
                 if (op.kind === "transfer") sub = "Перевод между счетами";
                 else sub = acc?.name || "";
 
+                const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
+
                 return html`
                   <div class="list-row" key=${op.id}>
-                    <span class="color-dot" style=${`background:${dotColor};margin-right:2px;`}></span>
+                    <span class="lr-icon" style=${`color:${dotColor};background:${dotColor}1f;`}>${renderIcon(iconName, "dot")}</span>
                     <div class="lr-main">
                       <div class="lr-title">${title}</div>
                       <div class="lr-sub">

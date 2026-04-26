@@ -5,6 +5,7 @@ import { formatAmount } from "../../lib/format.js";
 import { Icon } from "../../lib/icons.js";
 import { ConfirmModal } from "../../components/Modal.js";
 import { AccountForm } from "../../components/AccountForm.js";
+import { renderIcon } from "../../components/IconPicker.js";
 
 export function AccountsSettings() {
   const store = useStore();
@@ -60,7 +61,7 @@ export function AccountsSettings() {
               const idx = visibleActive.findIndex(x => x.id === a.id);
               return html`
                 <div class="list-row" key=${a.id}>
-                  <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};`}>${Icon.wallet()}</div>
+                  <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};background:${(a.color || "#16a34a")}1f;`}>${renderIcon(a.icon, "wallet")}</div>
                   <div class="lr-main">
                     <div class="lr-title">
                       ${a.name}
