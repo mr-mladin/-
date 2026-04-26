@@ -2,6 +2,7 @@ import { html } from "htm/preact";
 import { useStore } from "./lib/store.js";
 import { useRoute } from "./lib/router.js";
 import { AuthPage } from "./pages/AuthPage.js";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage.js";
 import { Layout } from "./components/Layout.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
 import { OperationsPage } from "./pages/OperationsPage.js";
@@ -17,8 +18,11 @@ export function App() {
   if (!store.ready) {
     return html`<div class="boot"><div class="boot-spinner"></div></div>`;
   }
+  if (store.recovering) {
+    return html`<${ResetPasswordPage} /><${Toasts} />`;
+  }
   if (!store.user) {
-    return html`<${AuthPage} />`;
+    return html`<${AuthPage} /><${Toasts} />`;
   }
 
   let page;
