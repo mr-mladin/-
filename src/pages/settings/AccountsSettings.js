@@ -73,10 +73,10 @@ export function AccountsSettings() {
                   <div class="row-actions" style="margin-left:8px;">
                     ${!a.archived && html`
                       <button class="btn-mini" title="Выше"
-                        onClick=${() => store.accounts.move(a.id, -1)}
+                        onClick=${() => store.actions.accounts.move(a.id, -1)}
                         disabled=${idx <= 0}>${Icon.up()}</button>
                       <button class="btn-mini" title="Ниже"
-                        onClick=${() => store.accounts.move(a.id, +1)}
+                        onClick=${() => store.actions.accounts.move(a.id, +1)}
                         disabled=${idx >= visibleActive.length - 1}>${Icon.down()}</button>
                     `}
                     <button class="btn-mini" title="Изменить" onClick=${() => setEditing(a)}>${Icon.edit()}</button>
@@ -98,7 +98,7 @@ export function AccountsSettings() {
         message=${html`<div>Если на счёте есть операции — удалить не получится. Тогда заархивируйте его (откройте на редактирование).</div>`}
         onCancel=${() => setConfirmDel(null)}
         onConfirm=${async () => {
-          try { await store.accounts.remove(confirmDel.id); store.pushToast("Счёт удалён", "success"); }
+          try { await store.actions.accounts.remove(confirmDel.id); store.pushToast("Счёт удалён", "success"); }
           catch (e) { store.pushToast("Сначала удалите все операции этого счёта или заархивируйте его", "error"); }
           setConfirmDel(null);
         }}
@@ -127,8 +127,8 @@ function AccountForm({ initial, onClose }) {
     setBusy(true);
     try {
       const payload = { name: name.trim(), currency, initial_balance: bal, color, archived };
-      if (editing) await store.accounts.update(initial.id, payload);
-      else await store.accounts.create(payload);
+      if (editing) await store.actions.accounts.update(initial.id, payload);
+      else await store.actions.accounts.create(payload);
       store.pushToast(editing ? "Счёт обновлён" : "Счёт создан", "success");
       onClose();
     } catch (e) { setError(e.message); }

@@ -32,7 +32,7 @@ export function ProfileSettings() {
   async function update(patch) {
     setBusy(true);
     try {
-      await store.profile.update(patch);
+      await store.actions.profile.update(patch);
     } catch (e) { store.pushToast("Не удалось сохранить", "error"); }
     finally { setBusy(false); }
   }

@@ -34,10 +34,10 @@ export function TagsSettings() {
                 <div class="lr-main"><div class="lr-title">${t.name}</div></div>
                 <div class="row-actions">
                   <button class="btn-mini" title="Выше"
-                    onClick=${() => store.tags.move(t.id, -1)}
+                    onClick=${() => store.actions.tags.move(t.id, -1)}
                     disabled=${i <= 0}>${Icon.up()}</button>
                   <button class="btn-mini" title="Ниже"
-                    onClick=${() => store.tags.move(t.id, +1)}
+                    onClick=${() => store.actions.tags.move(t.id, +1)}
                     disabled=${i >= sorted.length - 1}>${Icon.down()}</button>
                   <button class="btn-mini" title="Изменить" onClick=${() => setEditing(t)}>${Icon.edit()}</button>
                   <button class="btn-mini" title="Удалить" onClick=${() => setConfirmDel(t)}>${Icon.trash()}</button>
@@ -57,7 +57,7 @@ export function TagsSettings() {
         message="Тег пропадёт со всех операций, но сами операции останутся."
         onCancel=${() => setConfirmDel(null)}
         onConfirm=${async () => {
-          await store.tags.remove(confirmDel.id);
+          await store.actions.tags.remove(confirmDel.id);
           store.pushToast("Тег удалён", "success");
           setConfirmDel(null);
         }}
@@ -78,8 +78,8 @@ function TagForm({ initial, onClose }) {
     if (!name.trim()) { setError("Введите название"); return; }
     setBusy(true);
     try {
-      if (editing) await store.tags.update(initial.id, { name: name.trim() });
-      else await store.tags.create({ name: name.trim() });
+      if (editing) await store.actions.tags.update(initial.id, { name: name.trim() });
+      else await store.actions.tags.create({ name: name.trim() });
       store.pushToast(editing ? "Тег обновлён" : "Тег создан", "success");
       onClose();
     } catch (e) {

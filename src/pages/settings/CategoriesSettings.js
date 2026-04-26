@@ -66,7 +66,7 @@ export function CategoriesSettings() {
         message=${html`<div>Подкатегории удалятся вместе с ней. У операций в этой категории «категория» обнулится — операции останутся.</div>`}
         onCancel=${() => setConfirmDel(null)}
         onConfirm=${async () => {
-          try { await store.categories.remove(confirmDel.id); store.pushToast("Категория удалена", "success"); }
+          try { await store.actions.categories.remove(confirmDel.id); store.pushToast("Категория удалена", "success"); }
           catch (e) { store.pushToast("Не удалось удалить", "error"); }
           setConfirmDel(null);
         }}
@@ -85,10 +85,10 @@ function CategoryRow({ cat, idx, total, children, onEdit, onDelete, onAddChild }
         <div class="row-actions">
           <button class="btn-mini" title="Подкатегория" onClick=${() => onAddChild(cat)}>${Icon.plus()}</button>
           <button class="btn-mini" title="Выше"
-            onClick=${() => store.categories.move(cat.id, -1)}
+            onClick=${() => store.actions.categories.move(cat.id, -1)}
             disabled=${idx <= 0}>${Icon.up()}</button>
           <button class="btn-mini" title="Ниже"
-            onClick=${() => store.categories.move(cat.id, +1)}
+            onClick=${() => store.actions.categories.move(cat.id, +1)}
             disabled=${idx >= total - 1}>${Icon.down()}</button>
           <button class="btn-mini" title="Изменить" onClick=${() => onEdit(cat)}>${Icon.edit()}</button>
           <button class="btn-mini" title="Удалить" onClick=${() => onDelete(cat)}>${Icon.trash()}</button>
@@ -102,10 +102,10 @@ function CategoryRow({ cat, idx, total, children, onEdit, onDelete, onAddChild }
               <div class="lr-main"><div class="lr-title">${c.name}</div></div>
               <div class="row-actions">
                 <button class="btn-mini" title="Выше"
-                  onClick=${() => store.categories.move(c.id, -1)}
+                  onClick=${() => store.actions.categories.move(c.id, -1)}
                   disabled=${i <= 0}>${Icon.up()}</button>
                 <button class="btn-mini" title="Ниже"
-                  onClick=${() => store.categories.move(c.id, +1)}
+                  onClick=${() => store.actions.categories.move(c.id, +1)}
                   disabled=${i >= children.length - 1}>${Icon.down()}</button>
                 <button class="btn-mini" title="Изменить" onClick=${() => onEdit(c)}>${Icon.edit()}</button>
                 <button class="btn-mini" title="Удалить" onClick=${() => onDelete(c)}>${Icon.trash()}</button>
@@ -141,8 +141,8 @@ function CategoryForm({ initial, defaultKind, defaultParentId, onClose }) {
     setBusy(true);
     try {
       const payload = { name: name.trim(), kind, parent_id: parentId || null, color };
-      if (editing) await store.categories.update(initial.id, payload);
-      else await store.categories.create(payload);
+      if (editing) await store.actions.categories.update(initial.id, payload);
+      else await store.actions.categories.create(payload);
       store.pushToast(editing ? "Категория обновлена" : "Категория создана", "success");
       onClose();
     } catch (e) { setError(e.message); }

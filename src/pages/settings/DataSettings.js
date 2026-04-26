@@ -46,14 +46,14 @@ export function DataSettings() {
       if (!name) return null;
       const key = `${kind}|${parentId || ""}|${name.toLowerCase()}`;
       if (categoryByName.has(key)) return categoryByName.get(key);
-      const cat = await store.categories.create({ name, kind, parent_id: parentId });
+      const cat = await store.actions.categories.create({ name, kind, parent_id: parentId });
       categoryByName.set(key, cat);
       return cat;
     }
     async function ensureTag(name) {
       const key = name.toLowerCase();
       if (tagByName.has(key)) return tagByName.get(key);
-      const t = await store.tags.create({ name });
+      const t = await store.actions.tags.create({ name });
       tagByName.set(key, t);
       return t;
     }
@@ -87,7 +87,7 @@ export function DataSettings() {
           if (t) tagIds.push(t.id);
         }
 
-        await store.operations.create({
+        await store.actions.operations.create({
           kind: row.kind,
           amount: row.amount,
           account_id: account.id,

@@ -59,7 +59,7 @@ export function OperationForm({ initial, onClose }) {
   async function addTagFromText() {
     const name = newTagText.trim();
     if (!name) return;
-    const t = await store.tags.findOrCreateByName(name);
+    const t = await store.actions.tags.findOrCreateByName(name);
     if (t && !tagIds.includes(t.id)) setTagIds(p => [...p, t.id]);
     setNewTagText("");
   }
@@ -87,10 +87,10 @@ export function OperationForm({ initial, onClose }) {
     setBusy(true);
     try {
       if (editing) {
-        await store.operations.update(initial.id, payload, tagIds);
+        await store.actions.operations.update(initial.id, payload, tagIds);
         store.pushToast("Операция обновлена", "success");
       } else {
-        await store.operations.create(payload, tagIds);
+        await store.actions.operations.create(payload, tagIds);
         store.pushToast("Операция добавлена", "success");
       }
       onClose?.();

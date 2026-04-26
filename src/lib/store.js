@@ -370,13 +370,15 @@ export function StoreProvider({ children }) {
     toasts,
     pushToast,
     auth,
-    accounts,
-    categories,
-    tags,
-    operations,
-    budgets,
-    goals,
-    profile,
+    actions: {
+      accounts,
+      categories,
+      tags,
+      operations,
+      budgets,
+      goals,
+      profile,
+    },
   };
 
   return h(StoreContext.Provider, { value }, children);
