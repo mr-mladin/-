@@ -9,6 +9,7 @@ import { Icon } from "../lib/icons.js";
 import { OperationForm } from "../components/OperationForm.js";
 import { AccountForm } from "../components/AccountForm.js";
 import { renderIcon } from "../components/IconPicker.js";
+import { PlansChart } from "../components/PlansChart.js";
 import { href } from "../lib/router.js";
 
 export function DashboardPage() {
@@ -152,6 +153,14 @@ export function DashboardPage() {
       <div class="ive-note">
         ${ivNote(expensePct, prevExpensePct, monthLocative(monthStart))}
       </div>
+    </div>
+
+    <div class="card" style="padding:18px 20px;margin-bottom:18px;">
+      <div class="section-head" style="margin-bottom:8px;">
+        <h2>Динамика и планы</h2>
+        <span class="more">Наведите курсор на график</span>
+      </div>
+      <${PlansChart} monthStart=${monthStart} monthEnd=${monthEnd} />
     </div>
 
     <div class="row cols-2" style="align-items:start;">

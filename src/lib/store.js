@@ -21,6 +21,7 @@ const initialState = {
   operationTags: [],   // [{ operation_id, tag_id }]
   budgets: [],
   goals: [],
+  plannedOperations: [],
   toast: null,
 };
 
@@ -86,7 +87,7 @@ export function StoreProvider({ children }) {
         payload: {
           loading: false, ready: true, profile: null,
           accounts: [], categories: [], tags: [], operations: [],
-          operationTags: [], budgets: [], goals: [],
+          operationTags: [], budgets: [], goals: [], plannedOperations: [],
         }
       });
     });
@@ -96,7 +97,7 @@ export function StoreProvider({ children }) {
   // Загрузить всё
   async function loadAll(userId) {
     try {
-      const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes] = await Promise.all([
+      const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes, plannedRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("accounts").select("*").order("sort_order").order("created_at"),
         supabase.from("categories").select("*").order("sort_order").order("created_at"),
@@ -105,6 +106,7 @@ export function StoreProvider({ children }) {
         supabase.from("operation_tags").select("*"),
         supabase.from("budgets").select("*"),
         supabase.from("goals").select("*").order("sort_order").order("created_at"),
+        supabase.from("planned_operations").select("*").order("date"),
       ]);
 
       let profile = profileRes.data;
@@ -129,6 +131,7 @@ export function StoreProvider({ children }) {
           operationTags: opTagsRes.data || [],
           budgets: budgetsRes.data || [],
           goals: goalsRes.data || [],
+          plannedOperations: plannedRes.data || [],
         }
       });
 
