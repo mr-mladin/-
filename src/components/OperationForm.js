@@ -4,6 +4,7 @@ import { useStore } from "../lib/store.js";
 import { parseAmount, todayISO, currencySymbol } from "../lib/format.js";
 import { Modal } from "./Modal.js";
 import { Icon } from "../lib/icons.js";
+import { AmountInput } from "./AmountInput.js";
 
 export function OperationForm({ initial, onClose }) {
   const store = useStore();
@@ -131,8 +132,7 @@ export function OperationForm({ initial, onClose }) {
         <div class="field">
           <label>Сумма</label>
           <div style="position:relative;">
-            <input class="input amount" inputmode="decimal" placeholder="0,00"
-                   value=${amount} onInput=${e => setAmount(e.target.value)} />
+            <${AmountInput} value=${amount} onChange=${setAmount} placeholder="0,00" />
             <span style="position:absolute;right:14px;top:50%;transform:translateY(-50%);color:var(--text-mute);">
               ${currencySymbol(account?.currency || "RUB")}
             </span>
@@ -166,8 +166,7 @@ export function OperationForm({ initial, onClose }) {
             ${toAccount && account && toAccount.currency !== account.currency && html`
               <div class="field">
                 <label>Сумма зачисления (${currencySymbol(toAccount.currency)})</label>
-                <input class="input" inputmode="decimal" placeholder=${amount || "0,00"}
-                       value=${toAmount} onInput=${e => setToAmount(e.target.value)} />
+                <${AmountInput} value=${toAmount} onChange=${setToAmount} placeholder=${amount || "0,00"} />
               </div>
             `}
           </div>
@@ -178,14 +177,12 @@ export function OperationForm({ initial, onClose }) {
             <label>Категория</label>
             <select class="select" value=${categoryId} onChange=${e => setCategoryId(e.target.value)}>
               <option value="">— без категории —</option>
-              ${tree.parents.map(p => html`
-                <optgroup label=${p.name} key=${p.id}>
-                  <option value=${p.id}>${p.name}</option>
-                  ${tree.childrenOf(p.id).map(c => html`
-                    <option value=${c.id} key=${c.id}>— ${c.name}</option>
-                  `)}
-                </optgroup>
-              `)}
+              ${tree.parents.flatMap(p => [
+                html`<option value=${p.id} key=${p.id}>${p.name}</option>`,
+                ...tree.childrenOf(p.id).map(c => html`
+                  <option value=${c.id} key=${c.id}>    └ ${c.name}</option>
+                `)
+              ])}
             </select>
           </div>
         `}

@@ -7,6 +7,7 @@ import {
 } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
 import { Modal, ConfirmModal } from "../components/Modal.js";
+import { AmountInput } from "../components/AmountInput.js";
 
 export function BudgetsPage() {
   const store = useStore();
@@ -169,8 +170,7 @@ function BudgetForm({ initial, onClose }) {
         </div>
         <div class="field">
           <label>Лимит на месяц</label>
-          <input class="input amount" inputmode="decimal" placeholder="0,00"
-            value=${amount} onInput=${e => setAmount(e.target.value)} />
+          <${AmountInput} value=${amount} onChange=${setAmount} placeholder="0,00" />
         </div>
         ${error && html`<div class="notice error">${error}</div>`}
       </form>

@@ -186,19 +186,28 @@ export function OperationsPage() {
             <div class="list">
               ${ops.map(op => {
                 const acc = accounts.find(a => a.id === op.account_id);
+                const toAcc = op.to_account_id ? accounts.find(a => a.id === op.to_account_id) : null;
                 const cat = op.category_id ? categories.find(c => c.id === op.category_id) : null;
+                const parentCat = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : null;
                 const opTagIds = tagsByOp.get(op.id) || [];
+                const dotColor = cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)");
+
+                let title;
+                if (op.kind === "transfer") title = `${acc?.name || "?"} → ${toAcc?.name || "?"}`;
+                else if (cat) title = parentCat ? `${parentCat.name} • ${cat.name}` : cat.name;
+                else title = op.kind === "income" ? "Доход" : "Расход";
+
+                let sub;
+                if (op.kind === "transfer") sub = "Перевод между счетами";
+                else sub = acc?.name || "";
+
                 return html`
                   <div class="list-row" key=${op.id}>
-                    <div class="lr-icon" style=${`color:${cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)")};`}>
-                      ${op.kind === "income" ? Icon.arrowDown() : op.kind === "transfer" ? Icon.swap() : Icon.arrowUp()}
-                    </div>
+                    <span class="color-dot" style=${`background:${dotColor};margin-right:2px;`}></span>
                     <div class="lr-main">
-                      <div class="lr-title">
-                        ${cat?.name || (op.kind === "transfer" ? `${acc?.name} → ${accounts.find(a => a.id === op.to_account_id)?.name || "?"}` : (op.kind === "income" ? "Доход" : "Расход"))}
-                      </div>
+                      <div class="lr-title">${title}</div>
                       <div class="lr-sub">
-                        ${acc?.name || ""}${op.note ? " • " + op.note : ""}
+                        ${sub}${op.note ? ` • ${op.note}` : ""}
                         ${opTagIds.length > 0 && html`
                           <span style="margin-left:6px;">
                             ${opTagIds.map(tid => {
