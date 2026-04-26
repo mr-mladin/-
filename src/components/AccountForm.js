@@ -70,11 +70,23 @@ export function AccountForm({ initial, onClose }) {
         </div>
         <div class="field">
           <label>Цвет</label>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             ${COLORS.map(c => html`
               <button type="button" key=${c} onClick=${() => setColor(c)}
                 style=${`width:28px;height:28px;border-radius:50%;border:2px solid ${color === c ? "var(--text)" : "transparent"};background:${c};cursor:pointer;`}></button>
             `)}
+            <label class="custom-color" title="Выбрать свой цвет"
+              style=${`width:28px;height:28px;border-radius:50%;border:2px solid ${COLORS.includes(color) ? "transparent" : "var(--text)"};background:conic-gradient(red,yellow,lime,cyan,blue,magenta,red);cursor:pointer;display:inline-block;position:relative;`}>
+              <input type="color" value=${color}
+                onInput=${e => setColor(e.target.value)}
+                style="position:absolute;inset:0;opacity:0;cursor:pointer;border:none;" />
+            </label>
+            <input class="input" style="width:96px;padding:6px 10px;font-family:var(--font-mono);font-size:13px;"
+              value=${color} onInput=${e => {
+                const v = e.target.value.trim();
+                if (/^#?[0-9a-fA-F]{6}$/.test(v)) setColor(v.startsWith("#") ? v : "#" + v);
+                else setColor(v);
+              }} />
           </div>
         </div>
         ${editing && html`
