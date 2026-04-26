@@ -11,6 +11,7 @@ const StoreContext = createContext(null);
 const initialState = {
   loading: true,
   ready: false,
+  recovering: false,
   user: null,
   profile: null,
   accounts: [],
@@ -72,9 +73,13 @@ export function StoreProvider({ children }) {
       if (user) await loadAll(user.id);
       else dispatch({ type: "set", payload: { loading: false, ready: true } });
     })();
-    const { data: sub } = supabase.auth.onAuthStateChange(async (_e, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       const user = session?.user || null;
-      dispatch({ type: "set", payload: { user, loading: !!user } });
+      if (event === "PASSWORD_RECOVERY") {
+        dispatch({ type: "set", payload: { user, recovering: true, loading: false, ready: true } });
+        return;
+      }
+      dispatch({ type: "set", payload: { user, loading: !!user, recovering: false } });
       if (user) await loadAll(user.id);
       else dispatch({
         type: "set",
@@ -182,6 +187,19 @@ export function StoreProvider({ children }) {
     },
     signOut: async () => {
       await supabase.auth.signOut();
+    },
+    requestPasswordReset: async (email) => {
+      const redirectTo = window.location.origin + window.location.pathname;
+      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+    },
+    setNewPassword: async (password) => {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+      dispatch({ type: "set", payload: { recovering: false } });
+      // После успешной смены — догружаем данные
+      const { data } = await supabase.auth.getUser();
+      if (data?.user) await loadAll(data.user.id);
     },
   };
 
