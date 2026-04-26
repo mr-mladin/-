@@ -114,7 +114,7 @@ export function BudgetsPage() {
         title="Удалить бюджет?"
         message="Сами операции останутся."
         onCancel=${() => setConfirmDel(null)}
-        onConfirm=${async () => { await store.budgets.remove(confirmDel.id); setConfirmDel(null); store.pushToast("Бюджет удалён", "success"); }}
+        onConfirm=${async () => { await store.actions.budgets.remove(confirmDel.id); setConfirmDel(null); store.pushToast("Бюджет удалён", "success"); }}
       />
     `}
   `;
@@ -142,7 +142,7 @@ function BudgetForm({ initial, onClose }) {
     if (!categoryId) { setError("Выберите категорию"); return; }
     setBusy(true);
     try {
-      await store.budgets.upsert({ category_id: categoryId, amount: amt, period: "month" });
+      await store.actions.budgets.upsert({ category_id: categoryId, amount: amt, period: "month" });
       store.pushToast(editing ? "Бюджет обновлён" : "Бюджет добавлен", "success");
       onClose();
     } catch (e) { setError(e.message); }

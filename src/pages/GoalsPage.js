@@ -87,7 +87,7 @@ export function GoalsPage() {
         title="Удалить цель?"
         message="Сами операции и счета не пострадают."
         onCancel=${() => setConfirmDel(null)}
-        onConfirm=${async () => { await store.goals.remove(confirmDel.id); setConfirmDel(null); store.pushToast("Цель удалена", "success"); }}
+        onConfirm=${async () => { await store.actions.goals.remove(confirmDel.id); setConfirmDel(null); store.pushToast("Цель удалена", "success"); }}
       />
     `}
   `;
@@ -120,8 +120,8 @@ function GoalForm({ initial, onClose }) {
         due_date: dueDate || null,
         color,
       };
-      if (editing) await store.goals.update(initial.id, payload);
-      else await store.goals.create(payload);
+      if (editing) await store.actions.goals.update(initial.id, payload);
+      else await store.actions.goals.create(payload);
       store.pushToast(editing ? "Цель обновлена" : "Цель создана", "success");
       onClose();
     } catch (e) { setError(e.message); }
@@ -185,7 +185,7 @@ function ContributeForm({ goal, onClose }) {
     if (!a) { setError("Укажите сумму"); return; }
     setBusy(true);
     try {
-      await store.goals.contribute(goal.id, a);
+      await store.actions.goals.contribute(goal.id, a);
       store.pushToast(`Пополнено: «${goal.name}»`, "success");
       onClose();
     } catch (e) { setError(e.message); }

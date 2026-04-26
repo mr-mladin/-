@@ -90,11 +90,11 @@ export function OperationsPage() {
   const hasFilter = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
 
   async function duplicate(op) {
-    await store.operations.duplicate(op.id);
+    await store.actions.operations.duplicate(op.id);
     store.pushToast("Операция продублирована", "success");
   }
   async function remove(op) {
-    await store.operations.remove(op.id);
+    await store.actions.operations.remove(op.id);
     setConfirmDel(null);
     store.pushToast("Операция удалена", "success");
   }
