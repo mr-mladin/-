@@ -21,55 +21,59 @@
 
 /* ---------- Темы (CSS-переменные) ---------- */
 :root[data-theme="light"] {
-  --bg: #f5f6fa;
+  --bg: #fafbfc;
   --bg-elev: #ffffff;
-  --bg-soft: #eef0f6;
+  --bg-soft: #f3f5f8;
   --surface: #ffffff;
-  --text: #0f172a;
+  --text: #0b1220;
   --text-soft: #475569;
-  --text-mute: #94a3b8;
-  --border: rgba(15, 23, 42, 0.08);
-  --border-strong: rgba(15, 23, 42, 0.16);
-  --accent: #6366f1;
-  --accent-soft: rgba(99, 102, 241, 0.12);
-  --income: #10b981;
-  --income-soft: rgba(16, 185, 129, 0.12);
+  --text-mute: #98a2b3;
+  --border: rgba(15, 23, 42, 0.07);
+  --border-strong: rgba(15, 23, 42, 0.14);
+  --accent: #16a34a;
+  --accent-deep: #15803d;
+  --accent-soft: rgba(22, 163, 74, 0.10);
+  --income: #16a34a;
+  --income-soft: rgba(22, 163, 74, 0.10);
   --expense: #ef4444;
   --expense-soft: rgba(239, 68, 68, 0.10);
-  --transfer: #6366f1;
+  --transfer: #0ea5e9;
+  --transfer-soft: rgba(14, 165, 233, 0.12);
   --warn: #f59e0b;
   --warn-soft: rgba(245, 158, 11, 0.14);
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.55);
-  --glass-shadow: 0 12px 40px rgba(15, 23, 42, 0.10);
-  --decor-1: radial-gradient(60% 50% at 10% 0%, rgba(99,102,241,0.18), transparent 70%);
-  --decor-2: radial-gradient(45% 40% at 100% 100%, rgba(16,185,129,0.14), transparent 70%);
+  --glass-bg: rgba(255, 255, 255, 0.62);
+  --glass-border: rgba(255, 255, 255, 0.6);
+  --glass-shadow: 0 8px 28px rgba(15, 23, 42, 0.06);
+  --decor-1: radial-gradient(60% 40% at 0% 0%, rgba(22,163,74,0.06), transparent 70%);
+  --decor-2: radial-gradient(40% 30% at 100% 100%, rgba(14,165,233,0.05), transparent 70%);
 }
 
 :root[data-theme="dark"] {
-  --bg: #0b0f1a;
-  --bg-elev: #131a2b;
-  --bg-soft: #0f1626;
-  --surface: #161e31;
-  --text: #e7ecf5;
-  --text-soft: #a7b0c2;
-  --text-mute: #6c7691;
+  --bg: #0a0f17;
+  --bg-elev: #121823;
+  --bg-soft: #0e141d;
+  --surface: #141b27;
+  --text: #e8edf5;
+  --text-soft: #aab2c2;
+  --text-mute: #6c7689;
   --border: rgba(255, 255, 255, 0.07);
-  --border-strong: rgba(255, 255, 255, 0.16);
-  --accent: #818cf8;
-  --accent-soft: rgba(129, 140, 248, 0.18);
-  --income: #34d399;
-  --income-soft: rgba(52, 211, 153, 0.16);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --accent: #4ade80;
+  --accent-deep: #22c55e;
+  --accent-soft: rgba(74, 222, 128, 0.14);
+  --income: #4ade80;
+  --income-soft: rgba(74, 222, 128, 0.14);
   --expense: #f87171;
   --expense-soft: rgba(248, 113, 113, 0.16);
-  --transfer: #818cf8;
+  --transfer: #38bdf8;
+  --transfer-soft: rgba(56, 189, 248, 0.16);
   --warn: #fbbf24;
   --warn-soft: rgba(251, 191, 36, 0.18);
-  --glass-bg: rgba(22, 30, 49, 0.55);
-  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-bg: rgba(20, 27, 39, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.08);
   --glass-shadow: 0 12px 40px rgba(0, 0, 0, 0.45);
-  --decor-1: radial-gradient(60% 50% at 10% 0%, rgba(129,140,248,0.22), transparent 70%);
-  --decor-2: radial-gradient(45% 40% at 100% 100%, rgba(52,211,153,0.16), transparent 70%);
+  --decor-1: radial-gradient(60% 40% at 0% 0%, rgba(74,222,128,0.07), transparent 70%);
+  --decor-2: radial-gradient(40% 30% at 100% 100%, rgba(56,189,248,0.05), transparent 70%);
 }
 
 /* ---------- Базовое ---------- */
@@ -155,10 +159,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .brand-mark {
   width: 30px; height: 30px;
   border-radius: 9px;
-  background: linear-gradient(135deg, #6366f1, #22c55e);
+  background: linear-gradient(135deg, #22c55e, #14b8a6);
   color: white; display: grid; place-items: center;
   font-weight: 800; font-size: 14px;
-  box-shadow: 0 6px 18px rgba(99,102,241,0.35);
+  box-shadow: 0 6px 16px rgba(22, 163, 74, 0.30);
 }
 .nav { display: flex; flex-direction: column; gap: 2px; }
 .nav a {
@@ -272,9 +276,9 @@ input, select, textarea { font: inherit; color: inherit; }
 .btn:active { transform: scale(0.98); }
 .btn.primary {
   background: var(--accent); color: #fff; border-color: transparent;
-  box-shadow: 0 8px 22px rgba(99,102,241,0.35);
+  box-shadow: 0 6px 18px rgba(22, 163, 74, 0.25);
 }
-.btn.primary:hover { filter: brightness(1.05); }
+.btn.primary:hover { background: var(--accent-deep); }
 .btn.danger { color: var(--expense); border-color: var(--expense-soft); }
 .btn.danger:hover { background: var(--expense-soft); }
 .btn.ghost { background: transparent; border-color: transparent; color: var(--text-soft); }
@@ -429,7 +433,7 @@ input, select, textarea { font: inherit; color: inherit; }
 
 /* Hero KPI (Доход / Расход / Остаток в стиле Дзен-мани) */
 .hero {
-  padding: 22px;
+  padding: 22px 24px 20px;
   border-radius: var(--radius-xl);
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -445,6 +449,34 @@ input, select, textarea { font: inherit; color: inherit; }
 .hero .h-cell.expense .h-value { color: var(--expense); }
 .hero .h-cell.diff .h-value.neg { color: var(--expense); }
 .hero .h-cell.diff .h-value.pos { color: var(--income); }
+
+/* Пропорциональный индикатор: расход слева заполняет часть, остаток справа */
+.hero-bar {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--bg-soft);
+  display: grid;
+  grid-template-columns: var(--expense-frac) 1fr;
+  overflow: hidden;
+  position: relative;
+}
+.hero-bar .h-bar-expense {
+  background: var(--expense);
+  border-radius: 999px 0 0 999px;
+}
+.hero-bar .h-bar-balance {
+  background: var(--income);
+  border-radius: 0 999px 999px 0;
+}
+.hero-bar.over .h-bar-expense { background: var(--expense); }
+.hero-bar.over .h-bar-balance { background: var(--expense); opacity: 0.4; }
+.hero-bar .h-bar-empty {
+  position: absolute; inset: 0;
+  background: var(--bg-soft);
+}
+
 @media (max-width: 600px) {
   .hero { grid-template-columns: 1fr 1fr; }
   .hero .h-cell.diff { grid-column: span 2; }

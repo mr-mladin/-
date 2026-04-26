@@ -2,16 +2,18 @@ import { html } from "htm/preact";
 import { useMemo, useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
 import {
-  formatAmount, todayISO, fromISO, toISO,
+  formatAmount, fromISO, toISO,
   startOfFinMonth, endOfFinMonth, shiftFinMonth, finMonthLabel,
 } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
 import { OperationForm } from "../components/OperationForm.js";
-import { href, navigate } from "../lib/router.js";
+import { AccountForm } from "../components/AccountForm.js";
+import { href } from "../lib/router.js";
 
 export function DashboardPage() {
   const { profile, accounts, categories, operations } = useStore();
   const [adding, setAdding] = useState(false);
+  const [creatingAccount, setCreatingAccount] = useState(false);
   const [monthOffset, setMonthOffset] = useState(0);
 
   const fmt = (v, c) => formatAmount(v, c || profile?.base_currency || "RUB", profile?.number_format || "space");
@@ -29,6 +31,12 @@ export function DashboardPage() {
   const income = sum(monthOps.filter(o => o.kind === "income"), o => o.amount);
   const expense = sum(monthOps.filter(o => o.kind === "expense"), o => o.amount);
   const diff = income - expense;
+
+  // Доля расхода в доходе (для пропорциональной полоски).
+  // Если дохода нет, но есть расход — полоска полностью красная.
+  const expenseFrac = income > 0
+    ? Math.min(1, expense / income)
+    : (expense > 0 ? 1 : 0);
 
   const totalBalance = useMemo(() => {
     let total = 0;
@@ -49,12 +57,13 @@ export function DashboardPage() {
       if (!top) continue;
       byCat.set(top.id, (byCat.get(top.id) || 0) + Number(o.amount));
     }
-    const arr = [...byCat.entries()]
+    return [...byCat.entries()]
       .map(([id, amount]) => ({ category: categories.find(c => c.id === id), amount }))
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 6);
-    return arr;
   }, [monthOps, categories]);
+
+  const noAccounts = accounts.filter(a => !a.archived).length === 0;
 
   return html`
     <div class="page-head">
@@ -84,6 +93,11 @@ export function DashboardPage() {
         <div class="h-label">Остаток</div>
         <div class=${"h-value " + (diff < 0 ? "neg" : "pos")}>${fmt(diff)}</div>
       </div>
+      <div class=${"hero-bar " + (diff < 0 ? "over" : "")}
+           style=${`--expense-frac: ${(expenseFrac * 100).toFixed(2)}%;`}>
+        <div class="h-bar-expense"></div>
+        <div class="h-bar-balance"></div>
+      </div>
     </div>
 
     <div class="row cols-2" style="align-items:start;">
@@ -92,9 +106,9 @@ export function DashboardPage() {
           <h2>Счета</h2>
           <a class="more" href=${href("settings/accounts")}>Управлять</a>
         </div>
-        ${accounts.filter(a => !a.archived).length === 0
+        ${noAccounts
           ? html`<div class="empty"><div class="em-title">Пока нет счетов</div>Создайте первый счёт, чтобы начать вести учёт.<br/><br/>
-                  <button class="btn primary" onClick=${() => navigate("settings/accounts")}>${Icon.plus()} Создать счёт</button></div>`
+                  <button class="btn primary" onClick=${() => setCreatingAccount(true)}>${Icon.plus()} Создать счёт</button></div>`
           : html`
             <div class="list">
               ${accounts.filter(a => !a.archived).map(a => {
@@ -158,14 +172,14 @@ export function DashboardPage() {
             ${recent.map(op => {
               const acc = accounts.find(a => a.id === op.account_id);
               const cat = op.category_id ? categories.find(c => c.id === op.category_id) : null;
+              const parentCat = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : null;
+              const dotColor = cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)");
               return html`
                 <div class="list-row" key=${op.id}>
-                  <div class="lr-icon" style=${`color:${cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)")};`}>
-                    ${op.kind === "income" ? Icon.arrowDown() : op.kind === "transfer" ? Icon.swap() : Icon.arrowUp()}
-                  </div>
+                  <span class="color-dot" style=${`background:${dotColor};`}></span>
                   <div class="lr-main">
-                    <div class="lr-title">${cat?.name || (op.kind === "transfer" ? "Перевод между счетами" : (op.kind === "income" ? "Доход" : "Расход"))}</div>
-                    <div class="lr-sub">${formatRowSub(op, acc, accounts)}</div>
+                    <div class="lr-title">${rowTitle(op, accounts, cat, parentCat)}</div>
+                    <div class="lr-sub">${rowSub(op, acc, accounts)}</div>
                   </div>
                   <div class=${"lr-amount " + op.kind}>
                     ${op.kind === "income" ? "+" : op.kind === "expense" ? "−" : ""}${fmt(op.amount, acc?.currency)}
@@ -178,6 +192,7 @@ export function DashboardPage() {
     </div>
 
     ${adding && html`<${OperationForm} onClose=${() => setAdding(false)} />`}
+    ${creatingAccount && html`<${AccountForm} onClose=${() => setCreatingAccount(false)} />`}
   `;
 }
 
@@ -200,12 +215,21 @@ function accountBalance(account, operations) {
   return bal;
 }
 
-function formatRowSub(op, acc, accounts) {
-  const date = formatDateShort(op.date);
+function rowTitle(op, accounts, cat, parentCat) {
   if (op.kind === "transfer") {
+    const from = accounts.find(a => a.id === op.account_id);
     const to = accounts.find(a => a.id === op.to_account_id);
-    return `${date} • ${acc?.name} → ${to?.name || "?"}`;
+    return `${from?.name || "?"} → ${to?.name || "?"}`;
   }
+  if (cat) {
+    return parentCat ? `${parentCat.name} • ${cat.name}` : cat.name;
+  }
+  return op.kind === "income" ? "Доход" : "Расход";
+}
+
+function rowSub(op, acc, accounts) {
+  const date = formatDateShort(op.date);
+  if (op.kind === "transfer") return `${date} • Перевод`;
   return `${date} • ${acc?.name || ""}${op.note ? " • " + op.note : ""}`;
 }
 

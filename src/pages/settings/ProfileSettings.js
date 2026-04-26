@@ -99,12 +99,12 @@ export function ProfileSettings() {
 
       <div class="card" style="padding:18px;">
         <h2 style="margin:0 0 14px;font-size:16px;">Аккаунт</h2>
-        <div class="muted" style="font-size:13px;margin-bottom:14px;">
+        <div class="muted" style="font-size:13px;">
           Email: <span style="color:var(--text);">${store.user?.email}</span>
         </div>
-        <button class="btn danger" onClick=${() => store.auth.signOut()}>
-          ${Icon.signout()} Выйти из аккаунта
-        </button>
+        <div class="muted" style="font-size:12px;margin-top:8px;">
+          Чтобы выйти из аккаунта — нажмите «Выйти» в нижней части бокового меню.
+        </div>
       </div>
     </div>
   `;

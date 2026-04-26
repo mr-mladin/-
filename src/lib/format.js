@@ -52,6 +52,65 @@ export function parseAmount(input) {
   return isNaN(num) ? NaN : num;
 }
 
+// Живое форматирование при вводе суммы.
+// Принимает «сырой» текст из <input>, возвращает форматированную версию
+// и новую позицию каретки.
+export function formatNumberInput(raw, caret = raw.length, numberFormat = "space") {
+  const sep = SEPARATORS[numberFormat] || SEPARATORS.space;
+  const decimalChar = sep.decimal;
+
+  // 1) Считаем «сырое» содержимое (только цифры и десятичный разделитель).
+  //    Заодно запоминаем сколько «значащих» символов было до каретки.
+  let signed = "";
+  let rawDigitsBeforeCaret = 0;
+  let seenDecimal = false;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw[i];
+    if (ch >= "0" && ch <= "9") {
+      signed += ch;
+      if (i < caret) rawDigitsBeforeCaret++;
+    } else if (!seenDecimal && (ch === "." || ch === ",")) {
+      signed += ".";
+      seenDecimal = true;
+      if (i < caret) rawDigitsBeforeCaret++;
+    }
+    // прочие символы (пробелы, буквы) игнорируем
+  }
+
+  if (!signed) return { value: "", caret: 0 };
+
+  // 2) Делим на целую и дробную часть, ограничиваем дробную 2 знаками
+  let [intPart, decPart] = signed.split(".");
+  if (intPart === "") intPart = "0";
+  // убираем ведущие нули, кроме одного
+  intPart = intPart.replace(/^0+(?=\d)/, "");
+  if (intPart === "") intPart = "0";
+  if (decPart !== undefined) decPart = decPart.slice(0, 2);
+
+  // 3) Расставляем разделители тысяч в целой части
+  const intWithSep = sep.thousand
+    ? intPart.replace(/\B(?=(\d{3})+(?!\d))/g, sep.thousand)
+    : intPart;
+
+  const formatted = decPart !== undefined
+    ? intWithSep + decimalChar + decPart
+    : intWithSep;
+
+  // 4) Пересчитываем позицию каретки: количество значащих символов
+  //    до каретки сохраняется
+  let newCaret = 0;
+  let counted = 0;
+  for (let i = 0; i < formatted.length; i++) {
+    const ch = formatted[i];
+    const isSig = (ch >= "0" && ch <= "9") || ch === decimalChar;
+    if (counted === rawDigitsBeforeCaret) { newCaret = i; break; }
+    if (isSig) counted++;
+    newCaret = i + 1;
+  }
+
+  return { value: formatted, caret: newCaret };
+}
+
 const MONTHS = [
   "января", "февраля", "марта", "апреля", "мая", "июня",
   "июля", "августа", "сентября", "октября", "ноября", "декабря"
