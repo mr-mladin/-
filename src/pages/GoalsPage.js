@@ -69,7 +69,8 @@ export function GoalsPage() {
             const pct = target > 0 ? Math.min(100, (current / target) * 100) : 0;
             const left = Math.max(0, target - current);
             return html`
-              <div class="card" style="padding:18px;" key=${g.id}>
+              <div class="card clickable" style="padding:18px;cursor:pointer;" key=${g.id}
+                   onClick=${() => setEditing(g)}>
                 <div class="between">
                   <div class="flex">
                     <span class="lr-icon" style=${`color:${g.color || "var(--accent)"};background:${(g.color || "#16a34a")}1f;`}>${Icon.goal()}</span>
@@ -80,8 +81,7 @@ export function GoalsPage() {
                       </div>
                     </div>
                   </div>
-                  <div class="row-actions">
-                    <button class="btn-mini" title="Изменить" onClick=${() => setEditing(g)}>${Icon.edit()}</button>
+                  <div class="row-actions" onClick=${e => e.stopPropagation()}>
                     <button class="btn-mini" title="Удалить" onClick=${() => setConfirmDel(g)}>${Icon.trash()}</button>
                   </div>
                 </div>

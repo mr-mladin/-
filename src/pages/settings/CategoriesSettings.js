@@ -80,10 +80,10 @@ function CategoryRow({ cat, idx, total, children, onEdit, onDelete, onAddChild }
   const store = useStore();
   return html`
     <div>
-      <div class="list-row">
+      <div class="list-row clickable" onClick=${() => onEdit(cat)} style="cursor:pointer;">
         <span class="lr-icon" style=${`color:${cat.color || "var(--accent)"};background:${(cat.color || "#16a34a")}1f;`}>${renderIcon(cat.icon, "tag")}</span>
         <div class="lr-main"><div class="lr-title">${cat.name}</div></div>
-        <div class="row-actions">
+        <div class="row-actions" onClick=${e => e.stopPropagation()}>
           <button class="btn-mini" title="Подкатегория" onClick=${() => onAddChild(cat)}>${Icon.plus()}</button>
           <button class="btn-mini" title="Выше"
             onClick=${() => store.actions.categories.move(cat.id, -1)}
@@ -91,24 +91,23 @@ function CategoryRow({ cat, idx, total, children, onEdit, onDelete, onAddChild }
           <button class="btn-mini" title="Ниже"
             onClick=${() => store.actions.categories.move(cat.id, +1)}
             disabled=${idx >= total - 1}>${Icon.down()}</button>
-          <button class="btn-mini" title="Изменить" onClick=${() => onEdit(cat)}>${Icon.edit()}</button>
           <button class="btn-mini" title="Удалить" onClick=${() => onDelete(cat)}>${Icon.trash()}</button>
         </div>
       </div>
       ${children.length > 0 && html`
         <div style="padding-left:32px;">
           ${children.map((c, i) => html`
-            <div class="list-row" key=${c.id}>
+            <div class="list-row clickable" key=${c.id}
+                 onClick=${() => onEdit(c)} style="cursor:pointer;">
               <span class="lr-icon" style=${`color:${c.color || "var(--accent)"};background:${(c.color || "#16a34a")}1f;width:28px;height:28px;flex:0 0 28px;`}>${renderIcon(c.icon, "tag")}</span>
               <div class="lr-main"><div class="lr-title">${c.name}</div></div>
-              <div class="row-actions">
+              <div class="row-actions" onClick=${e => e.stopPropagation()}>
                 <button class="btn-mini" title="Выше"
                   onClick=${() => store.actions.categories.move(c.id, -1)}
                   disabled=${i <= 0}>${Icon.up()}</button>
                 <button class="btn-mini" title="Ниже"
                   onClick=${() => store.actions.categories.move(c.id, +1)}
                   disabled=${i >= children.length - 1}>${Icon.down()}</button>
-                <button class="btn-mini" title="Изменить" onClick=${() => onEdit(c)}>${Icon.edit()}</button>
                 <button class="btn-mini" title="Удалить" onClick=${() => onDelete(c)}>${Icon.trash()}</button>
               </div>
             </div>
