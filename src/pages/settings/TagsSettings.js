@@ -29,17 +29,17 @@ export function TagsSettings() {
         : html`
           <div class="list">
             ${sorted.map((t, i) => html`
-              <div class="list-row" key=${t.id}>
+              <div class="list-row clickable" key=${t.id}
+                   onClick=${() => setEditing(t)} style="cursor:pointer;">
                 <span class="lr-icon" style="background:var(--accent-soft);color:var(--accent);">${Icon.tag()}</span>
                 <div class="lr-main"><div class="lr-title">${t.name}</div></div>
-                <div class="row-actions">
+                <div class="row-actions" onClick=${e => e.stopPropagation()}>
                   <button class="btn-mini" title="Выше"
                     onClick=${() => store.actions.tags.move(t.id, -1)}
                     disabled=${i <= 0}>${Icon.up()}</button>
                   <button class="btn-mini" title="Ниже"
                     onClick=${() => store.actions.tags.move(t.id, +1)}
                     disabled=${i >= sorted.length - 1}>${Icon.down()}</button>
-                  <button class="btn-mini" title="Изменить" onClick=${() => setEditing(t)}>${Icon.edit()}</button>
                   <button class="btn-mini" title="Удалить" onClick=${() => setConfirmDel(t)}>${Icon.trash()}</button>
                 </div>
               </div>
