@@ -1,11 +1,14 @@
+// Список операций с фильтрами и группировкой по дням.
+// Используется как основной контент главной страницы.
+
 import { html } from "htm/preact";
 import { useMemo, useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
 import { formatAmount, formatDateRelative, parseAmount } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
-import { OperationForm } from "../components/OperationForm.js";
-import { ConfirmModal } from "../components/Modal.js";
-import { renderIcon } from "../components/IconPicker.js";
+import { OperationForm } from "./OperationForm.js";
+import { ConfirmModal } from "./Modal.js";
+import { renderIcon } from "./IconPicker.js";
 
 const EMPTY_FILTERS = {
   search: "",
@@ -19,7 +22,7 @@ const EMPTY_FILTERS = {
   amountTo: "",
 };
 
-export function OperationsPage() {
+export function OperationsList() {
   const store = useStore();
   const { profile, accounts, categories, tags, operations, operationTags } = store;
 
@@ -77,7 +80,6 @@ export function OperationsPage() {
   const totalIncome = filtered.filter(o => o.kind === "income").reduce((s, o) => s + Number(o.amount), 0);
   const totalExpense = filtered.filter(o => o.kind === "expense").reduce((s, o) => s + Number(o.amount), 0);
 
-  // Группировка по дате
   const grouped = useMemo(() => {
     const m = new Map();
     for (const op of filtered) {
@@ -97,24 +99,28 @@ export function OperationsPage() {
   }
 
   return html`
-    <div class="page-head">
-      <div>
-        <h1>Операции</h1>
-        <div class="sub">${filtered.length} ${plural(filtered.length, "операция", "операции", "операций")} • +${fmt(totalIncome)} • −${fmt(totalExpense)}</div>
+    <div class="card" style="padding:14px 16px;margin-bottom:14px;">
+      <div class="between" style="margin-bottom:${showFilters ? "12px" : "0"};">
+        <div class="flex" style="gap:14px;flex-wrap:wrap;align-items:baseline;">
+          <h2 style="margin:0;font-size:17px;letter-spacing:-0.01em;">Операции</h2>
+          <span class="muted" style="font-size:13px;">
+            ${filtered.length} ${plural(filtered.length, "операция", "операции", "операций")}
+            ${totalIncome > 0 ? html` • <span class="income">+${fmt(totalIncome)}</span>` : null}
+            ${totalExpense > 0 ? html` • <span class="expense">−${fmt(totalExpense)}</span>` : null}
+          </span>
+        </div>
+        <div class="btn-row">
+          <button class=${"btn sm " + (showFilters ? "primary" : "")} onClick=${() => setShowFilters(s => !s)}>
+            ${Icon.filter()} Фильтры${hasFilter ? " •" : ""}
+          </button>
+          <button class="btn primary sm" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
+        </div>
       </div>
-      <div class="btn-row">
-        <button class=${"btn " + (showFilters ? "primary" : "")} onClick=${() => setShowFilters(s => !s)}>
-          ${Icon.filter()} Фильтры${hasFilter ? " •" : ""}
-        </button>
-        <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
-      </div>
-    </div>
 
-    ${showFilters && html`
-      <div class="card" style="padding:14px;margin-bottom:16px;">
+      ${showFilters && html`
         <div class="filter-bar">
           <div style="position:relative;">
-            <input class="input" placeholder="Поиск по комментарию, категории, тегам…"
+            <input class="input" placeholder="Поиск…"
                    value=${filters.search} onInput=${e => setF("search", e.target.value)}
                    style="padding-left:36px;" />
             <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-mute);">${Icon.search()}</span>
@@ -140,7 +146,7 @@ export function OperationsPage() {
             ${tags.map(t => html`<option value=${t.id} key=${t.id}>${t.name}</option>`)}
           </select>
           ${hasFilter && html`
-            <button class="btn ghost clear-btn" onClick=${() => setFilters({ ...EMPTY_FILTERS })}>${Icon.close()} Сбросить</button>
+            <button class="btn ghost clear-btn sm" onClick=${() => setFilters({ ...EMPTY_FILTERS })}>${Icon.close()} Сбросить</button>
           `}
         </div>
         <div class="row cols-2" style="margin-top:10px;">
@@ -167,13 +173,15 @@ export function OperationsPage() {
             </div>
           </div>
         </div>
-      </div>
-    `}
+      `}
+    </div>
 
     ${grouped.length === 0
-      ? html`<div class="card empty"><div class="em-title">Пока пусто</div>
-              ${hasFilter ? "Под фильтры ничего не подошло." : "Добавьте первую операцию."}<br/><br/>
-              <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить операцию</button></div>`
+      ? html`<div class="card empty">
+          <div class="em-title">Пока пусто</div>
+          ${hasFilter ? "Под фильтры ничего не подошло." : "Добавьте первую операцию."}<br/><br/>
+          <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить операцию</button>
+        </div>`
       : grouped.map(([date, ops]) => html`
           <div class="card" style="margin-bottom:14px;" key=${date}>
             <div class="section-head" style="padding:14px 18px 4px;">
@@ -188,6 +196,7 @@ export function OperationsPage() {
                 const parentCat = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : null;
                 const opTagIds = tagsByOp.get(op.id) || [];
                 const dotColor = cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)");
+                const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
 
                 let title;
                 if (op.kind === "transfer") title = `${acc?.name || "?"} → ${toAcc?.name || "?"}`;
@@ -197,8 +206,6 @@ export function OperationsPage() {
                 let sub;
                 if (op.kind === "transfer") sub = "Перевод между счетами";
                 else sub = acc?.name || "";
-
-                const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
 
                 return html`
                   <div class="list-row clickable" key=${op.id}

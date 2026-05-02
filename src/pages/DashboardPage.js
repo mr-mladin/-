@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useMemo, useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
 import {
-  formatAmount, fromISO, toISO,
+  formatAmount, toISO,
   startOfFinMonth, endOfFinMonth, shiftFinMonth, finMonthLabel, monthLocative,
 } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
@@ -10,12 +10,11 @@ import { OperationForm } from "../components/OperationForm.js";
 import { AccountForm } from "../components/AccountForm.js";
 import { renderIcon } from "../components/IconPicker.js";
 import { PlansChart } from "../components/PlansChart.js";
-import { href } from "../lib/router.js";
+import { OperationsList } from "../components/OperationsList.js";
 
 export function DashboardPage() {
-  const { profile, accounts, categories, operations } = useStore();
+  const { profile, accounts, operations } = useStore();
   const [adding, setAdding] = useState(false);
-  const [editing, setEditing] = useState(null);
   const [creatingAccount, setCreatingAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [monthOffset, setMonthOffset] = useState(0);
@@ -49,7 +48,6 @@ export function DashboardPage() {
   const expensePct = income > 0 ? Math.round((expense / income) * 100) : (expense > 0 ? 100 : 0);
   const prevExpensePct = prevIncome > 0 ? Math.round((prevExpense / prevIncome) * 100) : (prevExpense > 0 ? 100 : 0);
 
-  // Доли для полосок (масштаб от max(income, expense) — на случай перерасхода)
   const ivMax = Math.max(income, expense, 1);
   const incomeBarPct = (income / ivMax) * 100;
   const expenseBarPct = (expense / ivMax) * 100;
@@ -63,182 +61,107 @@ export function DashboardPage() {
     return total;
   }, [accounts, operations]);
 
-  const recent = operations.slice(0, 6);
-
-  // Топ категорий по расходам в выбранном месяце
-  const topCategories = useMemo(() => {
-    const byCat = new Map();
-    for (const o of monthOps.filter(o => o.kind === "expense" && o.category_id)) {
-      const cat = categories.find(c => c.id === o.category_id);
-      const top = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) || cat : cat;
-      if (!top) continue;
-      byCat.set(top.id, (byCat.get(top.id) || 0) + Number(o.amount));
-    }
-    return [...byCat.entries()]
-      .map(([id, amount]) => ({ category: categories.find(c => c.id === id), amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 6);
-  }, [monthOps, categories]);
-
   const noAccounts = accounts.filter(a => !a.archived).length === 0;
 
   return html`
-    <div class="page-head">
-      <div>
-        <h1>Главная</h1>
-        <div class="sub">${finMonthLabel(monthStart)}</div>
-      </div>
-      <div class="btn-row">
-        <button class="btn" onClick=${() => setMonthOffset(o => o - 1)} title="Предыдущий период">${Icon.left()}</button>
-        ${monthOffset !== 0 && html`<button class="btn ghost" onClick=${() => setMonthOffset(0)}>Сегодня</button>`}
-        <button class="btn" onClick=${() => setMonthOffset(o => o + 1)} title="Следующий период"
-                disabled=${monthOffset >= 0}>${Icon.right()}</button>
-        <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
-      </div>
-    </div>
-
-    <div class="row cols-2" style="align-items:stretch;margin-bottom:18px;">
-    <div class="card ive-card">
-      <div class="ive-head">
-        <h2>Доходы vs Расходы</h2>
-      </div>
-      <div class=${"ive-pct" + (expensePct > 100 ? " over" : "")}>${expensePct}%</div>
-      <div class="ive-sub">Доля расходов в ${monthLocative(monthStart)}</div>
-      <div class="ive-rows">
-        <div class="ive-row">
-          <div class="label">Доходы</div>
-          <div class="ive-bar income from-left">
-            <div class="fill" style=${`width:${incomeBarPct}%;`}></div>
-          </div>
-          <div class="amount" style="color:var(--income);">${fmt(income)}</div>
-        </div>
-        <div class="ive-row">
-          <div class="label">Расходы</div>
-          <div class="ive-bar expense from-left">
-            <div class="fill" style=${`width:${Math.min(100, expenseBarPct)}%;`}></div>
-          </div>
-          <div class="amount">${fmt(expense)}</div>
-        </div>
-        <div class="ive-row">
-          <div class="label">Остаток</div>
-          <div class="ive-bar balance from-right">
-            <div class="fill" style=${`width:${balancePct}%;`}></div>
-          </div>
-          <div class="amount" style=${diff < 0 ? "color:var(--expense);" : ""}>${fmt(diff)}</div>
-        </div>
-      </div>
-      <div class="ive-note">
-        ${ivNote(expensePct, prevExpensePct, monthLocative(monthStart))}
-      </div>
-    </div>
-
-    <div class="card" style="padding:18px 20px;">
-      <div class="section-head" style="margin-bottom:8px;">
-        <h2>Динамика и планы</h2>
-        <span class="more">Наведите курсор</span>
-      </div>
-      <${PlansChart} monthStart=${monthStart} monthEnd=${monthEnd} />
-    </div>
-    </div>
-
-    <div class="row cols-2" style="align-items:start;">
-      <div class="card">
-        <div class="section-head" style="padding:16px 18px 8px;">
+    <div class="dash-grid">
+      <aside class="dash-rail">
+        <div class="rail-head">
           <h2>Счета</h2>
-          <a class="more" href=${href("settings/accounts")}>Управлять</a>
+          <button class="btn-mini" title="Новый счёт"
+            onClick=${() => setCreatingAccount(true)}>${Icon.plus()}</button>
         </div>
         ${noAccounts
-          ? html`<div class="empty"><div class="em-title">Пока нет счетов</div>Создайте первый счёт, чтобы начать вести учёт.<br/><br/>
-                  <button class="btn primary" onClick=${() => setCreatingAccount(true)}>${Icon.plus()} Создать счёт</button></div>`
+          ? html`<div class="muted" style="padding:14px 4px;font-size:13px;">
+              Создайте первый счёт, чтобы начать вести учёт.<br/><br/>
+              <button class="btn primary sm" onClick=${() => setCreatingAccount(true)}>${Icon.plus()} Создать счёт</button>
+            </div>`
           : html`
-            <div class="list">
+            <div class="rail-list">
               ${accounts.filter(a => !a.archived).map(a => {
                 const bal = accountBalance(a, operations);
                 return html`
-                  <div class="list-row clickable" key=${a.id}
-                       onClick=${() => setEditingAccount(a)}
-                       style="cursor:pointer;">
-                    <div class="lr-icon" style=${`color:${a.color || "var(--accent)"};background:${(a.color || "#16a34a")}1f;`}>${renderIcon(a.icon, "wallet")}</div>
-                    <div class="lr-main">
-                      <div class="lr-title">${a.name}</div>
-                      <div class="lr-sub">${a.currency || "RUB"}</div>
-                    </div>
-                    <div class="lr-amount">${fmt(bal, a.currency)}</div>
-                  </div>
+                  <button class="rail-acc" key=${a.id} onClick=${() => setEditingAccount(a)}>
+                    <span class="rail-acc-icon" style=${`color:${a.color || "var(--accent)"};`}>${renderIcon(a.icon, "wallet")}</span>
+                    <span class="rail-acc-main">
+                      <span class="rail-acc-name">${a.name}</span>
+                    </span>
+                    <span class=${"rail-acc-bal " + (bal < 0 ? "neg" : "pos")}>${fmt(bal, a.currency)}</span>
+                  </button>
                 `;
               })}
-              <div class="list-row" style="background:var(--bg-soft);">
-                <div class="lr-main"><div class="lr-title">Всего</div></div>
-                <div class="lr-amount tabular">${fmt(totalBalance)}</div>
+              <div class="rail-total">
+                <span>Всего</span>
+                <span class="tabular">${fmt(totalBalance)}</span>
               </div>
             </div>
           `}
-      </div>
+      </aside>
 
-      <div class="card">
-        <div class="section-head" style="padding:16px 18px 8px;">
-          <h2>Топ категорий за период</h2>
-          <a class="more" href=${href("operations")}>Все операции</a>
-        </div>
-        ${topCategories.length === 0
-          ? html`<div class="empty">Нет расходов за этот период</div>`
-          : html`
-            <div class="list">
-              ${topCategories.map(({ category, amount }) => {
-                const total = topCategories.reduce((s, x) => s + x.amount, 0);
-                const pct = total > 0 ? Math.round((amount / total) * 100) : 0;
-                return html`
-                  <div class="list-row" key=${category.id}>
-                    <span class="lr-icon" style=${`color:${category.color || "var(--accent)"};background:${(category.color || "#16a34a")}1f;`}>${renderIcon(category.icon, "tag")}</span>
-                    <div class="lr-main">
-                      <div class="lr-title">${category.name}</div>
-                      <div class="progress" style="margin-top:6px;"><div style=${`width:${pct}%;background:${category.color || "var(--accent)"};`}></div></div>
-                    </div>
-                    <div class="lr-amount">${fmt(amount)}</div>
-                  </div>
-                `;
-              })}
-            </div>
-          `}
-      </div>
-    </div>
-
-    <div class="card" style="margin-top:18px;">
-      <div class="section-head" style="padding:16px 18px 8px;">
-        <h2>Последние операции</h2>
-        <a class="more" href=${href("operations")}>Все операции</a>
-      </div>
-      ${recent.length === 0
-        ? html`<div class="empty">Здесь будут появляться ваши операции</div>`
-        : html`
-          <div class="list">
-            ${recent.map(op => {
-              const acc = accounts.find(a => a.id === op.account_id);
-              const cat = op.category_id ? categories.find(c => c.id === op.category_id) : null;
-              const parentCat = cat?.parent_id ? categories.find(c => c.id === cat.parent_id) : null;
-              const dotColor = cat?.color || (op.kind === "income" ? "var(--income)" : op.kind === "transfer" ? "var(--transfer)" : "var(--expense)");
-              const iconName = op.kind === "transfer" ? "swap" : (cat?.icon || "dot");
-              return html`
-                <div class="list-row clickable" key=${op.id}
-                     onClick=${() => setEditing(op)}
-                     style="cursor:pointer;">
-                  <span class="lr-icon" style=${`color:${dotColor};background:${dotColor}1f;`}>${renderIcon(iconName, "dot")}</span>
-                  <div class="lr-main">
-                    <div class="lr-title">${rowTitle(op, accounts, cat, parentCat)}</div>
-                    <div class="lr-sub">${rowSub(op, acc, accounts)}</div>
-                  </div>
-                  <div class=${"lr-amount " + op.kind}>
-                    ${op.kind === "income" ? "+" : op.kind === "expense" ? "−" : ""}${fmt(op.amount, acc?.currency)}
-                  </div>
-                </div>
-              `;
-            })}
+      <main class="dash-main">
+        <div class="page-head">
+          <div>
+            <h1>Главная</h1>
+            <div class="sub">${finMonthLabel(monthStart)}</div>
           </div>
-        `}
+          <div class="btn-row">
+            <button class="btn" onClick=${() => setMonthOffset(o => o - 1)} title="Предыдущий период">${Icon.left()}</button>
+            ${monthOffset !== 0 && html`<button class="btn ghost" onClick=${() => setMonthOffset(0)}>Сегодня</button>`}
+            <button class="btn" onClick=${() => setMonthOffset(o => o + 1)} title="Следующий период"
+                    disabled=${monthOffset >= 0}>${Icon.right()}</button>
+            <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
+          </div>
+        </div>
+
+        <div class="row cols-2" style="align-items:stretch;margin-bottom:18px;">
+          <div class="card ive-card">
+            <div class="ive-head">
+              <h2>Доходы vs Расходы</h2>
+            </div>
+            <div class=${"ive-pct" + (expensePct > 100 ? " over" : "")}>${expensePct}%</div>
+            <div class="ive-sub">Доля расходов в ${monthLocative(monthStart)}</div>
+            <div class="ive-rows">
+              <div class="ive-row">
+                <div class="label">Доходы</div>
+                <div class="ive-bar income from-left">
+                  <div class="fill" style=${`width:${incomeBarPct}%;`}></div>
+                </div>
+                <div class="amount" style="color:var(--income);">${fmt(income)}</div>
+              </div>
+              <div class="ive-row">
+                <div class="label">Расходы</div>
+                <div class="ive-bar expense from-left">
+                  <div class="fill" style=${`width:${Math.min(100, expenseBarPct)}%;`}></div>
+                </div>
+                <div class="amount">${fmt(expense)}</div>
+              </div>
+              <div class="ive-row">
+                <div class="label">Остаток</div>
+                <div class="ive-bar balance from-right">
+                  <div class="fill" style=${`width:${balancePct}%;`}></div>
+                </div>
+                <div class="amount" style=${diff < 0 ? "color:var(--expense);" : ""}>${fmt(diff)}</div>
+              </div>
+            </div>
+            <div class="ive-note">
+              ${ivNote(expensePct, prevExpensePct, monthLocative(monthStart))}
+            </div>
+          </div>
+
+          <div class="card" style="padding:18px 20px;">
+            <div class="section-head" style="margin-bottom:8px;">
+              <h2>Динамика и планы</h2>
+              <span class="more">Наведите курсор</span>
+            </div>
+            <${PlansChart} monthStart=${monthStart} monthEnd=${monthEnd} />
+          </div>
+        </div>
+
+        <${OperationsList} />
+      </main>
     </div>
 
     ${adding && html`<${OperationForm} onClose=${() => setAdding(false)} />`}
-    ${editing && html`<${OperationForm} initial=${editing} onClose=${() => setEditing(null)} />`}
     ${creatingAccount && html`<${AccountForm} onClose=${() => setCreatingAccount(false)} />`}
     ${editingAccount && html`<${AccountForm} initial=${editingAccount} onClose=${() => setEditingAccount(null)} />`}
   `;
@@ -246,20 +169,6 @@ export function DashboardPage() {
 
 function sum(arr, getter) {
   return arr.reduce((s, x) => s + Number(getter(x) || 0), 0);
-}
-
-function ivNote(curPct, prevPct, locMonth) {
-  const cur = `В ${locMonth} на расходы ушло ${curPct}% от дохода.`;
-  if (prevPct === 0 && curPct === 0) {
-    return cur + " Данных за прошлый период пока нет.";
-  }
-  if (prevPct === 0) {
-    return cur + " В прошлом периоде доходов ещё не было.";
-  }
-  const delta = curPct - prevPct;
-  if (delta === 0) return cur + " Это столько же, сколько в прошлом периоде.";
-  if (delta > 0) return cur + ` В прошлом периоде было ${prevPct}% — стало больше на ${delta} п.п.`;
-  return cur + ` В прошлом периоде было ${prevPct}% — стало меньше на ${-delta} п.п.`;
 }
 
 function accountBalance(account, operations) {
@@ -277,32 +186,12 @@ function accountBalance(account, operations) {
   return bal;
 }
 
-function rowTitle(op, accounts, cat, parentCat) {
-  if (op.kind === "transfer") {
-    const from = accounts.find(a => a.id === op.account_id);
-    const to = accounts.find(a => a.id === op.to_account_id);
-    return `${from?.name || "?"} → ${to?.name || "?"}`;
-  }
-  if (cat) {
-    return parentCat ? `${parentCat.name} • ${cat.name}` : cat.name;
-  }
-  return op.kind === "income" ? "Доход" : "Расход";
-}
-
-function rowSub(op, acc, accounts) {
-  const date = formatDateShort(op.date);
-  if (op.kind === "transfer") return `${date} • Перевод`;
-  return `${date} • ${acc?.name || ""}${op.note ? " • " + op.note : ""}`;
-}
-
-function formatDateShort(iso) {
-  if (!iso) return "";
-  const d = fromISO(iso);
-  if (!d) return "";
-  const today = new Date(); today.setHours(0,0,0,0);
-  const diff = Math.round((today - d) / 86400000);
-  if (diff === 0) return "Сегодня";
-  if (diff === 1) return "Вчера";
-  const months = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"];
-  return `${d.getDate()} ${months[d.getMonth()]}`;
+function ivNote(curPct, prevPct, locMonth) {
+  const cur = `В ${locMonth} на расходы ушло ${curPct}% от дохода.`;
+  if (prevPct === 0 && curPct === 0) return cur + " Данных за прошлый период пока нет.";
+  if (prevPct === 0) return cur + " В прошлом периоде доходов ещё не было.";
+  const delta = curPct - prevPct;
+  if (delta === 0) return cur + " Это столько же, сколько в прошлом периоде.";
+  if (delta > 0) return cur + ` В прошлом периоде было ${prevPct}% — стало больше на ${delta} п.п.`;
+  return cur + ` В прошлом периоде было ${prevPct}% — стало меньше на ${-delta} п.п.`;
 }
