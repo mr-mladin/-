@@ -126,11 +126,13 @@ export function parseCsvImport(text) {
     amount: find("amount", "сумма", "value"),
     currency: find("currency", "валюта"),
     account: find("account", "счёт", "счет"),
-    toAccount: find("to_account", "to account", "счёт получатель"),
+    toAccount: find("to_account", "to account", "счёт получатель",
+                    "перевод: счёт", "перевод: счет", "перевод счёт", "перевод счет"),
+    toAmount: find("to_amount", "перевод: сумма", "перевод сумма"),
     category: find("category", "категория"),
     subcategory: find("subcategory", "подкатегория"),
-    tags: find("tags", "теги"),
-    note: find("note", "комментарий", "description"),
+    tags: find("tags", "теги", "метки"),
+    note: find("note", "комментарий", "description", "примечание"),
   };
 
   if (idx.date === -1) errors.push("Не найдена колонка date / дата");
@@ -146,16 +148,28 @@ export function parseCsvImport(text) {
     let amount = parseAmount(row[idx.amount]);
     if (isNaN(amount)) { errors.push(`Строка ${r + 2}: некорректная сумма`); continue; }
 
-    let kind = "expense";
+    const toAccountVal = idx.toAccount !== -1 ? (row[idx.toAccount] || "").trim() : "";
     const typeStr = idx.type !== -1 ? String(row[idx.type] || "").toLowerCase().trim() : "";
-    if (typeStr === "income" || typeStr === "доход" || amount > 0 && idx.type === -1) kind = "income";
-    if (typeStr === "expense" || typeStr === "расход" || (amount < 0 && idx.type === -1)) kind = "expense";
-    if (typeStr === "transfer" || typeStr === "перевод") kind = "transfer";
-    // Если знак "+/-" использован в сумме — учитываем
-    if (idx.type === -1) {
-      kind = amount >= 0 ? "income" : "expense";
-    }
+
+    // Определяем тип операции:
+    //  1) если есть колонка type/тип — идём по ней;
+    //  2) иначе если заполнен счёт-получатель — это перевод (формат Money Flow);
+    //  3) иначе по знаку суммы: + → доход, − → расход.
+    let kind;
+    if (typeStr === "income" || typeStr === "доход") kind = "income";
+    else if (typeStr === "expense" || typeStr === "расход") kind = "expense";
+    else if (typeStr === "transfer" || typeStr === "перевод") kind = "transfer";
+    else if (toAccountVal) kind = "transfer";
+    else kind = amount >= 0 ? "income" : "expense";
+
     amount = Math.abs(amount);
+
+    // Сумма зачисления для перевода (если в файле указана отдельно)
+    let toAmount = null;
+    if (kind === "transfer" && idx.toAmount !== -1) {
+      const v = parseAmount(row[idx.toAmount]);
+      if (!isNaN(v)) toAmount = Math.abs(v);
+    }
 
     const tagsStr = idx.tags !== -1 ? String(row[idx.tags] || "") : "";
     const tags = tagsStr.split(/[|;,]/).map(s => s.trim()).filter(Boolean);
@@ -164,7 +178,8 @@ export function parseCsvImport(text) {
       date, kind, amount,
       currency: idx.currency !== -1 ? row[idx.currency]?.trim() || "" : "",
       account: idx.account !== -1 ? row[idx.account]?.trim() || "" : "",
-      toAccount: idx.toAccount !== -1 ? row[idx.toAccount]?.trim() || "" : "",
+      toAccount: toAccountVal,
+      toAmount,
       category: idx.category !== -1 ? row[idx.category]?.trim() || "" : "",
       subcategory: idx.subcategory !== -1 ? row[idx.subcategory]?.trim() || "" : "",
       tags,
