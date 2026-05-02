@@ -36,12 +36,6 @@ export function DashboardPage() {
   const expense = sum(monthOps.filter(o => o.kind === "expense"), o => o.amount);
   const diff = income - expense;
 
-  // Доля расхода в доходе (для пропорциональной полоски).
-  // Если дохода нет, но есть расход — полоска полностью красная.
-  const expenseFrac = income > 0
-    ? Math.min(1, expense / income)
-    : (expense > 0 ? 1 : 0);
-
   // Прошлый период — для сравнения
   const prevAnchor = useMemo(() => shiftFinMonth(monthAnchor, -1, finStart), [monthAnchor, finStart]);
   const prevStart = startOfFinMonth(prevAnchor, finStart);
@@ -100,26 +94,6 @@ export function DashboardPage() {
         <button class="btn" onClick=${() => setMonthOffset(o => o + 1)} title="Следующий период"
                 disabled=${monthOffset >= 0}>${Icon.right()}</button>
         <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
-      </div>
-    </div>
-
-    <div class="hero glass">
-      <div class="h-cell income">
-        <div class="h-label">Доход</div>
-        <div class="h-value">${fmt(income)}</div>
-      </div>
-      <div class="h-cell expense">
-        <div class="h-label">Расход</div>
-        <div class="h-value">${fmt(expense)}</div>
-      </div>
-      <div class="h-cell diff">
-        <div class="h-label">Остаток</div>
-        <div class=${"h-value " + (diff < 0 ? "neg" : "pos")}>${fmt(diff)}</div>
-      </div>
-      <div class=${"hero-bar " + (diff < 0 ? "over" : "")}
-           style=${`--expense-frac: ${(expenseFrac * 100).toFixed(2)}%;`}>
-        <div class="h-bar-expense"></div>
-        <div class="h-bar-balance"></div>
       </div>
     </div>
 

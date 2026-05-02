@@ -7,3 +7,10 @@ render(
   html`<${StoreProvider}><${App} /></${StoreProvider}>`,
   document.getElementById("app")
 );
+
+// Регистрация service worker — чтобы новые деплои подхватывались сразу
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(() => {});
+  });
+}

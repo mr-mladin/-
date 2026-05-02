@@ -28,6 +28,7 @@ jobs:
         run: |
           mkdir -p _site
           cp index.html _site/
+          cp sw.js _site/
           cp -r src _site/
           # SPA fallback for hash router (404 → index.html)
           cp index.html _site/404.html
