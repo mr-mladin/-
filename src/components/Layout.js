@@ -1,61 +1,64 @@
 import { html } from "htm/preact";
+import { useEffect, useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
-import { href } from "../lib/router.js";
+import { href, navigate } from "../lib/router.js";
 import { Icon } from "../lib/icons.js";
 
 const NAV = [
   { name: "dashboard", label: "Главная",   icon: "dashboard" },
-  { name: "operations", label: "Операции", icon: "list" },
   { name: "budgets",    label: "Бюджеты",  icon: "budget" },
   { name: "goals",      label: "Цели",     icon: "goal" },
   { name: "settings",   label: "Настройки", icon: "settings" },
 ];
 
 export function Layout({ active, children }) {
-  const { user } = useStore();
+  const { user, auth } = useStore();
+  const [open, setOpen] = useState(false);
+
+  // Закрываем меню при смене маршрута
+  useEffect(() => { setOpen(false); }, [active]);
+
+  // Esc → закрыть
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e) { if (e.key === "Escape") setOpen(false); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
 
   return html`
-    <div class="shell">
-      <aside class="sidebar">
-        <div class="brand">
-          <span class="brand-mark">₽</span>
-          <span>Финансы</span>
-        </div>
-        <nav class="nav">
-          ${NAV.map(item => html`
-            <a class=${active === item.name ? "active" : ""} href=${href(item.name)} key=${item.name}>
-              ${Icon[item.icon]()} <span>${item.label}</span>
-            </a>
-          `)}
-        </nav>
-        <div class="sidebar-foot">
-          <div class="user">
-            <span class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Аккаунт</span>
-            <span class="email">${user?.email}</span>
-          </div>
-        </div>
-      </aside>
+    <div class="app-shell">
+      <button class="menu-btn ${open ? "is-open" : ""}"
+        onClick=${() => setOpen(o => !o)}
+        aria-label=${open ? "Закрыть меню" : "Открыть меню"}>
+        ${open ? Icon.close() : Icon.menu()}
+      </button>
 
-      <main>
-        <div class="mobile-bar glass">
-          <div class="brand">
+      <div class="menu-overlay ${open ? "open" : ""}" aria-hidden=${!open}>
+        <div class="menu-backdrop" onClick=${() => setOpen(false)}></div>
+        <nav class="menu-panel glass">
+          <div class="brand" style="padding:6px 10px 18px;">
             <span class="brand-mark">₽</span>
             <span>Финансы</span>
           </div>
-        </div>
-        <div class="content">
-          ${children}
-        </div>
-      </main>
+          <div class="nav">
+            ${NAV.map(item => html`
+              <a class=${active === item.name ? "active" : ""}
+                href=${href(item.name)}
+                onClick=${() => setOpen(false)}
+                key=${item.name}>
+                ${Icon[item.icon]()} <span>${item.label}</span>
+              </a>
+            `)}
+          </div>
+          <div class="menu-foot">
+            <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Аккаунт</div>
+            <div class="email">${user?.email}</div>
+          </div>
+        </nav>
+      </div>
 
-      <nav class="mobile-tabs glass">
-        ${NAV.map(item => html`
-          <a class=${active === item.name ? "active" : ""} href=${href(item.name)} key=${item.name}>
-            ${Icon[item.icon]()}
-            <span>${item.label}</span>
-          </a>
-        `)}
-      </nav>
+      <div class="page">${children}</div>
     </div>
   `;
 }

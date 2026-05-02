@@ -1,9 +1,9 @@
 // Минимальный hash-роутер.
-// Маршруты: #/dashboard, #/operations, #/budgets, #/goals, #/settings[/...]
+// Маршруты: #/dashboard, #/budgets, #/goals, #/settings[/...]
 
 import { useEffect, useState } from "preact/hooks";
 
-export const ROUTES = ["dashboard", "operations", "budgets", "goals", "settings"];
+export const ROUTES = ["dashboard", "budgets", "goals", "settings"];
 
 function parse() {
   const hash = window.location.hash.replace(/^#\/?/, "");
