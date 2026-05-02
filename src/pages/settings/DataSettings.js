@@ -92,7 +92,7 @@ export function DataSettings() {
           amount: row.amount,
           account_id: account.id,
           to_account_id: toAccount?.id || null,
-          to_amount: row.kind === "transfer" ? row.amount : null,
+          to_amount: row.kind === "transfer" ? (row.toAmount ?? row.amount) : null,
           category_id: categoryId,
           date: row.date,
           note: row.note || null,
