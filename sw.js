@@ -1,8 +1,8 @@
-// Service worker: network-first для собственных файлов сайта.
-// Цель — чтобы любой деплой подхватывался сразу, без долгого кеша.
-// Если сеть недоступна — отдаём из кеша (offline-fallback).
+// Service worker: stale-while-revalidate.
+// Цель — мгновенная загрузка страницы из кеша + тихое обновление в фоне.
+// При следующем заходе пользователь видит свежую версию.
 
-const CACHE = "fin-v1";
+const CACHE = "fin-v2";
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -20,22 +20,31 @@ self.addEventListener("fetch", (e) => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  // Применяем стратегию только к файлам нашего origin (не к Supabase, не к esm.sh)
+  // Только наш origin (Supabase, esm.sh не трогаем — пусть браузер кэширует сам).
   if (url.origin !== self.location.origin) return;
 
-  // Network-first: пытаемся получить из сети, при неудаче — из кеша.
   e.respondWith((async () => {
-    try {
-      const fresh = await fetch(req, { cache: "no-store" });
-      if (fresh && fresh.status === 200) {
-        const cache = await caches.open(CACHE);
-        cache.put(req, fresh.clone());
-      }
-      return fresh;
-    } catch (err) {
-      const cached = await caches.match(req);
-      if (cached) return cached;
-      throw err;
+    const cache = await caches.open(CACHE);
+    const cached = await cache.match(req);
+
+    // Сетевой запрос — не блокируемся на нём, если есть кеш
+    const networkPromise = fetch(req)
+      .then(res => {
+        if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
+        return res;
+      })
+      .catch(() => null);
+
+    if (cached) {
+      // Пользователь видит ответ мгновенно из кеша.
+      // В фоне сеть обновит кеш — на следующем заходе будет уже свежее.
+      networkPromise.catch(() => {});
+      return cached;
     }
+
+    // Кеша нет — придётся подождать сеть
+    const fresh = await networkPromise;
+    if (fresh) return fresh;
+    return new Response("offline", { status: 503 });
   })());
 });
