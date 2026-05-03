@@ -10,6 +10,7 @@ export function DataSettings() {
   const store = useStore();
   const fileRef = useRef(null);
   const [importing, setImporting] = useState(null);   // null | { rows, errors, defaults }
+  const [failedReport, setFailedReport] = useState(null); // null | { imported, failedDetails }
   const [busy, setBusy] = useState(false);
 
   function doExport() {
@@ -35,7 +36,8 @@ export function DataSettings() {
   async function runImport() {
     if (!importing?.rows?.length) return;
     setBusy(true);
-    let imported = 0, failed = 0;
+    let imported = 0;
+    const failedDetails = [];
 
     const accountByName = new Map(store.accounts.map(a => [a.name.toLowerCase(), a]));
     const categoryByName = new Map();
@@ -58,16 +60,28 @@ export function DataSettings() {
       return t;
     }
 
-    for (const row of importing.rows) {
+    for (let i = 0; i < importing.rows.length; i++) {
+      const row = importing.rows[i];
+      const lineNo = i + 2; // строка в CSV (с учётом заголовка)
       try {
         let account = row.account ? accountByName.get(row.account.toLowerCase()) : null;
         if (!account) account = store.accounts.find(a => a.id === importing.defaultAccountId);
-        if (!account) { failed++; continue; }
+        if (!account) {
+          failedDetails.push({ lineNo, row,
+            reason: row.account
+              ? `Счёт «${row.account}» не найден среди ваших счетов и не выбран счёт по умолчанию.`
+              : "Счёт не указан и счёт по умолчанию не выбран." });
+          continue;
+        }
 
         let toAccount = null;
         if (row.kind === "transfer" && row.toAccount) {
           toAccount = accountByName.get(row.toAccount.toLowerCase());
-          if (!toAccount) { failed++; continue; }
+          if (!toAccount) {
+            failedDetails.push({ lineNo, row,
+              reason: `Счёт получатель «${row.toAccount}» не найден среди ваших счетов. Создайте его в Настройках → Счета и попробуйте снова.` });
+            continue;
+          }
         }
 
         let categoryId = null;
@@ -100,13 +114,18 @@ export function DataSettings() {
         imported++;
       } catch (e) {
         console.error(e);
-        failed++;
+        failedDetails.push({ lineNo, row,
+          reason: (e?.message || "Неизвестная ошибка базы данных").trim() });
       }
     }
 
     setBusy(false);
     setImporting(null);
-    store.pushToast(`Импортировано: ${imported}${failed ? `, ошибок: ${failed}` : ""}`, failed ? "error" : "success");
+    if (failedDetails.length === 0) {
+      store.pushToast(`Импортировано: ${imported}`, "success");
+    } else {
+      setFailedReport({ imported, failedDetails });
+    }
   }
 
   return html`
@@ -190,5 +209,61 @@ export function DataSettings() {
         `}
       <//>
     `}
+
+    ${failedReport && html`
+      <${Modal} wide title=${`Импорт завершён с ошибками`}
+        onClose=${() => setFailedReport(null)}
+        footer=${html`
+          <button class="btn ghost" onClick=${() => downloadFailReport(failedReport)}>${Icon.download()} Скачать отчёт</button>
+          <button class="btn primary" onClick=${() => setFailedReport(null)}>Понятно</button>
+        `}
+      >
+        <div class="notice">
+          Импортировано: <b>${failedReport.imported}</b>. Не удалось: <b>${failedReport.failedDetails.length}</b>.
+        </div>
+        <div style="overflow:auto;max-height:380px;border:1px solid var(--border);border-radius:10px;">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Строка</th><th>Дата</th><th>Тип</th><th class="num">Сумма</th><th>Счёт</th><th>Причина</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${failedReport.failedDetails.map((f, i) => html`
+                <tr key=${i}>
+                  <td class="muted">${f.lineNo}</td>
+                  <td>${f.row.date}</td>
+                  <td>${f.row.kind}</td>
+                  <td class="num">${f.row.amount}</td>
+                  <td>${f.row.account || "—"}${f.row.toAccount ? ` → ${f.row.toAccount}` : ""}</td>
+                  <td style="color:var(--expense);">${f.reason}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        </div>
+        <div class="muted" style="font-size:12px;">
+          Чаще всего причина — несовпадающее имя счёта. Проверьте, что счета с такими же названиями созданы в Настройках → Счета, потом запустите импорт заново — операции, которые уже импортировались, продублируются, поэтому имеет смысл сначала удалить их (через фильтр по дате на главной).
+        </div>
+      <//>
+    `}
   `;
+}
+
+function downloadFailReport(report) {
+  const TAB = "\t", NL = "\n";
+  const lines = [
+    ["line", "date", "type", "amount", "account", "to_account", "reason"].join(TAB),
+    ...report.failedDetails.map(f => [
+      f.lineNo, f.row.date, f.row.kind, f.row.amount,
+      f.row.account || "", f.row.toAccount || "",
+      (f.reason || "").replace(/[\t\n]/g, " ")
+    ].join(TAB))
+  ].join(NL);
+  const blob = new Blob([lines], { type: "text/tab-separated-values;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "import-errors.tsv";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
 }
