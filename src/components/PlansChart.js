@@ -46,10 +46,23 @@ function eachDay(start, end) {
 }
 
 export function PlansChart({ monthStart, monthEnd }) {
-  const { profile, operations, plannedOperations, accounts } = useStore();
+  const { profile, operations: allOperations, plannedOperations: allPlanned, accounts, selectedAccountId } = useStore();
   const numberFormat = profile?.number_format || "space";
   const baseCurrency = profile?.base_currency || "RUB";
   const fmt = (v) => formatAmount(v, baseCurrency, numberFormat);
+
+  const operations = useMemo(() => {
+    if (!selectedAccountId) return allOperations;
+    return allOperations.filter(op => op.account_id === selectedAccountId || op.to_account_id === selectedAccountId);
+  }, [allOperations, selectedAccountId]);
+  const plannedOperations = useMemo(() => {
+    if (!selectedAccountId) return allPlanned;
+    return (allPlanned || []).filter(p => p.account_id === selectedAccountId || p.to_account_id === selectedAccountId);
+  }, [allPlanned, selectedAccountId]);
+  const activeAccounts = useMemo(() => {
+    if (!selectedAccountId) return accounts.filter(x => !x.archived);
+    return accounts.filter(a => a.id === selectedAccountId);
+  }, [accounts, selectedAccountId]);
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayISO = toISO(today);
@@ -108,7 +121,7 @@ export function PlansChart({ monthStart, monthEnd }) {
   const startBalance = useMemo(() => {
     let total = 0;
     const startISO_ = toISO(monthStart);
-    for (const a of accounts.filter(x => !x.archived)) {
+    for (const a of activeAccounts) {
       let bal = Number(a.initial_balance || 0);
       for (const op of operations) {
         if (op.date >= startISO_) continue;
@@ -123,7 +136,7 @@ export function PlansChart({ monthStart, monthEnd }) {
       total += bal;
     }
     return total;
-  }, [monthStart.getTime(), accounts, operations]);
+  }, [monthStart.getTime(), activeAccounts, operations]);
 
   // Размер
   const wrapRef = useRef(null);
