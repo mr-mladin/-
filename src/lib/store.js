@@ -23,7 +23,17 @@ const initialState = {
   goals: [],
   plannedOperations: [],
   toast: null,
+  selectedAccountId: readSelectedAccountId(),
 };
+
+function readSelectedAccountId() {
+  try {
+    const v = localStorage.getItem("fin.selectedAccountId");
+    return v ? v : null;
+  } catch (e) {
+    return null;
+  }
+}
 
 function reducer(state, action) {
   switch (action.type) {
@@ -88,8 +98,10 @@ export function StoreProvider({ children }) {
           loading: false, ready: true, profile: null,
           accounts: [], categories: [], tags: [], operations: [],
           operationTags: [], budgets: [], goals: [], plannedOperations: [],
+          selectedAccountId: null,
         }
       });
+      try { localStorage.removeItem("fin.selectedAccountId"); } catch (e) {}
     });
     return () => { active = false; sub.subscription.unsubscribe(); };
   }, []);
@@ -368,10 +380,19 @@ export function StoreProvider({ children }) {
     },
   };
 
+  function setSelectedAccount(id) {
+    try {
+      if (id) localStorage.setItem("fin.selectedAccountId", id);
+      else localStorage.removeItem("fin.selectedAccountId");
+    } catch (e) {}
+    dispatch({ type: "set", payload: { selectedAccountId: id || null } });
+  }
+
   const value = {
     ...state,
     toasts,
     pushToast,
+    setSelectedAccount,
     auth,
     actions: {
       accounts,

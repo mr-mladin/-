@@ -24,7 +24,7 @@ const EMPTY_FILTERS = {
 
 export function OperationsList() {
   const store = useStore();
-  const { profile, accounts, categories, tags, operations, operationTags } = store;
+  const { profile, accounts, categories, tags, operations, operationTags, selectedAccountId } = store;
 
   const [adding, setAdding] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -49,6 +49,7 @@ export function OperationsList() {
     const amountFrom = f.amountFrom ? parseAmount(f.amountFrom) : null;
     const amountTo = f.amountTo ? parseAmount(f.amountTo) : null;
     return operations.filter(op => {
+      if (selectedAccountId && op.account_id !== selectedAccountId && op.to_account_id !== selectedAccountId) return false;
       if (f.kind && op.kind !== f.kind) return false;
       if (f.accountId && op.account_id !== f.accountId && op.to_account_id !== f.accountId) return false;
       if (f.categoryId) {
@@ -75,7 +76,7 @@ export function OperationsList() {
       }
       return true;
     });
-  }, [operations, filters, accounts, categories, tags, tagsByOp]);
+  }, [operations, filters, accounts, categories, tags, tagsByOp, selectedAccountId]);
 
   const totalIncome = filtered.filter(o => o.kind === "income").reduce((s, o) => s + Number(o.amount), 0);
   const totalExpense = filtered.filter(o => o.kind === "expense").reduce((s, o) => s + Number(o.amount), 0);
