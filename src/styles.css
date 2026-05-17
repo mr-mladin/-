@@ -358,6 +358,8 @@ input, select, textarea { font: inherit; color: inherit; }
 .app-shell.is-collapsed .sidebar-nav {
   flex-direction: column; align-items: center; gap: 6px; width: 100%;
 }
+/* В свёрнутом виде кнопка-стрелка должна оставаться сверху, над иконками */
+.app-shell.is-collapsed .sidebar-toggle { order: -1; }
 .app-shell.is-collapsed .sidebar-nav-btn::after {
   top: 50%; left: calc(100% + 10px);
   transform: translateY(-50%) translateX(-4px);
@@ -406,6 +408,133 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .page-head h1 { margin: 0; font-size: 26px; letter-spacing: -0.02em; }
 .page-head .sub { color: var(--text-mute); font-size: 14px; margin-top: 4px; }
+
+/* --- Period picker --- */
+.dash-head { margin-bottom: 6px; align-items: center; }
+.dash-sub { font-size: 13px; margin-bottom: 18px; }
+
+.period-bar {
+  display: flex; align-items: center; gap: 10px;
+  flex: 1 1 auto; min-width: 0;
+  overflow: hidden;
+}
+.period-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border: 1px solid transparent;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+.period-chip:hover { background: color-mix(in oklab, var(--accent-soft), var(--accent) 8%); }
+.period-chip .ico { width: 14px; height: 14px; }
+
+.period-months {
+  display: flex; align-items: center; gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.period-months::-webkit-scrollbar { height: 4px; }
+.period-months::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.period-month {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition), color var(--transition);
+}
+.period-month:hover { background: var(--bg-elev); color: var(--text); }
+.period-month.is-current {
+  color: var(--text);
+  font-weight: 700;
+}
+.period-divider {
+  color: var(--text-mute);
+  padding: 0 4px;
+  user-select: none;
+}
+
+/* --- Period modal --- */
+.period-modal { display: flex; flex-direction: column; gap: 8px; min-width: 320px; }
+.period-section {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+}
+.period-section:last-child { border-bottom: none; padding-bottom: 0; }
+.period-section-head {
+  font-weight: 600;
+  font-size: 14px;
+  padding: 8px 6px 6px;
+  color: var(--text);
+}
+.period-item {
+  display: flex; align-items: center; gap: 12px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--transition);
+}
+.period-item:hover { background: var(--bg-soft); }
+.period-item.is-active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+.period-item-ico {
+  display: grid; place-items: center;
+  width: 22px; height: 22px;
+  color: var(--text-mute);
+  flex: 0 0 22px;
+}
+.period-item.is-active .period-item-ico { color: var(--accent); }
+.period-item-ico .ico { width: 16px; height: 16px; }
+.period-item-main { flex: 1 1 auto; min-width: 0; }
+.period-check { margin-left: auto; color: var(--accent); }
+.period-check .ico { width: 16px; height: 16px; }
+
+.period-custom {
+  padding: 8px 10px 10px;
+  background: var(--bg-soft);
+  border-radius: 10px;
+  margin: 4px 6px 0;
+}
+
+.period-year-head {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 9px 6px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+.period-chev {
+  display: grid; place-items: center;
+  width: 18px; height: 18px;
+  transition: transform var(--transition);
+  color: var(--text-mute);
+}
+.period-chev.is-down { transform: rotate(90deg); }
+.period-chev .ico { width: 14px; height: 14px; }
+.period-year-body { display: flex; flex-direction: column; gap: 2px; padding-left: 14px; }
 
 /* ---------- Buttons ---------- */
 .btn {
