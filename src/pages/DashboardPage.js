@@ -1,48 +1,38 @@
 import { html } from "htm/preact";
 import { useMemo, useState } from "preact/hooks";
 import { useStore } from "../lib/store.js";
-import {
-  formatAmount, toISO,
-  startOfFinMonth, endOfFinMonth, shiftFinMonth, finMonthLabel, monthLocative,
-} from "../lib/format.js";
+import { formatAmount, fromISO } from "../lib/format.js";
 import { Icon } from "../lib/icons.js";
 import { OperationForm } from "../components/OperationForm.js";
 import { PlansChart } from "../components/PlansChart.js";
 import { OperationsList } from "../components/OperationsList.js";
+import { PeriodPicker } from "../components/PeriodPicker.js";
+import { resolvePeriod, previousPeriod, defaultPeriod } from "../lib/period.js";
 
 export function DashboardPage() {
   const { profile, accounts, operations, selectedAccountId } = useStore();
   const [adding, setAdding] = useState(false);
-  const [monthOffset, setMonthOffset] = useState(0);
+  const [period, setPeriod] = useState(() => defaultPeriod());
 
   const fmt = (v, c) => formatAmount(v, c || profile?.base_currency || "RUB", profile?.number_format || "space");
-  const finStart = profile?.financial_month_start || 1;
+  const weekStart = profile?.week_start === 0 ? 0 : 1;
 
-  const monthAnchor = useMemo(() => shiftFinMonth(new Date(), monthOffset, finStart), [monthOffset, finStart]);
-  const monthStart = startOfFinMonth(monthAnchor, finStart);
-  const monthEnd = endOfFinMonth(monthAnchor, finStart);
-  const startISO = toISO(monthStart);
-  const endISO = toISO(monthEnd);
+  const range = useMemo(() => resolvePeriod(period, new Date(), weekStart), [period, weekStart]);
+  const prevRange = useMemo(() => previousPeriod(range.startISO, range.endISO), [range.startISO, range.endISO]);
 
   const matchesAccount = (op) => {
     if (!selectedAccountId) return true;
     return op.account_id === selectedAccountId || op.to_account_id === selectedAccountId;
   };
 
-  const inRange = (op) => op.date >= startISO && op.date <= endISO;
+  const inRange = (op) => op.date >= range.startISO && op.date <= range.endISO;
   const monthOps = operations.filter(op => inRange(op) && matchesAccount(op));
 
   const income = sum(monthOps.filter(o => o.kind === "income"), o => o.amount);
   const expense = sum(monthOps.filter(o => o.kind === "expense"), o => o.amount);
   const diff = income - expense;
 
-  // Прошлый период — для сравнения
-  const prevAnchor = useMemo(() => shiftFinMonth(monthAnchor, -1, finStart), [monthAnchor, finStart]);
-  const prevStart = startOfFinMonth(prevAnchor, finStart);
-  const prevEnd = endOfFinMonth(prevAnchor, finStart);
-  const prevStartISO = toISO(prevStart);
-  const prevEndISO = toISO(prevEnd);
-  const prevOps = operations.filter(o => o.date >= prevStartISO && o.date <= prevEndISO && matchesAccount(o));
+  const prevOps = operations.filter(o => o.date >= prevRange.startISO && o.date <= prevRange.endISO && matchesAccount(o));
   const prevIncome = sum(prevOps.filter(o => o.kind === "income"), o => o.amount);
   const prevExpense = sum(prevOps.filter(o => o.kind === "expense"), o => o.amount);
 
@@ -55,24 +45,21 @@ export function DashboardPage() {
   const balancePct = ivMax > 0 ? (Math.max(0, diff) / ivMax) * 100 : 0;
 
   const selectedAccount = selectedAccountId ? accounts.find(a => a.id === selectedAccountId) : null;
-  const subLabel = selectedAccount
-    ? `${finMonthLabel(monthStart)} • ${selectedAccount.name}`
-    : finMonthLabel(monthStart);
+  const subLabel = selectedAccount ? `${range.label} • ${selectedAccount.name}` : range.label;
+
+  const startDate = fromISO(range.startISO) || new Date();
+  const endDate = fromISO(range.endISO) || new Date();
+  const rangeDays = Math.round((endDate - startDate) / 86400000) + 1;
+  const chartShowable = rangeDays > 0 && rangeDays <= 400;
 
   return html`
-    <div class="page-head">
-      <div>
-        <h1>Главная</h1>
-        <div class="sub">${subLabel}</div>
-      </div>
+    <div class="page-head dash-head">
+      <${PeriodPicker} period=${period} onChange=${setPeriod} operations=${operations} />
       <div class="btn-row">
-        <button class="btn" onClick=${() => setMonthOffset(o => o - 1)} title="Предыдущий период">${Icon.left()}</button>
-        ${monthOffset !== 0 && html`<button class="btn ghost" onClick=${() => setMonthOffset(0)}>Сегодня</button>`}
-        <button class="btn" onClick=${() => setMonthOffset(o => o + 1)} title="Следующий период"
-                disabled=${monthOffset >= 0}>${Icon.right()}</button>
         <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
       </div>
     </div>
+    <div class="dash-sub muted">${subLabel}</div>
 
     <div class="row cols-2" style="align-items:stretch;margin-bottom:18px;">
       <div class="card ive-card">
@@ -80,7 +67,7 @@ export function DashboardPage() {
           <h2>Доходы vs Расходы</h2>
         </div>
         <div class=${"ive-pct" + (expensePct > 100 ? " over" : "")}>${expensePct}%</div>
-        <div class="ive-sub">Доля расходов в ${monthLocative(monthStart)}</div>
+        <div class="ive-sub">Доля расходов ${range.locative}</div>
         <div class="ive-rows">
           <div class="ive-row">
             <div class="label">Доходы</div>
@@ -105,16 +92,20 @@ export function DashboardPage() {
           </div>
         </div>
         <div class="ive-note">
-          ${ivNote(expensePct, prevExpensePct, monthLocative(monthStart))}
+          ${noteText(expensePct, prevExpensePct, range.locative)}
         </div>
       </div>
 
       <div class="card" style="padding:18px 20px;">
         <div class="section-head" style="margin-bottom:8px;">
           <h2>Динамика и планы</h2>
-          <span class="more">Наведите курсор</span>
+          <span class="more">${chartShowable ? "Наведите курсор" : ""}</span>
         </div>
-        <${PlansChart} monthStart=${monthStart} monthEnd=${monthEnd} />
+        ${chartShowable
+          ? html`<${PlansChart} monthStart=${startDate} monthEnd=${endDate} />`
+          : html`<div class="muted" style="padding:24px 4px;font-size:13px;">
+              График доступен для периодов до года. Сузьте период, чтобы увидеть динамику.
+            </div>`}
       </div>
     </div>
 
@@ -128,12 +119,17 @@ function sum(arr, getter) {
   return arr.reduce((s, x) => s + Number(getter(x) || 0), 0);
 }
 
-function ivNote(curPct, prevPct, locMonth) {
-  const cur = `В ${locMonth} на расходы ушло ${curPct}% от дохода.`;
+function noteText(curPct, prevPct, loc) {
+  const cur = `${capitalize(loc)} на расходы ушло ${curPct}% от дохода.`;
   if (prevPct === 0 && curPct === 0) return cur + " Данных за прошлый период пока нет.";
   if (prevPct === 0) return cur + " В прошлом периоде доходов ещё не было.";
   const delta = curPct - prevPct;
   if (delta === 0) return cur + " Это столько же, сколько в прошлом периоде.";
   if (delta > 0) return cur + ` В прошлом периоде было ${prevPct}% — стало больше на ${delta} п.п.`;
   return cur + ` В прошлом периоде было ${prevPct}% — стало меньше на ${-delta} п.п.`;
+}
+
+function capitalize(s) {
+  if (!s) return s;
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
