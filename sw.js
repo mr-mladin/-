@@ -19,6 +19,10 @@ self.addEventListener("activate", (e) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
+    // Сообщить открытым вкладкам, что есть новый SW — пусть перезагрузятся
+    // и получат свежий набор файлов одним заходом, без Cmd+Shift+R.
+    const clients = await self.clients.matchAll({ type: "window" });
+    for (const c of clients) c.postMessage({ type: "sw-updated" });
   })());
 });
 
