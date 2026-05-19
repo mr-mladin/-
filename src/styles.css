@@ -79,11 +79,7 @@
 /* ---------- Базовое ---------- */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-html {
-  color-scheme: light dark;
-  /* Глобальный масштаб интерфейса. 0.8 = всё на 20% меньше. */
-  zoom: 0.8;
-}
+html { color-scheme: light dark; }
 body {
   font-family: var(--font);
   background: var(--bg);
