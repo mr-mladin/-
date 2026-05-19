@@ -82,10 +82,13 @@ export function PeriodPicker({ period, onChange, operations }) {
           const yearChanged = prev && prev.year !== m.year;
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
           const dist = Math.abs(i - focalIdx);
-          // «Линза»: фокальный месяц крупнее, соседние — поменьше, дальние — растворяются.
-          const scale = Math.max(0.78, 1.18 - dist * 0.09);
-          const opacity = Math.max(0.42, 1 - dist * 0.13);
-          const style = `transform: scale(${scale.toFixed(3)}); opacity: ${opacity.toFixed(2)};`;
+          // «Линза» (выпуклость на ~15% сильнее, чем в первой версии): фокальный
+          // месяц крупнее, дальние — поменьше и слегка прозрачнее. Базовый scale
+          // и opacity передаём в CSS-переменных, чтобы hover-эффект мог их
+          // умножать, а не перебивать inline-стилем.
+          const scale = Math.max(0.78, 1.22 - dist * 0.105);
+          const opacity = Math.max(0.6, 1 - dist * 0.08);
+          const style = `--ps-scale: ${scale.toFixed(3)}; --ps-opacity: ${opacity.toFixed(2)};`;
           return html`
             ${yearChanged ? html`<span class="period-divider" aria-hidden="true">·</span>` : null}
             <button
@@ -95,7 +98,7 @@ export function PeriodPicker({ period, onChange, operations }) {
               onClick=${() => onChange({ kind: "specificMonth", year: m.year, month: m.month })}
               title=${monthLabel(m.year, m.month)}
               key=${`${m.year}-${m.month}`}>
-              ${MONTHS_NOM[m.month]}
+              ${MONTHS_NOM[m.month]} <span class="period-month-year">${String(m.year).slice(-2)}</span>
             </button>
           `;
         })}
