@@ -7,6 +7,14 @@ import { ConfirmModal } from "../../components/Modal.js";
 import { AccountForm } from "../../components/AccountForm.js";
 import { renderIcon } from "../../components/IconPicker.js";
 
+function plural(n, one, few, many) {
+  const m100 = n % 100, m10 = n % 10;
+  if (m100 >= 11 && m100 <= 14) return many;
+  if (m10 === 1) return one;
+  if (m10 >= 2 && m10 <= 4) return few;
+  return many;
+}
+
 export function AccountsSettings() {
   const store = useStore();
   const { profile, accounts, operations } = store;
@@ -93,18 +101,35 @@ export function AccountsSettings() {
     ${editing && html`
       <${AccountForm} initial=${editing === "new" ? null : editing} onClose=${() => setEditing(null)} />
     `}
-    ${confirmDel && html`
-      <${ConfirmModal}
-        title="Удалить счёт?"
-        message=${html`<div>Если на счёте есть операции — удалить не получится. Тогда заархивируйте его (откройте на редактирование).</div>`}
-        onCancel=${() => setConfirmDel(null)}
-        onConfirm=${async () => {
-          try { await store.actions.accounts.remove(confirmDel.id); store.pushToast("Счёт удалён", "success"); }
-          catch (e) { store.pushToast("Сначала удалите все операции этого счёта или заархивируйте его", "error"); }
-          setConfirmDel(null);
-        }}
-      />
-    `}
+    ${confirmDel && (() => {
+      const opCount = operations.filter(o => o.account_id === confirmDel.id || o.to_account_id === confirmDel.id).length;
+      const hasOps = opCount > 0;
+      return html`
+        <${ConfirmModal}
+          title=${hasOps ? "Удаление невозможно" : "Удалить счёт?"}
+          confirmText=${hasOps ? "Заархивировать" : "Удалить"}
+          danger=${!hasOps}
+          message=${hasOps
+            ? html`<div>На счёте «${confirmDel.name}» — ${opCount} ${plural(opCount, "операция", "операции", "операций")}. Удалить такой счёт нельзя. Можно <b>заархивировать</b>: он исчезнет из активного списка, но история сохранится.</div>`
+            : html`<div>Счёт «${confirmDel.name}» будет удалён без возможности восстановления.</div>`}
+          onCancel=${() => setConfirmDel(null)}
+          onConfirm=${async () => {
+            try {
+              if (hasOps) {
+                await store.actions.accounts.update(confirmDel.id, { archived: true });
+                store.pushToast("Счёт заархивирован", "success");
+              } else {
+                await store.actions.accounts.remove(confirmDel.id);
+                store.pushToast("Счёт удалён", "success");
+              }
+            } catch (e) {
+              store.pushToast(hasOps ? "Не удалось заархивировать" : "Не удалось удалить", "error");
+            }
+            setConfirmDel(null);
+          }}
+        />
+      `;
+    })()}
   `;
 }
 
