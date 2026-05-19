@@ -6,17 +6,6 @@ import { createContext, h } from "preact";
 import { useContext, useEffect, useReducer, useState } from "preact/hooks";
 import { supabase } from "./supabase.js";
 
-// Промис с таймаутом — чтобы зависшие запросы к Supabase не блокировали UI.
-function withTimeout(promise, ms, tag) {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => reject(new Error(`timeout: ${tag || ""}`)), ms);
-    Promise.resolve(promise).then(
-      v => { clearTimeout(t); resolve(v); },
-      e => { clearTimeout(t); reject(e); }
-    );
-  });
-}
-
 const StoreContext = createContext(null);
 
 const initialState = {
@@ -88,17 +77,9 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      let data;
-      try {
-        data = await withTimeout(supabase.auth.getSession(), 8000, "auth");
-      } catch (e) {
-        if (!active) return;
-        pushToast("Сервер не отвечает. Попробуйте обновить страницу.", "error");
-        dispatch({ type: "set", payload: { loading: false, ready: true } });
-        return;
-      }
+      const { data } = await supabase.auth.getSession();
       if (!active) return;
-      const user = data?.data?.session?.user || null;
+      const user = data.session?.user || null;
       dispatch({ type: "set", payload: { user } });
       if (user) await loadAll(user.id);
       else dispatch({ type: "set", payload: { loading: false, ready: true } });
@@ -128,7 +109,7 @@ export function StoreProvider({ children }) {
   // Загрузить всё
   async function loadAll(userId) {
     try {
-      const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes, plannedRes] = await withTimeout(Promise.all([
+      const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes, plannedRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("accounts").select("*").order("sort_order").order("created_at"),
         supabase.from("categories").select("*").order("sort_order").order("created_at"),
@@ -138,7 +119,7 @@ export function StoreProvider({ children }) {
         supabase.from("budgets").select("*"),
         supabase.from("goals").select("*").order("sort_order").order("created_at"),
         supabase.from("planned_operations").select("*").order("date"),
-      ]), 12000, "loadAll");
+      ]);
 
       let profile = profileRes.data;
       if (!profile) {
