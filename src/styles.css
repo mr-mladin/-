@@ -460,7 +460,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-chip .ico { width: 14px; height: 14px; }
 
 .period-months {
-  display: flex; align-items: center; gap: 4px;
+  display: flex; align-items: center; gap: 10px;
   overflow-x: auto;
   scrollbar-width: none;
   padding: 10px 14px;
@@ -497,7 +497,7 @@ input, select, textarea { font: inherit; color: inherit; }
   will-change: transform, opacity;
 }
 .period-month:hover {
-  transform: scale(calc(var(--ps-scale) * 1.08));
+  transform: scale(calc(var(--ps-scale) * 1.05));
   opacity: 1;
   background: var(--bg-soft);
   color: var(--text);
@@ -512,10 +512,14 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 700;
   opacity: 1;
 }
+/* На уже выбранный месяц — никакого hover-увеличения, иначе перекрывает
+   соседние. Только лёгкая подсветка тени, чтобы было видно отклик курсора. */
 .period-month.is-current:hover {
-  transform: scale(calc(var(--ps-scale) * 1.08));
+  transform: scale(var(--ps-scale));
   background: var(--surface);
   color: var(--accent);
+  border-color: var(--border-strong);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
 }
 .period-month-year {
   font-weight: 400;

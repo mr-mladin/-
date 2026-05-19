@@ -82,12 +82,10 @@ export function PeriodPicker({ period, onChange, operations }) {
           const yearChanged = prev && prev.year !== m.year;
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
           const dist = Math.abs(i - focalIdx);
-          // «Линза» (выпуклость на ~15% сильнее, чем в первой версии): фокальный
-          // месяц крупнее, дальние — поменьше и слегка прозрачнее. Базовый scale
-          // и opacity передаём в CSS-переменных, чтобы hover-эффект мог их
-          // умножать, а не перебивать inline-стилем.
-          const scale = Math.max(0.78, 1.22 - dist * 0.105);
-          const opacity = Math.max(0.6, 1 - dist * 0.08);
+          // «Линза» — фокальный месяц крупнее, дальние мельче. Базовый scale
+          // умеренный, чтобы при hover-ховере соседние месяца не накладывались.
+          const scale = Math.max(0.8, 1.18 - dist * 0.085);
+          const opacity = Math.max(0.62, 1 - dist * 0.08);
           const style = `--ps-scale: ${scale.toFixed(3)}; --ps-opacity: ${opacity.toFixed(2)};`;
           return html`
             ${yearChanged ? html`<span class="period-divider" aria-hidden="true">·</span>` : null}
