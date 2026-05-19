@@ -8,6 +8,20 @@ render(
   document.getElementById("app")
 );
 
+// Авто-скрытие полосы прокрутки: ставим .is-scrolling на <html>, пока юзер
+// скроллит, и снимаем через 700мс после остановки. CSS прячет/показывает
+// thumb через transition — получается мягкое появление/исчезновение.
+{
+  let scrollTimer = null;
+  function onScroll() {
+    const root = document.documentElement;
+    root.classList.add("is-scrolling");
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => root.classList.remove("is-scrolling"), 700);
+  }
+  window.addEventListener("scroll", onScroll, { passive: true });
+}
+
 // Регистрация service worker — чтобы новые деплои подхватывались сразу.
 // При активации новой версии SW он шлёт сообщение — мы один раз перезагружаем
 // страницу, чтобы получить полностью свежий набор файлов без Cmd+Shift+R.

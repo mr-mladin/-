@@ -79,7 +79,36 @@
 /* ---------- Базовое ---------- */
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
-html { color-scheme: light dark; }
+html {
+  color-scheme: light dark;
+  /* Резервируем место под полосу прокрутки даже когда её нет —
+     чтобы блоки не «прыгали» по ширине между страницами / периодами. */
+  scrollbar-gutter: stable;
+  /* Firefox: тонкая полоса, прозрачная по умолчанию. */
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.4s ease;
+}
+html.is-scrolling { scrollbar-color: rgba(15, 23, 42, 0.30) transparent; }
+html[data-theme="dark"].is-scrolling { scrollbar-color: rgba(255, 255, 255, 0.28) transparent; }
+
+/* WebKit/Blink: основная вертикальная полоса страницы.
+   По умолчанию невидима; класс .is-scrolling добавляется на html
+   из main.js пока пользователь скроллит, и убирается через ~700мс
+   после последней прокрутки — даёт мягкое появление/исчезновение. */
+html::-webkit-scrollbar { width: 12px; height: 12px; }
+html::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  border-radius: 10px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  transition: background-color 0.4s ease;
+}
+html.is-scrolling::-webkit-scrollbar-thumb { background-color: rgba(15, 23, 42, 0.30); }
+html[data-theme="dark"].is-scrolling::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.28); }
+html::-webkit-scrollbar-thumb:hover { background-color: rgba(15, 23, 42, 0.45); }
+html[data-theme="dark"]::-webkit-scrollbar-thumb:hover { background-color: rgba(255, 255, 255, 0.42); }
 body {
   font-family: var(--font);
   background: var(--bg);
