@@ -31,14 +31,28 @@ export function PeriodPicker({ period, onChange, operations }) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const stripRef = useRef(null);
 
+  // Лента содержит все месяцы от самой ранней операции (но не позже, чем
+   // 2 года назад) до текущего. Так появляется реальный диапазон для скролла
+   // колесом и пользователь может вернуться к старым месяцам без модалки.
   const strip = useMemo(() => {
+    const curY = today.getFullYear();
+    const curM = today.getMonth();
+    let startYear = curY - 1;
+    for (const op of operations || []) {
+      if (op?.date) {
+        const y = Number(op.date.slice(0, 4));
+        if (Number.isFinite(y) && y < startYear) startYear = y;
+      }
+    }
     const arr = [];
-    for (let i = 9; i >= 0; i--) {
-      const d = new Date(today.getFullYear(), today.getMonth() - i, 1);
-      arr.push({ year: d.getFullYear(), month: d.getMonth() });
+    for (let y = startYear; y <= curY; y++) {
+      const endMonth = y === curY ? curM : 11;
+      for (let m = 0; m <= endMonth; m++) {
+        arr.push({ year: y, month: m });
+      }
     }
     return arr;
-  }, [today.getFullYear(), today.getMonth()]);
+  }, [today.getFullYear(), today.getMonth(), operations]);
 
   // Индекс «фокального» месяца: выбранный или, если выбран нестандартный
   // период, — текущий (последний в ленте). Эффект «выпуклой линзы» будет
@@ -48,18 +62,22 @@ export function PeriodPicker({ period, onChange, operations }) {
     : -1;
   const focalIdx = selectedIdx >= 0 ? selectedIdx : strip.length - 1;
 
-  // Колесо мыши на ленте — горизонтальный скролл.
-  // Не перехватываем колесо, если лента не нуждается в прокрутке
-  // (иначе на широких экранах пользователь не сможет пролистать страницу).
-  function onWheel(e) {
+  // Колесо мыши/тачпад над лентой → горизонтальный скролл по месяцам.
+  // Привязываем через addEventListener с passive: false — иначе браузер
+  // может игнорировать preventDefault и колесо будет крутить страницу.
+  useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
-    if (el.scrollWidth <= el.clientWidth + 2) return;
-    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
-      el.scrollLeft += e.deltaY;
-      e.preventDefault();
+    function onWheel(e) {
+      if (el.scrollWidth <= el.clientWidth + 2) return;
+      if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        el.scrollLeft += e.deltaY;
+        e.preventDefault();
+      }
     }
-  }
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   // При смене фокального месяца плавно подкручиваем ленту, чтобы он оказался по центру.
   useEffect(() => {
@@ -76,16 +94,16 @@ export function PeriodPicker({ period, onChange, operations }) {
       <button class="period-chip" onClick=${() => setOpen(true)}>
         <span>Период</span> ${Icon.right()}
       </button>
-      <div class="period-months" ref=${stripRef} onWheel=${onWheel}>
+      <div class="period-months" ref=${stripRef}>
         ${strip.map((m, i) => {
           const prev = i > 0 ? strip[i - 1] : null;
           const yearChanged = prev && prev.year !== m.year;
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
           const dist = Math.abs(i - focalIdx);
-          // «Линза» — фокальный месяц крупнее, дальние мельче. Базовый scale
-          // умеренный, чтобы при hover-ховере соседние месяца не накладывались.
-          const scale = Math.max(0.8, 1.18 - dist * 0.085);
-          const opacity = Math.max(0.62, 1 - dist * 0.08);
+          // «Линза»: яркая выпуклость в центре + плавный спад к краям.
+          // Базовый scale/opacity отдаём в CSS-переменных, hover их умножает.
+          const scale = Math.max(0.78, 1.22 - dist * 0.105);
+          const opacity = Math.max(0.55, 1 - dist * 0.085);
           const style = `--ps-scale: ${scale.toFixed(3)}; --ps-opacity: ${opacity.toFixed(2)};`;
           return html`
             ${yearChanged ? html`<span class="period-divider" aria-hidden="true">·</span>` : null}

@@ -460,10 +460,10 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-chip .ico { width: 14px; height: 14px; }
 
 .period-months {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 14px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 10px 14px;
+  padding: 14px 20px;
   /* Лёгкая «дымка» по самым краям, чтобы месяца не упирались в обрыв,
      но без переусердствования — текст всё равно читается. */
   -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
