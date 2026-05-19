@@ -81,8 +81,8 @@
 html, body { margin: 0; padding: 0; }
 html {
   color-scheme: light dark;
-  /* Глобальный масштаб интерфейса. 0.8 = всё на 20% меньше. */
-  zoom: 0.8;
+  /* Глобальный масштаб интерфейса. 0.9 = всё на 10% меньше. */
+  zoom: 0.9;
 }
 body {
   font-family: var(--font);
