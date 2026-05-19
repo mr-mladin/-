@@ -22,7 +22,7 @@ const EMPTY_FILTERS = {
   amountTo: "",
 };
 
-export function OperationsList() {
+export function OperationsList({ rangeStart, rangeEnd, rangeLabel }) {
   const store = useStore();
   const { profile, accounts, categories, tags, operations, operationTags, selectedAccountId } = store;
 
@@ -49,6 +49,8 @@ export function OperationsList() {
     const amountFrom = f.amountFrom ? parseAmount(f.amountFrom) : null;
     const amountTo = f.amountTo ? parseAmount(f.amountTo) : null;
     return operations.filter(op => {
+      if (rangeStart && op.date < rangeStart) return false;
+      if (rangeEnd && op.date > rangeEnd) return false;
       if (selectedAccountId && op.account_id !== selectedAccountId && op.to_account_id !== selectedAccountId) return false;
       if (f.kind && op.kind !== f.kind) return false;
       if (f.accountId && op.account_id !== f.accountId && op.to_account_id !== f.accountId) return false;
@@ -76,7 +78,7 @@ export function OperationsList() {
       }
       return true;
     });
-  }, [operations, filters, accounts, categories, tags, tagsByOp, selectedAccountId]);
+  }, [operations, filters, accounts, categories, tags, tagsByOp, selectedAccountId, rangeStart, rangeEnd]);
 
   const totalIncome = filtered.filter(o => o.kind === "income").reduce((s, o) => s + Number(o.amount), 0);
   const totalExpense = filtered.filter(o => o.kind === "expense").reduce((s, o) => s + Number(o.amount), 0);

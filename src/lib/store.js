@@ -3,7 +3,7 @@
 // При изменении данных обновляет локальный кэш — без полной перезагрузки.
 
 import { createContext, h } from "preact";
-import { useContext, useEffect, useReducer, useState } from "preact/hooks";
+import { useContext, useEffect, useReducer, useRef, useState } from "preact/hooks";
 import { supabase } from "./supabase.js";
 
 const StoreContext = createContext(null);
@@ -72,6 +72,10 @@ function reducer(state, action) {
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [toasts, setToasts] = useState([]);
+  // "Эпоха" загрузки — каждое начало loadAll или смена сессии увеличивает счётчик.
+  // Устаревшие await-результаты сравнивают свой эпоху с текущей и молча выходят,
+  // чтобы не перезаписать свежий стейт данными прошлого пользователя.
+  const loadEpoch = useRef(0);
 
   // ---- Auth listener
   useEffect(() => {
@@ -87,27 +91,32 @@ export function StoreProvider({ children }) {
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       const user = session?.user || null;
       if (event === "PASSWORD_RECOVERY") {
+        loadEpoch.current++;
         dispatch({ type: "set", payload: { user, recovering: true, loading: false, ready: true } });
         return;
       }
       dispatch({ type: "set", payload: { user, loading: !!user, recovering: false } });
       if (user) await loadAll(user.id);
-      else dispatch({
-        type: "set",
-        payload: {
-          loading: false, ready: true, profile: null,
-          accounts: [], categories: [], tags: [], operations: [],
-          operationTags: [], budgets: [], goals: [], plannedOperations: [],
-          selectedAccountId: null,
-        }
-      });
-      try { localStorage.removeItem("fin.selectedAccountId"); } catch (e) {}
+      else {
+        loadEpoch.current++;
+        dispatch({
+          type: "set",
+          payload: {
+            loading: false, ready: true, profile: null,
+            accounts: [], categories: [], tags: [], operations: [],
+            operationTags: [], budgets: [], goals: [], plannedOperations: [],
+            selectedAccountId: null,
+          }
+        });
+        try { localStorage.removeItem("fin.selectedAccountId"); } catch (e) {}
+      }
     });
-    return () => { active = false; sub.subscription.unsubscribe(); };
+    return () => { active = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
   // Загрузить всё
   async function loadAll(userId) {
+    const myEpoch = ++loadEpoch.current;
     try {
       const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes, plannedRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
@@ -121,12 +130,15 @@ export function StoreProvider({ children }) {
         supabase.from("planned_operations").select("*").order("date"),
       ]);
 
+      if (myEpoch !== loadEpoch.current) return;
+
       let profile = profileRes.data;
       if (!profile) {
         // На случай отсутствия (если триггер не сработал у старого юзера)
         const { data: ins } = await supabase.from("profiles").insert({ user_id: userId }).select().single();
         profile = ins;
       }
+      if (myEpoch !== loadEpoch.current) return;
 
       // Применим тему сразу
       applyTheme(profile?.theme || "auto");
@@ -152,6 +164,7 @@ export function StoreProvider({ children }) {
         await seedDefaultCategories(userId);
       }
     } catch (e) {
+      if (myEpoch !== loadEpoch.current) return;
       console.error(e);
       dispatch({ type: "set", payload: { loading: false, ready: true } });
       pushToast("Не удалось загрузить данные", "error");

@@ -109,7 +109,7 @@ export function DashboardPage() {
       </div>
     </div>
 
-    <${OperationsList} />
+    <${OperationsList} rangeStart=${range.startISO} rangeEnd=${range.endISO} rangeLabel=${range.label} />
 
     ${adding && html`<${OperationForm} onClose=${() => setAdding(false)} />`}
   `;
