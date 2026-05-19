@@ -462,10 +462,13 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-months {
   display: flex; align-items: center; gap: 4px;
   overflow-x: auto;
-  scrollbar-width: thin;
+  scrollbar-width: none;
+  padding: 8px 4px;
+  /* «Туман» по краям — далёкие месяцы плавно растворяются в фоне */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+          mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
 }
-.period-months::-webkit-scrollbar { height: 4px; }
-.period-months::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+.period-months::-webkit-scrollbar { display: none; }
 .period-month {
   padding: 6px 10px;
   border-radius: 8px;
@@ -476,17 +479,24 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  transition: background var(--transition), color var(--transition);
+  transform-origin: center bottom;
+  transition:
+    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.35s ease,
+    background var(--transition),
+    color var(--transition);
+  will-change: transform, opacity;
 }
 .period-month:hover { background: var(--bg-elev); color: var(--text); }
 .period-month.is-current {
-  color: var(--text);
+  color: var(--accent);
   font-weight: 700;
 }
 .period-divider {
   color: var(--text-mute);
   padding: 0 4px;
   user-select: none;
+  transition: opacity 0.35s ease;
 }
 
 /* --- Period modal --- */

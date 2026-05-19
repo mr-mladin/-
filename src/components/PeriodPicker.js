@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useMemo, useState } from "preact/hooks";
+import { useEffect, useMemo, useRef, useState } from "preact/hooks";
 import { Icon } from "../lib/icons.js";
 import { Modal } from "./Modal.js";
 import { MONTHS_NOM, resolvePeriod, monthLabel } from "../lib/period.js";
@@ -29,6 +29,7 @@ function isSamePreset(period, kind, extra) {
 export function PeriodPicker({ period, onChange, operations }) {
   const [open, setOpen] = useState(false);
   const today = new Date(); today.setHours(0, 0, 0, 0);
+  const stripRef = useRef(null);
 
   const strip = useMemo(() => {
     const arr = [];
@@ -39,20 +40,58 @@ export function PeriodPicker({ period, onChange, operations }) {
     return arr;
   }, [today.getFullYear(), today.getMonth()]);
 
+  // Индекс «фокального» месяца: выбранный или, если выбран нестандартный
+  // период, — текущий (последний в ленте). Эффект «выпуклой линзы» будет
+  // строиться от него: чем дальше месяц — тем меньше и бледнее.
+  const selectedIdx = period?.kind === "specificMonth"
+    ? strip.findIndex(m => m.year === period.year && m.month === period.month)
+    : -1;
+  const focalIdx = selectedIdx >= 0 ? selectedIdx : strip.length - 1;
+
+  // Колесо мыши на ленте — горизонтальный скролл.
+  // Не перехватываем колесо, если лента не нуждается в прокрутке
+  // (иначе на широких экранах пользователь не сможет пролистать страницу).
+  function onWheel(e) {
+    const el = stripRef.current;
+    if (!el) return;
+    if (el.scrollWidth <= el.clientWidth + 2) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  }
+
+  // При смене фокального месяца плавно подкручиваем ленту, чтобы он оказался по центру.
+  useEffect(() => {
+    const container = stripRef.current;
+    if (!container) return;
+    const btn = container.querySelector(`[data-midx="${focalIdx}"]`);
+    if (!btn) return;
+    const target = btn.offsetLeft - container.clientWidth / 2 + btn.offsetWidth / 2;
+    container.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+  }, [focalIdx]);
+
   return html`
     <div class="period-bar">
       <button class="period-chip" onClick=${() => setOpen(true)}>
         <span>Период</span> ${Icon.right()}
       </button>
-      <div class="period-months">
+      <div class="period-months" ref=${stripRef} onWheel=${onWheel}>
         ${strip.map((m, i) => {
           const prev = i > 0 ? strip[i - 1] : null;
           const yearChanged = prev && prev.year !== m.year;
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
+          const dist = Math.abs(i - focalIdx);
+          // «Линза»: фокальный месяц крупнее, соседние — поменьше, дальние — растворяются.
+          const scale = Math.max(0.78, 1.18 - dist * 0.09);
+          const opacity = Math.max(0.42, 1 - dist * 0.13);
+          const style = `transform: scale(${scale.toFixed(3)}); opacity: ${opacity.toFixed(2)};`;
           return html`
             ${yearChanged ? html`<span class="period-divider" aria-hidden="true">·</span>` : null}
             <button
               class=${"period-month" + (isCurrent ? " is-current" : "")}
+              data-midx=${i}
+              style=${style}
               onClick=${() => onChange({ kind: "specificMonth", year: m.year, month: m.month })}
               title=${monthLabel(m.year, m.month)}
               key=${`${m.year}-${m.month}`}>
