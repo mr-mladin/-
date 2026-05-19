@@ -463,15 +463,16 @@ input, select, textarea { font: inherit; color: inherit; }
   display: flex; align-items: center; gap: 4px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 8px 4px;
-  /* «Туман» по краям — далёкие месяцы плавно растворяются в фоне */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
-          mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  padding: 10px 14px;
+  /* Лёгкая «дымка» по самым краям, чтобы месяца не упирались в обрыв,
+     но без переусердствования — текст всё равно читается. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+          mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
 }
 .period-months::-webkit-scrollbar { display: none; }
 .period-month {
-  padding: 6px 10px;
-  border-radius: 8px;
+  padding: 6px 12px;
+  border-radius: 999px;
   border: 1px solid transparent;
   background: transparent;
   color: var(--text-soft);
@@ -479,18 +480,48 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
+  /* Базовые scale/opacity приходят из inline CSS-переменных,
+     hover/active их умножают, не борясь с inline-стилем. */
+  --ps-scale: 1;
+  --ps-opacity: 1;
+  transform: scale(var(--ps-scale));
+  opacity: var(--ps-opacity);
   transform-origin: center bottom;
   transition:
     transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
     opacity 0.35s ease,
     background var(--transition),
-    color var(--transition);
+    color var(--transition),
+    box-shadow var(--transition),
+    border-color var(--transition);
   will-change: transform, opacity;
 }
-.period-month:hover { background: var(--bg-elev); color: var(--text); }
+.period-month:hover {
+  transform: scale(calc(var(--ps-scale) * 1.08));
+  opacity: 1;
+  background: var(--bg-soft);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
 .period-month.is-current {
+  /* Заметная «капсула», чтобы выбранный месяц был чётко виден даже у края ленты. */
+  background: var(--surface);
   color: var(--accent);
+  border-color: var(--border);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
   font-weight: 700;
+  opacity: 1;
+}
+.period-month.is-current:hover {
+  transform: scale(calc(var(--ps-scale) * 1.08));
+  background: var(--surface);
+  color: var(--accent);
+}
+.period-month-year {
+  font-weight: 400;
+  opacity: 0.65;
+  margin-left: 4px;
+  font-size: 0.88em;
 }
 .period-divider {
   color: var(--text-mute);
