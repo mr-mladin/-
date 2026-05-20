@@ -445,6 +445,7 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 .period-chip {
   display: inline-flex; align-items: center; gap: 6px;
+  flex: 0 0 auto;
   padding: 7px 14px;
   border-radius: 999px;
   background: var(--accent-soft);
@@ -460,10 +461,13 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-chip .ico { width: 14px; height: 14px; }
 
 .period-months {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 14px;
+  flex: 1 1 0; min-width: 0;
+  height: 56px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
-  padding: 22px 24px 30px;
+  padding: 0 22px;
   /* Лёгкая «дымка» по самым краям, чтобы месяца не упирались в обрыв. */
   -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
@@ -479,14 +483,14 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  /* Дуга: translateY/scale/rotate приходят из CSS-переменных, которые
-     пересчитывает JS на скролле; hover добавляет лёгкий «подъём» через --ps-hover. */
-  --ps-scale: 1;
+  flex: 0 0 auto;
+  /* Горизонтальное сжатие (sx) + общий размер (sy) приходят из CSS-переменных,
+     которые пересчитывает JS на скролле; hover добавляет лёгкий «подъём». */
+  --ps-sx: 1;
+  --ps-sy: 1;
   --ps-opacity: 1;
-  --ps-ty: 0px;
-  --ps-rot: 0deg;
   --ps-hover: 1;
-  transform: translateY(var(--ps-ty)) scale(calc(var(--ps-scale) * var(--ps-hover))) rotate(var(--ps-rot));
+  transform: scale(calc(var(--ps-sx) * var(--ps-hover)), calc(var(--ps-sy) * var(--ps-hover)));
   opacity: var(--ps-opacity);
   transform-origin: center center;
   transition:
