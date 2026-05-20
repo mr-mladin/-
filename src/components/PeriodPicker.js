@@ -60,9 +60,9 @@ export function PeriodPicker({ period, onChange, operations }) {
     return strip.findIndex(m => m.year === today.getFullYear() && m.month === today.getMonth());
   }, [strip, period]);
 
-  // Гнём ленту по дуге: положение каждого месяца считаем относительно центра
-  // видимой области. Центр — крупный и прямой, к краям месяца уезжают вниз,
-  // уменьшаются, наклоняются и бледнеют — будто наклеены на обод кольца.
+  // «Кольцо сбоку»: центр обращён к нам (поворот 0°, крупный), к краям месяца
+  // отворачиваются по оси Y (3D-поворот) и уменьшаются — будто уходят за обод.
+  // Никаких вертикальных смещений, чтобы высота строки была постоянной.
   function applyCurve() {
     const el = stripRef.current;
     if (!el) return;
@@ -71,16 +71,14 @@ export function PeriodPicker({ period, onChange, operations }) {
     const viewCenter = el.scrollLeft + half;
     for (const m of metricsRef.current) {
       let t = (m.center - viewCenter) / half;
-      t = Math.max(-1.6, Math.min(1.6, t));
+      t = Math.max(-1.5, Math.min(1.5, t));
       const abs = Math.abs(t);
-      const scale = Math.max(0.6, 1.18 - abs * 0.34);
-      const ty = abs * abs * 26;       // парабола → дуга
-      const rot = t * 13;              // наклон по касательной
-      const op = Math.max(0.3, 1 - abs * 0.55);
+      const roty = t * 52;                       // поворот по оси Y → вид сбоку на кольцо
+      const scale = Math.max(0.66, 1.12 - abs * 0.2);
+      const op = Math.max(0.32, 1 - abs * 0.5);
       const s = m.el.style;
+      s.setProperty("--ps-roty", roty.toFixed(1) + "deg");
       s.setProperty("--ps-scale", scale.toFixed(3));
-      s.setProperty("--ps-ty", ty.toFixed(1) + "px");
-      s.setProperty("--ps-rot", rot.toFixed(1) + "deg");
       s.setProperty("--ps-opacity", op.toFixed(2));
     }
   }
