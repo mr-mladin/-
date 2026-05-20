@@ -32,24 +32,18 @@ export function PeriodPicker({ period, onChange, operations }) {
   const stripRef = useRef(null);
   const metricsRef = useRef([]);
 
-  // Лента: от самой ранней операции (или хотя бы за прошлый год) и на 3 года
-  // ВПЕРЁД от текущего месяца — чтобы можно было скроллить и в будущее.
+  // Ограниченное окно: 12 месяцев назад и 24 вперёд от текущего. Хватает для
+  // быстрой навигации и скролла в будущее; за давними месяцами — модалка
+  // «Период». Окно фиксированное, чтобы лента не разрасталась бесконечно.
   const strip = useMemo(() => {
-    const curY = today.getFullYear();
-    let startYear = curY - 1;
-    for (const op of operations || []) {
-      if (op?.date) {
-        const y = Number(op.date.slice(0, 4));
-        if (Number.isFinite(y) && y < startYear) startYear = y;
-      }
-    }
-    const endYear = curY + 3;
+    const base = new Date(today.getFullYear(), today.getMonth(), 1);
     const arr = [];
-    for (let y = startYear; y <= endYear; y++) {
-      for (let m = 0; m <= 11; m++) arr.push({ year: y, month: m });
+    for (let off = -12; off <= 24; off++) {
+      const d = new Date(base.getFullYear(), base.getMonth() + off, 1);
+      arr.push({ year: d.getFullYear(), month: d.getMonth() });
     }
     return arr;
-  }, [today.getFullYear(), today.getMonth(), operations]);
+  }, [today.getFullYear(), today.getMonth()]);
 
   // Индекс для авто-центрирования: выбранный месяц, иначе текущий.
   const focalIdx = useMemo(() => {
@@ -60,10 +54,11 @@ export function PeriodPicker({ period, onChange, operations }) {
     return strip.findIndex(m => m.year === today.getFullYear() && m.month === today.getMonth());
   }, [strip, period]);
 
-  // «Кольцо сбоку»: центр в полную ширину и размер, к краям месяца
-  // уменьшаются и сжимаются по горизонтали (как будто отворачиваются за обод)
-  // и бледнеют. Без 3D-поворотов — текст никогда не выворачивается, без
-  // вертикальных сдвигов — высота строки постоянна.
+  // 3D-кольцо сбоку: центр обращён к нам, к краям месяца отворачиваются по оси
+  // Y (rotateY) с собственной перспективой — дальняя сторона уходит вглубь,
+  // ближняя крупнее, как обод колеса. perspective() задаём прямо в трансформе
+  // каждого элемента — тогда 3D работает даже внутри скролл-контейнера (overflow
+  // не «сплющивает» сцену). Угол ограничен ±52°, чтобы текст не выворачивался.
   function applyCurve() {
     const el = stripRef.current;
     if (!el) return;
@@ -74,12 +69,12 @@ export function PeriodPicker({ period, onChange, operations }) {
       let t = (m.center - viewCenter) / half;
       t = Math.max(-1.5, Math.min(1.5, t));
       const abs = Math.abs(t);
-      const size = Math.max(0.76, 1.08 - abs * 0.14);   // общий размер (глубина)
-      const squeeze = Math.max(0.5, 1 - abs * 0.42);     // горизонтальное сжатие (отворот)
-      const op = Math.max(0.42, 1 - abs * 0.42);
+      const roty = Math.max(-52, Math.min(52, t * 38));
+      const scale = Math.max(0.72, 1.08 - abs * 0.14);
+      const op = Math.max(0.4, 1 - abs * 0.42);
       const s = m.el.style;
-      s.setProperty("--ps-sx", (size * squeeze).toFixed(3));
-      s.setProperty("--ps-sy", size.toFixed(3));
+      s.setProperty("--ps-roty", roty.toFixed(1) + "deg");
+      s.setProperty("--ps-scale", scale.toFixed(3));
       s.setProperty("--ps-opacity", op.toFixed(2));
     }
   }
