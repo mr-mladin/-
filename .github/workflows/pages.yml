@@ -27,12 +27,13 @@ jobs:
       - name: Prepare site
         run: |
           mkdir -p _site
+          # Лончер в корне + «выключатель» старого корневого service worker
           cp index.html _site/
           cp sw.js _site/
-          cp -r src _site/
-          # Планер — отдельное приложение в подпапке /planner/
+          # Два приложения — каждое в своей папке
+          cp -r finance _site/
           cp -r planner _site/
-          # SPA fallback for hash router (404 → index.html)
+          # Неизвестные пути → лончер
           cp index.html _site/404.html
 
       - name: Setup Pages

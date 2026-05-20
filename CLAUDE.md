@@ -17,29 +17,41 @@
 
 ## Структура
 
+В репозитории два независимых приложения, каждое в своей папке. В корне —
+лончер (выбор приложения) и «выключатель» старого корневого service worker.
+
 ```
-index.html              — точка входа, importmap, тема до загрузки CSS
-sw.js                   — service worker
-src/
-  main.js               — render <App/>
-  App.js                — роутинг по странице (dashboard/budgets/goals/settings)
-  styles.css            — все стили (одним файлом, ~30K)
-  lib/
-    store.js            — глобальный state + CRUD (store.actions.*)
-    supabase.js         — клиент Supabase
-    router.js           — hash-роутер
-    format.js           — форматирование сумм/дат
-    csv.js              — экспорт/импорт CSV (включая Money Flow)
-    icons.js            — иконки
-  components/
-    Layout.js, Modal.js, Toasts.js
-    AccountForm.js, OperationForm.js, OperationsList.js
-    AmountInput.js, IconPicker.js, PlansChart.js
-  pages/
-    DashboardPage.js, BudgetsPage.js, GoalsPage.js
-    AuthPage.js, ResetPasswordPage.js
-    SettingsPage.js + settings/{Accounts,Categories,Tags,Profile,Data}Settings.js
+index.html              — корневой лончер (ссылки на /finance/ и /planner/)
+sw.js                   — выключатель прежнего корневого SW (после переезда finance)
+finance/                — приложение «Финансы» (адрес .../finance/)
+  index.html            — точка входа, importmap, тема до загрузки CSS
+  sw.js                 — service worker (stale-while-revalidate)
+  src/
+    main.js             — render <App/>
+    App.js              — роутинг по странице (dashboard/budgets/goals/settings)
+    styles.css          — все стили (одним файлом, ~30K)
+    lib/
+      store.js          — глобальный state + CRUD (store.actions.*)
+      supabase.js       — клиент Supabase
+      router.js         — hash-роутер
+      format.js         — форматирование сумм/дат
+      csv.js            — экспорт/импорт CSV (включая Money Flow)
+      icons.js          — иконки
+    components/
+      Layout.js, Modal.js, Toasts.js
+      AccountForm.js, OperationForm.js, OperationsList.js
+      AmountInput.js, IconPicker.js, PlansChart.js
+    pages/
+      DashboardPage.js, BudgetsPage.js, GoalsPage.js
+      AuthPage.js, ResetPasswordPage.js
+      SettingsPage.js + settings/{Accounts,Categories,Tags,Profile,Data}Settings.js
+planner/                — приложение «Планер» (адрес .../planner/), самостоятельное
+  index.html, main.js, lib.js, store.js, components.js, Planner.js, styles.css
 ```
+
+Планер не зависит от кода финансов. Использует тот же проект Supabase, но
+отдельную схему БД `planner` (таблицы `planner.lists`, `planner.tasks`) и общий
+вход (тот же `storageKey: "fin.auth"`). Финансы — схема `public`.
 
 ## Конвенции кода
 
@@ -48,13 +60,15 @@ src/
 - Состояние меняем через `dispatch({ type: "set", payload: {...} })`.
 - Тосты: `store.actions.toast("текст", "success" | "error" | "info")`.
 - Язык интерфейса — русский. Все строки в UI на русском.
-- Стили — в `src/styles.css`. CSS-переменные для темизации (light/dark/auto).
+- Стили финансов — в `finance/src/styles.css`. CSS-переменные для темизации (light/dark/auto).
 
 ## Локальный запуск
 
 ```bash
 python3 -m http.server 8000
-# http://localhost:8000
+# лончер:  http://localhost:8000/
+# финансы: http://localhost:8000/finance/
+# планер:  http://localhost:8000/planner/
 ```
 
 Других команд (тестов, линтера, билда) нет.
