@@ -60,9 +60,10 @@ export function PeriodPicker({ period, onChange, operations }) {
     return strip.findIndex(m => m.year === today.getFullYear() && m.month === today.getMonth());
   }, [strip, period]);
 
-  // «Кольцо сбоку»: центр обращён к нам (поворот 0°, крупный), к краям месяца
-  // отворачиваются по оси Y (3D-поворот) и уменьшаются — будто уходят за обод.
-  // Никаких вертикальных смещений, чтобы высота строки была постоянной.
+  // «Кольцо сбоку»: центр в полную ширину и размер, к краям месяца
+  // уменьшаются и сжимаются по горизонтали (как будто отворачиваются за обод)
+  // и бледнеют. Без 3D-поворотов — текст никогда не выворачивается, без
+  // вертикальных сдвигов — высота строки постоянна.
   function applyCurve() {
     const el = stripRef.current;
     if (!el) return;
@@ -73,12 +74,12 @@ export function PeriodPicker({ period, onChange, operations }) {
       let t = (m.center - viewCenter) / half;
       t = Math.max(-1.5, Math.min(1.5, t));
       const abs = Math.abs(t);
-      const roty = t * 52;                       // поворот по оси Y → вид сбоку на кольцо
-      const scale = Math.max(0.66, 1.12 - abs * 0.2);
-      const op = Math.max(0.32, 1 - abs * 0.5);
+      const size = Math.max(0.76, 1.08 - abs * 0.14);   // общий размер (глубина)
+      const squeeze = Math.max(0.5, 1 - abs * 0.42);     // горизонтальное сжатие (отворот)
+      const op = Math.max(0.42, 1 - abs * 0.42);
       const s = m.el.style;
-      s.setProperty("--ps-roty", roty.toFixed(1) + "deg");
-      s.setProperty("--ps-scale", scale.toFixed(3));
+      s.setProperty("--ps-sx", (size * squeeze).toFixed(3));
+      s.setProperty("--ps-sy", size.toFixed(3));
       s.setProperty("--ps-opacity", op.toFixed(2));
     }
   }
