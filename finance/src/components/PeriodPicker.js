@@ -26,24 +26,36 @@ function isSamePreset(period, kind, extra) {
   return true;
 }
 
-export function PeriodPicker({ period, onChange, operations }) {
+export function PeriodPicker({ period, onChange, operations, plannedOperations }) {
   const [open, setOpen] = useState(false);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const stripRef = useRef(null);
   const metricsRef = useRef([]);
 
-  // Ограниченное окно: 12 месяцев назад и 24 вперёд от текущего. Хватает для
-  // быстрой навигации и скролла в будущее; за давними месяцами — модалка
-  // «Период». Окно фиксированное, чтобы лента не разрасталась бесконечно.
+  // Лента содержит только «актуальные» месяцы — непрерывный диапазон от самого
+  // раннего месяца с операциями до самого позднего месяца с операциями или
+  // запланированными операциями. Текущий месяц всегда входит в диапазон.
+  // Пустые «хвосты» (месяцы без активности до/после) не показываются.
   const strip = useMemo(() => {
-    const base = new Date(today.getFullYear(), today.getMonth(), 1);
+    const curIdx = today.getFullYear() * 12 + today.getMonth();
+    let minIdx = curIdx, maxIdx = curIdx;
+    const consume = (dateStr) => {
+      if (!dateStr) return;
+      const y = Number(dateStr.slice(0, 4));
+      const m = Number(dateStr.slice(5, 7)) - 1;
+      if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+      const idx = y * 12 + m;
+      if (idx < minIdx) minIdx = idx;
+      if (idx > maxIdx) maxIdx = idx;
+    };
+    for (const op of operations || []) consume(op?.date);
+    for (const p of plannedOperations || []) { if (!p?.is_done) consume(p?.date); }
     const arr = [];
-    for (let off = -12; off <= 24; off++) {
-      const d = new Date(base.getFullYear(), base.getMonth() + off, 1);
-      arr.push({ year: d.getFullYear(), month: d.getMonth() });
+    for (let idx = minIdx; idx <= maxIdx; idx++) {
+      arr.push({ year: Math.floor(idx / 12), month: idx % 12 });
     }
     return arr;
-  }, [today.getFullYear(), today.getMonth()]);
+  }, [today.getFullYear(), today.getMonth(), operations, plannedOperations]);
 
   // Индекс для авто-центрирования: выбранный месяц, иначе текущий.
   const focalIdx = useMemo(() => {
@@ -115,15 +127,16 @@ export function PeriodPicker({ period, onChange, operations }) {
   // Список месяцев изменился — пересчитать позиции.
   useEffect(() => { recomputeMetrics(); }, [strip]);
 
-  // Центрируем фокальный месяц (плавный скролл сам триггерит пересчёт дуги).
+  // Центрируем фокальный месяц. scrollIntoView(inline:center) центрирует строго
+  // внутри ленты независимо от offsetParent; block:nearest не даёт прокрутиться
+  // самой странице по вертикали.
   useEffect(() => {
     const el = stripRef.current;
     if (!el || focalIdx < 0) return;
     const btn = el.querySelector(`[data-midx="${focalIdx}"]`);
     if (!btn) return;
-    const target = btn.offsetLeft - el.clientWidth / 2 + btn.offsetWidth / 2;
-    el.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
-  }, [focalIdx]);
+    btn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [focalIdx, strip]);
 
   return html`
     <div class="period-bar">
@@ -133,6 +146,7 @@ export function PeriodPicker({ period, onChange, operations }) {
       <div class="period-months period-ring" ref=${stripRef}>
         ${strip.map((m, i) => {
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
+          const otherYear = m.year !== today.getFullYear();
           return html`
             <button
               class=${"period-month" + (isCurrent ? " is-current" : "")}
@@ -140,7 +154,7 @@ export function PeriodPicker({ period, onChange, operations }) {
               onClick=${() => onChange({ kind: "specificMonth", year: m.year, month: m.month })}
               title=${monthLabel(m.year, m.month)}
               key=${`${m.year}-${m.month}`}>
-              ${MONTHS_NOM[m.month]} <span class="period-month-year">${String(m.year).slice(-2)}</span>
+              ${MONTHS_NOM[m.month]}${otherYear ? html` <span class="period-month-year">${m.year}</span>` : null}
             </button>
           `;
         })}
