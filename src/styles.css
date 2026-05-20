@@ -460,10 +460,14 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-chip .ico { width: 14px; height: 14px; }
 
 .period-months {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 14px;
+  height: 60px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
-  padding: 22px 24px 30px;
+  padding: 0 22px;
+  /* 3D-сцена для эффекта «кольца сбоку» */
+  perspective: 720px;
   /* Лёгкая «дымка» по самым краям, чтобы месяца не упирались в обрыв. */
   -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
           mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
@@ -479,14 +483,14 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  /* Дуга: translateY/scale/rotate приходят из CSS-переменных, которые
-     пересчитывает JS на скролле; hover добавляет лёгкий «подъём» через --ps-hover. */
+  flex: 0 0 auto;
+  /* Поворот по оси Y + масштаб приходят из CSS-переменных (их пересчитывает JS
+     на скролле). Высота строки не меняется — нет вертикальных сдвигов. */
   --ps-scale: 1;
   --ps-opacity: 1;
-  --ps-ty: 0px;
-  --ps-rot: 0deg;
+  --ps-roty: 0deg;
   --ps-hover: 1;
-  transform: translateY(var(--ps-ty)) scale(calc(var(--ps-scale) * var(--ps-hover))) rotate(var(--ps-rot));
+  transform: rotateY(var(--ps-roty)) scale(calc(var(--ps-scale) * var(--ps-hover)));
   opacity: var(--ps-opacity);
   transform-origin: center center;
   transition:
