@@ -460,14 +460,13 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-chip .ico { width: 14px; height: 14px; }
 
 .period-months {
-  display: flex; align-items: center; gap: 14px;
+  display: flex; align-items: center; gap: 16px;
   overflow-x: auto;
   scrollbar-width: none;
-  padding: 14px 20px;
-  /* Лёгкая «дымка» по самым краям, чтобы месяца не упирались в обрыв,
-     но без переусердствования — текст всё равно читается. */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
-          mask-image: linear-gradient(to right, transparent, #000 3%, #000 97%, transparent);
+  padding: 22px 24px 30px;
+  /* Лёгкая «дымка» по самым краям, чтобы месяца не упирались в обрыв. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+          mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
 }
 .period-months::-webkit-scrollbar { display: none; }
 .period-month {
@@ -480,16 +479,19 @@ input, select, textarea { font: inherit; color: inherit; }
   font-weight: 500;
   cursor: pointer;
   white-space: nowrap;
-  /* Базовые scale/opacity приходят из inline CSS-переменных,
-     hover/active их умножают, не борясь с inline-стилем. */
+  /* Дуга: translateY/scale/rotate приходят из CSS-переменных, которые
+     пересчитывает JS на скролле; hover добавляет лёгкий «подъём» через --ps-hover. */
   --ps-scale: 1;
   --ps-opacity: 1;
-  transform: scale(var(--ps-scale));
+  --ps-ty: 0px;
+  --ps-rot: 0deg;
+  --ps-hover: 1;
+  transform: translateY(var(--ps-ty)) scale(calc(var(--ps-scale) * var(--ps-hover))) rotate(var(--ps-rot));
   opacity: var(--ps-opacity);
-  transform-origin: center bottom;
+  transform-origin: center center;
   transition:
-    transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1),
-    opacity 0.35s ease,
+    transform 0.12s ease-out,
+    opacity 0.12s ease-out,
     background var(--transition),
     color var(--transition),
     box-shadow var(--transition),
@@ -497,25 +499,20 @@ input, select, textarea { font: inherit; color: inherit; }
   will-change: transform, opacity;
 }
 .period-month:hover {
-  transform: scale(calc(var(--ps-scale) * 1.05));
-  opacity: 1;
+  --ps-hover: 1.07;
   background: var(--bg-soft);
   color: var(--text);
   border-color: var(--border-strong);
 }
 .period-month.is-current {
-  /* Заметная «капсула», чтобы выбранный месяц был чётко виден даже у края ленты. */
   background: var(--surface);
   color: var(--accent);
   border-color: var(--border);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.10);
   font-weight: 700;
-  opacity: 1;
 }
-/* На уже выбранный месяц — никакого hover-увеличения, иначе перекрывает
-   соседние. Только лёгкая подсветка тени, чтобы было видно отклик курсора. */
 .period-month.is-current:hover {
-  transform: scale(var(--ps-scale));
+  --ps-hover: 1;
   background: var(--surface);
   color: var(--accent);
   border-color: var(--border-strong);

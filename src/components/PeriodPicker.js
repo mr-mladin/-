@@ -30,13 +30,12 @@ export function PeriodPicker({ period, onChange, operations }) {
   const [open, setOpen] = useState(false);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const stripRef = useRef(null);
+  const metricsRef = useRef([]);
 
-  // Лента содержит все месяцы от самой ранней операции (но не позже, чем
-   // 2 года назад) до текущего. Так появляется реальный диапазон для скролла
-   // колесом и пользователь может вернуться к старым месяцам без модалки.
+  // Лента: от самой ранней операции (или хотя бы за прошлый год) и на 3 года
+  // ВПЕРЁД от текущего месяца — чтобы можно было скроллить и в будущее.
   const strip = useMemo(() => {
     const curY = today.getFullYear();
-    const curM = today.getMonth();
     let startYear = curY - 1;
     for (const op of operations || []) {
       if (op?.date) {
@@ -44,49 +43,92 @@ export function PeriodPicker({ period, onChange, operations }) {
         if (Number.isFinite(y) && y < startYear) startYear = y;
       }
     }
+    const endYear = curY + 3;
     const arr = [];
-    for (let y = startYear; y <= curY; y++) {
-      const endMonth = y === curY ? curM : 11;
-      for (let m = 0; m <= endMonth; m++) {
-        arr.push({ year: y, month: m });
-      }
+    for (let y = startYear; y <= endYear; y++) {
+      for (let m = 0; m <= 11; m++) arr.push({ year: y, month: m });
     }
     return arr;
   }, [today.getFullYear(), today.getMonth(), operations]);
 
-  // Индекс «фокального» месяца: выбранный или, если выбран нестандартный
-  // период, — текущий (последний в ленте). Эффект «выпуклой линзы» будет
-  // строиться от него: чем дальше месяц — тем меньше и бледнее.
-  const selectedIdx = period?.kind === "specificMonth"
-    ? strip.findIndex(m => m.year === period.year && m.month === period.month)
-    : -1;
-  const focalIdx = selectedIdx >= 0 ? selectedIdx : strip.length - 1;
+  // Индекс для авто-центрирования: выбранный месяц, иначе текущий.
+  const focalIdx = useMemo(() => {
+    if (period?.kind === "specificMonth") {
+      const i = strip.findIndex(m => m.year === period.year && m.month === period.month);
+      if (i >= 0) return i;
+    }
+    return strip.findIndex(m => m.year === today.getFullYear() && m.month === today.getMonth());
+  }, [strip, period]);
 
-  // Колесо мыши/тачпад над лентой → горизонтальный скролл по месяцам.
-  // Привязываем через addEventListener с passive: false — иначе браузер
-  // может игнорировать preventDefault и колесо будет крутить страницу.
+  // Гнём ленту по дуге: положение каждого месяца считаем относительно центра
+  // видимой области. Центр — крупный и прямой, к краям месяца уезжают вниз,
+  // уменьшаются, наклоняются и бледнеют — будто наклеены на обод кольца.
+  function applyCurve() {
+    const el = stripRef.current;
+    if (!el) return;
+    const half = el.clientWidth / 2;
+    if (half <= 0) return;
+    const viewCenter = el.scrollLeft + half;
+    for (const m of metricsRef.current) {
+      let t = (m.center - viewCenter) / half;
+      t = Math.max(-1.6, Math.min(1.6, t));
+      const abs = Math.abs(t);
+      const scale = Math.max(0.6, 1.18 - abs * 0.34);
+      const ty = abs * abs * 26;       // парабола → дуга
+      const rot = t * 13;              // наклон по касательной
+      const op = Math.max(0.3, 1 - abs * 0.55);
+      const s = m.el.style;
+      s.setProperty("--ps-scale", scale.toFixed(3));
+      s.setProperty("--ps-ty", ty.toFixed(1) + "px");
+      s.setProperty("--ps-rot", rot.toFixed(1) + "deg");
+      s.setProperty("--ps-opacity", op.toFixed(2));
+    }
+  }
+
+  function recomputeMetrics() {
+    const el = stripRef.current;
+    if (!el) return;
+    const items = [...el.querySelectorAll("[data-midx]")];
+    metricsRef.current = items.map(it => ({ el: it, center: it.offsetLeft + it.offsetWidth / 2 }));
+    applyCurve();
+  }
+
+  // Колесо → горизонтальный скролл; на каждый скролл — пересчёт дуги (через rAF).
   useEffect(() => {
     const el = stripRef.current;
     if (!el) return;
     function onWheel(e) {
-      if (el.scrollWidth <= el.clientWidth + 2) return;
       if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
         el.scrollLeft += e.deltaY;
         e.preventDefault();
       }
     }
+    let raf = null;
+    function onScroll() {
+      if (raf) return;
+      raf = requestAnimationFrame(() => { raf = null; applyCurve(); });
+    }
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
+    el.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", recomputeMetrics);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", recomputeMetrics);
+    };
   }, []);
 
-  // При смене фокального месяца плавно подкручиваем ленту, чтобы он оказался по центру.
+  // Список месяцев изменился — пересчитать позиции.
+  useEffect(() => { recomputeMetrics(); }, [strip]);
+
+  // Центрируем фокальный месяц (плавный скролл сам триггерит пересчёт дуги).
   useEffect(() => {
-    const container = stripRef.current;
-    if (!container) return;
-    const btn = container.querySelector(`[data-midx="${focalIdx}"]`);
+    const el = stripRef.current;
+    if (!el || focalIdx < 0) return;
+    const btn = el.querySelector(`[data-midx="${focalIdx}"]`);
     if (!btn) return;
-    const target = btn.offsetLeft - container.clientWidth / 2 + btn.offsetWidth / 2;
-    container.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
+    const target = btn.offsetLeft - el.clientWidth / 2 + btn.offsetWidth / 2;
+    el.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
   }, [focalIdx]);
 
   return html`
@@ -94,23 +136,13 @@ export function PeriodPicker({ period, onChange, operations }) {
       <button class="period-chip" onClick=${() => setOpen(true)}>
         <span>Период</span> ${Icon.right()}
       </button>
-      <div class="period-months" ref=${stripRef}>
+      <div class="period-months period-ring" ref=${stripRef}>
         ${strip.map((m, i) => {
-          const prev = i > 0 ? strip[i - 1] : null;
-          const yearChanged = prev && prev.year !== m.year;
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
-          const dist = Math.abs(i - focalIdx);
-          // «Линза»: яркая выпуклость в центре + плавный спад к краям.
-          // Базовый scale/opacity отдаём в CSS-переменных, hover их умножает.
-          const scale = Math.max(0.78, 1.22 - dist * 0.105);
-          const opacity = Math.max(0.55, 1 - dist * 0.085);
-          const style = `--ps-scale: ${scale.toFixed(3)}; --ps-opacity: ${opacity.toFixed(2)};`;
           return html`
-            ${yearChanged ? html`<span class="period-divider" aria-hidden="true">·</span>` : null}
             <button
               class=${"period-month" + (isCurrent ? " is-current" : "")}
               data-midx=${i}
-              style=${style}
               onClick=${() => onChange({ kind: "specificMonth", year: m.year, month: m.month })}
               title=${monthLabel(m.year, m.month)}
               key=${`${m.year}-${m.month}`}>
