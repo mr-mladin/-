@@ -5,7 +5,6 @@ import { AuthPage } from "./pages/AuthPage.js";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage.js";
 import { Layout } from "./components/Layout.js";
 import { DashboardPage } from "./pages/DashboardPage.js";
-import { PlannerPage } from "./pages/PlannerPage.js";
 import { BudgetsPage } from "./pages/BudgetsPage.js";
 import { GoalsPage } from "./pages/GoalsPage.js";
 import { SettingsPage } from "./pages/SettingsPage.js";
@@ -27,7 +26,6 @@ export function App() {
 
   let page;
   switch (route.name) {
-    case "planner":    page = html`<${PlannerPage} />`; break;
     case "budgets":    page = html`<${BudgetsPage} />`; break;
     case "goals":      page = html`<${GoalsPage} />`; break;
     case "settings":   page = html`<${SettingsPage} segments=${route.segments} />`; break;

@@ -9,7 +9,6 @@ import { AccountForm } from "./AccountForm.js";
 
 const NAV = [
   { name: "dashboard", label: "Главная",   icon: "dashboard" },
-  { name: "planner",   label: "Планер",    icon: "calendar" },
   { name: "budgets",   label: "Бюджеты",   icon: "budget" },
   { name: "goals",     label: "Цели",      icon: "goal" },
   { name: "settings",  label: "Настройки", icon: "settings" },
@@ -101,7 +100,6 @@ export function Layout({ active, children }) {
           </button>
         </div>
 
-        ${active !== "planner" && html`
         <div class="sidebar-body">
           <div class="sidebar-acc-tools">
             <button class="btn-mini" title="Новый счёт"
@@ -146,7 +144,6 @@ export function Layout({ active, children }) {
             `}
           </div>
         </div>
-        `}
 
         <div class="sidebar-foot">
           <div class="muted" style="font-size:11px;text-transform:uppercase;letter-spacing:0.05em;">Аккаунт</div>

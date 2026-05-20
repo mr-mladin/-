@@ -40,10 +40,6 @@ export const Icon = {
   moon: () => wrap(html`<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>`),
   auto: () => wrap(html`<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18"/>`),
   dot: () => wrap(html`<circle cx="12" cy="12" r="3" fill="currentColor"/>`),
-  calendar: () => wrap(html`<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>`),
-  inbox: () => wrap(html`<path d="M5 5h14l2 7v7H3v-7z"/><path d="M3 12h5l2 3h4l2-3h5"/>`),
-  clock: () => wrap(html`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`),
-  repeat: () => wrap(html`<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>`),
 
   // ----- Дополнительные графические иконки -----
   cash: () => wrap(html`<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="3"/><path d="M6 10v.01M18 14v.01"/>`),
