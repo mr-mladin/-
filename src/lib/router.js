@@ -3,7 +3,7 @@
 
 import { useEffect, useState } from "preact/hooks";
 
-export const ROUTES = ["dashboard", "budgets", "goals", "settings"];
+export const ROUTES = ["dashboard", "planner", "budgets", "goals", "settings"];
 
 function parse() {
   const hash = window.location.hash.replace(/^#\/?/, "");

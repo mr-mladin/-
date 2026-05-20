@@ -22,6 +22,8 @@ const initialState = {
   budgets: [],
   goals: [],
   plannedOperations: [],
+  taskLists: [],
+  tasks: [],
   toast: null,
   selectedAccountId: readSelectedAccountId(),
 };
@@ -105,6 +107,7 @@ export function StoreProvider({ children }) {
             loading: false, ready: true, profile: null,
             accounts: [], categories: [], tags: [], operations: [],
             operationTags: [], budgets: [], goals: [], plannedOperations: [],
+            taskLists: [], tasks: [],
             selectedAccountId: null,
           }
         });
@@ -118,7 +121,7 @@ export function StoreProvider({ children }) {
   async function loadAll(userId) {
     const myEpoch = ++loadEpoch.current;
     try {
-      const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes, plannedRes] = await Promise.all([
+      const [profileRes, accountsRes, categoriesRes, tagsRes, opsRes, opTagsRes, budgetsRes, goalsRes, plannedRes, taskListsRes, tasksRes] = await Promise.all([
         supabase.from("profiles").select("*").eq("user_id", userId).maybeSingle(),
         supabase.from("accounts").select("*").order("sort_order").order("created_at"),
         supabase.from("categories").select("*").order("sort_order").order("created_at"),
@@ -128,6 +131,8 @@ export function StoreProvider({ children }) {
         supabase.from("budgets").select("*"),
         supabase.from("goals").select("*").order("sort_order").order("created_at"),
         supabase.from("planned_operations").select("*").order("date"),
+        supabase.from("task_lists").select("*").order("sort_order").order("created_at"),
+        supabase.from("tasks").select("*"),
       ]);
 
       if (myEpoch !== loadEpoch.current) return;
@@ -156,6 +161,8 @@ export function StoreProvider({ children }) {
           budgets: budgetsRes.data || [],
           goals: goalsRes.data || [],
           plannedOperations: plannedRes.data || [],
+          taskLists: taskListsRes.data || [],
+          tasks: tasksRes.data || [],
         }
       });
 
@@ -380,6 +387,82 @@ export function StoreProvider({ children }) {
     },
   };
 
+  // ---------- Task lists (планер) ----------
+  const taskLists = {
+    create: (payload) => insertRow("task_lists", { sort_order: state.taskLists.length, ...payload }, "taskLists"),
+    update: (id, payload) => updateRow("task_lists", id, payload, "taskLists"),
+    remove: async (id) => {
+      await deleteRow("task_lists", id, "taskLists");
+      // Задачи удалённого списка уходят во «Входящие».
+      dispatch({
+        type: "replaceMany", key: "tasks",
+        items: state.tasks.map(t => t.list_id === id ? { ...t, list_id: null } : t),
+      });
+    },
+    move: async (id, delta) => {
+      const list = [...state.taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      const i = list.findIndex(x => x.id === id);
+      const j = i + delta;
+      if (i < 0 || j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      for (let k = 0; k < list.length; k++) {
+        await updateRow("task_lists", list[k].id, { sort_order: k }, "taskLists");
+      }
+    },
+  };
+
+  // ---------- Tasks (планер) ----------
+  async function materializeOverride(item, patch) {
+    const tmpl = state.tasks.find(t => t.id === item.templateId);
+    if (!tmpl) return;
+    const payload = {
+      list_id: tmpl.list_id || null,
+      title: tmpl.title,
+      notes: tmpl.notes || null,
+      color: tmpl.color || null,
+      date: item.occDate,
+      start_min: tmpl.start_min,
+      duration_min: tmpl.duration_min,
+      done: false,
+      recurrence: null,
+      recurrence_parent: tmpl.id,
+      occ_date: item.occDate,
+      skipped: false,
+      ...patch,
+    };
+    return insertRow("tasks", payload, "tasks");
+  }
+
+  const tasks = {
+    create: (payload) => insertRow("tasks", payload, "tasks"),
+    update: (id, payload) => updateRow("tasks", id, payload, "tasks"),
+    remove: (id) => deleteRow("tasks", id, "tasks"),
+    // Переключить «выполнено» для элемента дневной сетки (разового или повторения).
+    toggleDone: async (item) => {
+      const patch = { done: !item.done, done_at: !item.done ? new Date().toISOString() : null };
+      if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
+      return materializeOverride(item, patch);
+    },
+    // Перенести/изменить длительность элемента (drag/resize в сетке).
+    reschedule: async (item, patch) => {
+      if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
+      return materializeOverride(item, patch);
+    },
+    // Удалить одно повторение (остальные сохраняются).
+    removeOccurrence: async (item) => {
+      if (item.id) return tasks.update(item.id, { skipped: true });
+      return materializeOverride(item, { skipped: true });
+    },
+    // Удалить весь ряд повторений вместе с правками отдельных повторений.
+    removeSeries: async (templateId) => {
+      await deleteRow("tasks", templateId, "tasks");
+      dispatch({
+        type: "replaceMany", key: "tasks",
+        items: state.tasks.filter(t => t.id !== templateId && t.recurrence_parent !== templateId),
+      });
+    },
+  };
+
   // ---------- Profile ----------
   const profile = {
     update: async (patch) => {
@@ -414,6 +497,8 @@ export function StoreProvider({ children }) {
       operations,
       budgets,
       goals,
+      taskLists,
+      tasks,
       profile,
     },
   };
