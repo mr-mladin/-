@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0f1a" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Финансы</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%82%BD%3C/text%3E%3C/svg%3E" />
+    <script>
+      // Применяем тему до загрузки CSS, чтобы избежать «голого» рендера
+      (function () {
+        try {
+          var saved = localStorage.getItem("fin.theme");
+          var mode = saved || "auto";
+          var resolved = mode === "auto"
+            ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+            : mode;
+          document.documentElement.setAttribute("data-theme", resolved);
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "light");
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="./src/styles.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "preact": "https://esm.sh/preact@10.22.0",
+          "preact/hooks": "https://esm.sh/preact@10.22.0/hooks",
+          "htm/preact": "https://esm.sh/htm@3.1.1/preact",
+          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.4"
+        }
+      }
+    </script>
+  </head>
+  <body>
+    <div id="app">
+      <div class="boot">
+        <div class="boot-spinner"></div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

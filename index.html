@@ -3,45 +3,59 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0b0f1a" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Финансы</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%82%BD%3C/text%3E%3C/svg%3E" />
+    <title>Приложения</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%9C%A8%3C/text%3E%3C/svg%3E" />
+    <style>
+      :root { color-scheme: light dark; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; min-height: 100dvh; display: grid; place-items: center; padding: 24px;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: #fafbfc; color: #0b1220;
+      }
+      @media (prefers-color-scheme: dark) { body { background: #0a0f17; color: #e8edf5; } }
+      .wrap { width: 100%; max-width: 560px; text-align: center; }
+      h1 { font-size: 28px; letter-spacing: -0.02em; margin: 0 0 6px; }
+      .sub { color: #94a3b8; margin: 0 0 28px; }
+      .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      @media (max-width: 460px) { .cards { grid-template-columns: 1fr; } }
+      a.card {
+        display: block; text-decoration: none; color: inherit; padding: 26px 18px;
+        border-radius: 18px; border: 1px solid rgba(127,127,127,0.18);
+        background: rgba(127,127,127,0.06); transition: transform .12s, border-color .12s;
+      }
+      a.card:hover { transform: translateY(-2px); border-color: currentColor; }
+      .emoji { font-size: 40px; display: block; margin-bottom: 10px; }
+      .name { font-weight: 700; font-size: 18px; }
+      .desc { color: #94a3b8; font-size: 13px; margin-top: 4px; }
+    </style>
     <script>
-      // Применяем тему до загрузки CSS, чтобы избежать «голого» рендера
-      (function () {
-        try {
-          var saved = localStorage.getItem("fin.theme");
-          var mode = saved || "auto";
-          var resolved = mode === "auto"
-            ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
-            : mode;
-          document.documentElement.setAttribute("data-theme", resolved);
-        } catch (e) {
-          document.documentElement.setAttribute("data-theme", "light");
-        }
-      })();
-    </script>
-    <link rel="stylesheet" href="./src/styles.css" />
-    <script type="importmap">
-      {
-        "imports": {
-          "preact": "https://esm.sh/preact@10.22.0",
-          "preact/hooks": "https://esm.sh/preact@10.22.0/hooks",
-          "htm/preact": "https://esm.sh/htm@3.1.1/preact",
-          "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.4"
-        }
+      // Финансовое приложение переехало в /finance/. У уже установленного
+      // приложения мог остаться корневой service worker со старым кэшем —
+      // снимаем его, чтобы не показывалась старая версия.
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.getRegistrations().then(rs => {
+          rs.forEach(r => { if (r.scope.replace(location.origin, "").replace(/\/$/, "") === "") r.unregister(); });
+        }).catch(() => {});
       }
     </script>
   </head>
   <body>
-    <div id="app">
-      <div class="boot">
-        <div class="boot-spinner"></div>
+    <div class="wrap">
+      <h1>Мои приложения</h1>
+      <p class="sub">Выберите, что открыть</p>
+      <div class="cards">
+        <a class="card" href="./finance/">
+          <span class="emoji">₽</span>
+          <div class="name">Финансы</div>
+          <div class="desc">Учёт доходов и расходов</div>
+        </a>
+        <a class="card" href="./planner/">
+          <span class="emoji">🗓️</span>
+          <div class="name">Планер</div>
+          <div class="desc">Задачи и таймблоки</div>
+        </a>
       </div>
     </div>
-    <script type="module" src="./src/main.js"></script>
   </body>
 </html>
