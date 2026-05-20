@@ -30,6 +30,8 @@ jobs:
           cp index.html _site/
           cp sw.js _site/
           cp -r src _site/
+          # Планер — отдельное приложение в подпапке /planner/
+          cp -r planner _site/
           # SPA fallback for hash router (404 → index.html)
           cp index.html _site/404.html
 
