@@ -70,8 +70,8 @@ export function StoreProvider({ children }) {
     const myEpoch = ++loadEpoch.current;
     try {
       const [listsRes, tasksRes] = await Promise.all([
-        supabase.from("task_lists").select("*").order("sort_order").order("created_at"),
-        supabase.from("tasks").select("*"),
+        supabase.from("planner_lists").select("*").order("sort_order").order("created_at"),
+        supabase.from("planner_tasks").select("*"),
       ]);
       if (myEpoch !== loadEpoch.current) return;
       if (listsRes.error || tasksRes.error) {
@@ -128,10 +128,10 @@ export function StoreProvider({ children }) {
   }
 
   const taskLists = {
-    create: (payload) => insertRow("task_lists", { sort_order: state.taskLists.length, ...payload }, "taskLists"),
-    update: (id, payload) => updateRow("task_lists", id, payload, "taskLists"),
+    create: (payload) => insertRow("planner_lists", { sort_order: state.taskLists.length, ...payload }, "taskLists"),
+    update: (id, payload) => updateRow("planner_lists", id, payload, "taskLists"),
     remove: async (id) => {
-      await deleteRow("task_lists", id, "taskLists");
+      await deleteRow("planner_lists", id, "taskLists");
       dispatch({ type: "replaceMany", key: "tasks",
         items: state.tasks.map(t => t.list_id === id ? { ...t, list_id: null } : t) });
     },
@@ -140,7 +140,7 @@ export function StoreProvider({ children }) {
   async function materializeOverride(item, patch) {
     const tmpl = state.tasks.find(t => t.id === item.templateId);
     if (!tmpl) return;
-    return insertRow("tasks", {
+    return insertRow("planner_tasks", {
       list_id: tmpl.list_id || null, title: tmpl.title, notes: tmpl.notes || null,
       color: tmpl.color || null, date: item.occDate,
       start_min: tmpl.start_min, duration_min: tmpl.duration_min,
@@ -150,9 +150,9 @@ export function StoreProvider({ children }) {
   }
 
   const tasks = {
-    create: (payload) => insertRow("tasks", payload, "tasks"),
-    update: (id, payload) => updateRow("tasks", id, payload, "tasks"),
-    remove: (id) => deleteRow("tasks", id, "tasks"),
+    create: (payload) => insertRow("planner_tasks", payload, "tasks"),
+    update: (id, payload) => updateRow("planner_tasks", id, payload, "tasks"),
+    remove: (id) => deleteRow("planner_tasks", id, "tasks"),
     toggleDone: (item) => {
       const patch = { done: !item.done, done_at: !item.done ? new Date().toISOString() : null };
       if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
@@ -167,7 +167,7 @@ export function StoreProvider({ children }) {
       return materializeOverride(item, { skipped: true });
     },
     removeSeries: async (templateId) => {
-      await deleteRow("tasks", templateId, "tasks");
+      await deleteRow("planner_tasks", templateId, "tasks");
       dispatch({ type: "replaceMany", key: "tasks",
         items: state.tasks.filter(t => t.id !== templateId && t.recurrence_parent !== templateId) });
     },
