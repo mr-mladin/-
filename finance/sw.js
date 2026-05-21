@@ -1,11 +1,10 @@
 // Service worker: cache-first со фоновой ревалидацией.
 // При наличии кеша отдаём его мгновенно, а в фоне без блокировки тянем
-// свежую версию и обновляем кеш. Это устраняет "зависающие" загрузки на
-// медленной сети — пользователь всегда получает страницу сразу.
-// Когда выходит новая версия SW (бамп CACHE), мы шлём вкладкам сигнал на
-// одну автоперезагрузку, чтобы они подхватили согласованный набор файлов.
+// свежую версию и обновляем кеш. Свежую версию пользователь видит при
+// следующем заходе. Без авто-перезагрузки клиентов — она давала риск
+// циклических релоадов в связке со старым корневым SW.
 
-const CACHE = "fin-v5";
+const CACHE = "fin-v6";
 const CORE = ["./", "./index.html"];
 
 self.addEventListener("install", (e) => {
@@ -21,8 +20,6 @@ self.addEventListener("activate", (e) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
     await self.clients.claim();
-    const clients = await self.clients.matchAll({ type: "window" });
-    for (const c of clients) c.postMessage({ type: "sw-updated" });
   })());
 });
 

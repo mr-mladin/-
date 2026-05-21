@@ -10,7 +10,7 @@ import { PeriodPicker } from "../components/PeriodPicker.js";
 import { resolvePeriod, previousPeriod, defaultPeriod } from "../lib/period.js";
 
 export function DashboardPage() {
-  const { profile, accounts, operations, selectedAccountId } = useStore();
+  const { profile, accounts, operations, plannedOperations, selectedAccountId } = useStore();
   const [adding, setAdding] = useState(false);
   const [period, setPeriod] = useState(() => defaultPeriod());
 
@@ -54,7 +54,7 @@ export function DashboardPage() {
 
   return html`
     <div class="page-head dash-head">
-      <${PeriodPicker} period=${period} onChange=${setPeriod} operations=${operations} />
+      <${PeriodPicker} period=${period} onChange=${setPeriod} operations=${operations} plannedOperations=${plannedOperations} />
       <div class="btn-row">
         <button class="btn primary" onClick=${() => setAdding(true)}>${Icon.plus()} Добавить</button>
       </div>

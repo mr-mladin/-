@@ -177,12 +177,12 @@ input, select, textarea { font: inherit; color: inherit; }
 .app-shell {
   min-height: 100dvh;
   display: grid;
-  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
   transition: grid-template-columns 0.25s ease;
 }
-.app-shell.is-collapsed { grid-template-columns: var(--sidebar-w-collapsed) 1fr; }
+.app-shell.is-collapsed { grid-template-columns: var(--sidebar-w-collapsed) minmax(0, 1fr); }
 
-.page { min-height: 100dvh; padding: 24px 28px 80px; }
+.page { min-height: 100dvh; min-width: 0; padding: 24px 28px 80px; }
 
 .brand {
   display: flex; align-items: center; gap: 10px;
@@ -463,6 +463,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .period-months {
   display: flex; align-items: center; gap: 14px;
   flex: 1 1 0; min-width: 0;
+  position: relative;
   height: 56px;
   overflow-x: auto;
   overflow-y: hidden;
@@ -484,13 +485,14 @@ input, select, textarea { font: inherit; color: inherit; }
   cursor: pointer;
   white-space: nowrap;
   flex: 0 0 auto;
-  /* Горизонтальное сжатие (sx) + общий размер (sy) приходят из CSS-переменных,
-     которые пересчитывает JS на скролле; hover добавляет лёгкий «подъём». */
-  --ps-sx: 1;
-  --ps-sy: 1;
+  /* Поворот по оси Y (3D-кольцо) + масштаб приходят из CSS-переменных, их
+     пересчитывает JS на скролле. perspective() в самом трансформе → 3D работает
+     внутри скролл-контейнера. hover добавляет лёгкий «подъём» через --ps-hover. */
+  --ps-roty: 0deg;
+  --ps-scale: 1;
   --ps-opacity: 1;
   --ps-hover: 1;
-  transform: scale(calc(var(--ps-sx) * var(--ps-hover)), calc(var(--ps-sy) * var(--ps-hover)));
+  transform: perspective(640px) rotateY(var(--ps-roty)) scale(calc(var(--ps-scale) * var(--ps-hover)));
   opacity: var(--ps-opacity);
   transform-origin: center center;
   transition:

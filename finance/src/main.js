@@ -22,17 +22,11 @@ render(
   window.addEventListener("scroll", onScroll, { passive: true });
 }
 
-// Регистрация service worker — чтобы новые деплои подхватывались сразу.
-// При активации новой версии SW он шлёт сообщение — мы один раз перезагружаем
-// страницу, чтобы получить полностью свежий набор файлов без Cmd+Shift+R.
+// Регистрация service worker. Обновлённую версию пользователь увидит при
+// следующем заходе (cache-first + фоновая ревалидация). Без авто-перезагрузки —
+// она давала риск циклических релоадов при стечении обстоятельств.
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
-  });
-  navigator.serviceWorker.addEventListener("message", (e) => {
-    if (e.data && e.data.type === "sw-updated" && !sessionStorage.getItem("fin.sw.reloaded")) {
-      sessionStorage.setItem("fin.sw.reloaded", "1");
-      window.location.reload();
-    }
   });
 }

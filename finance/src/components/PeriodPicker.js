@@ -26,30 +26,36 @@ function isSamePreset(period, kind, extra) {
   return true;
 }
 
-export function PeriodPicker({ period, onChange, operations }) {
+export function PeriodPicker({ period, onChange, operations, plannedOperations }) {
   const [open, setOpen] = useState(false);
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const stripRef = useRef(null);
   const metricsRef = useRef([]);
 
-  // Лента: от самой ранней операции (или хотя бы за прошлый год) и на 3 года
-  // ВПЕРЁД от текущего месяца — чтобы можно было скроллить и в будущее.
+  // Лента содержит только «актуальные» месяцы — непрерывный диапазон от самого
+  // раннего месяца с операциями до самого позднего месяца с операциями или
+  // запланированными операциями. Текущий месяц всегда входит в диапазон.
+  // Пустые «хвосты» (месяцы без активности до/после) не показываются.
   const strip = useMemo(() => {
-    const curY = today.getFullYear();
-    let startYear = curY - 1;
-    for (const op of operations || []) {
-      if (op?.date) {
-        const y = Number(op.date.slice(0, 4));
-        if (Number.isFinite(y) && y < startYear) startYear = y;
-      }
-    }
-    const endYear = curY + 3;
+    const curIdx = today.getFullYear() * 12 + today.getMonth();
+    let minIdx = curIdx, maxIdx = curIdx;
+    const consume = (dateStr) => {
+      if (!dateStr) return;
+      const y = Number(dateStr.slice(0, 4));
+      const m = Number(dateStr.slice(5, 7)) - 1;
+      if (!Number.isFinite(y) || !Number.isFinite(m)) return;
+      const idx = y * 12 + m;
+      if (idx < minIdx) minIdx = idx;
+      if (idx > maxIdx) maxIdx = idx;
+    };
+    for (const op of operations || []) consume(op?.date);
+    for (const p of plannedOperations || []) { if (!p?.is_done) consume(p?.date); }
     const arr = [];
-    for (let y = startYear; y <= endYear; y++) {
-      for (let m = 0; m <= 11; m++) arr.push({ year: y, month: m });
+    for (let idx = minIdx; idx <= maxIdx; idx++) {
+      arr.push({ year: Math.floor(idx / 12), month: idx % 12 });
     }
     return arr;
-  }, [today.getFullYear(), today.getMonth(), operations]);
+  }, [today.getFullYear(), today.getMonth(), operations, plannedOperations]);
 
   // Индекс для авто-центрирования: выбранный месяц, иначе текущий.
   const focalIdx = useMemo(() => {
@@ -60,10 +66,11 @@ export function PeriodPicker({ period, onChange, operations }) {
     return strip.findIndex(m => m.year === today.getFullYear() && m.month === today.getMonth());
   }, [strip, period]);
 
-  // «Кольцо сбоку»: центр в полную ширину и размер, к краям месяца
-  // уменьшаются и сжимаются по горизонтали (как будто отворачиваются за обод)
-  // и бледнеют. Без 3D-поворотов — текст никогда не выворачивается, без
-  // вертикальных сдвигов — высота строки постоянна.
+  // 3D-кольцо сбоку: центр обращён к нам, к краям месяца отворачиваются по оси
+  // Y (rotateY) с собственной перспективой — дальняя сторона уходит вглубь,
+  // ближняя крупнее, как обод колеса. perspective() задаём прямо в трансформе
+  // каждого элемента — тогда 3D работает даже внутри скролл-контейнера (overflow
+  // не «сплющивает» сцену). Угол ограничен ±52°, чтобы текст не выворачивался.
   function applyCurve() {
     const el = stripRef.current;
     if (!el) return;
@@ -74,12 +81,12 @@ export function PeriodPicker({ period, onChange, operations }) {
       let t = (m.center - viewCenter) / half;
       t = Math.max(-1.5, Math.min(1.5, t));
       const abs = Math.abs(t);
-      const size = Math.max(0.76, 1.08 - abs * 0.14);   // общий размер (глубина)
-      const squeeze = Math.max(0.5, 1 - abs * 0.42);     // горизонтальное сжатие (отворот)
-      const op = Math.max(0.42, 1 - abs * 0.42);
+      const roty = Math.max(-52, Math.min(52, t * 38));
+      const scale = Math.max(0.72, 1.08 - abs * 0.14);
+      const op = Math.max(0.4, 1 - abs * 0.42);
       const s = m.el.style;
-      s.setProperty("--ps-sx", (size * squeeze).toFixed(3));
-      s.setProperty("--ps-sy", size.toFixed(3));
+      s.setProperty("--ps-roty", roty.toFixed(1) + "deg");
+      s.setProperty("--ps-scale", scale.toFixed(3));
       s.setProperty("--ps-opacity", op.toFixed(2));
     }
   }
@@ -120,15 +127,16 @@ export function PeriodPicker({ period, onChange, operations }) {
   // Список месяцев изменился — пересчитать позиции.
   useEffect(() => { recomputeMetrics(); }, [strip]);
 
-  // Центрируем фокальный месяц (плавный скролл сам триггерит пересчёт дуги).
+  // Центрируем фокальный месяц. scrollIntoView(inline:center) центрирует строго
+  // внутри ленты независимо от offsetParent; block:nearest не даёт прокрутиться
+  // самой странице по вертикали.
   useEffect(() => {
     const el = stripRef.current;
     if (!el || focalIdx < 0) return;
     const btn = el.querySelector(`[data-midx="${focalIdx}"]`);
     if (!btn) return;
-    const target = btn.offsetLeft - el.clientWidth / 2 + btn.offsetWidth / 2;
-    el.scrollTo({ left: Math.max(0, target), behavior: "smooth" });
-  }, [focalIdx]);
+    btn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+  }, [focalIdx, strip]);
 
   return html`
     <div class="period-bar">
@@ -138,6 +146,7 @@ export function PeriodPicker({ period, onChange, operations }) {
       <div class="period-months period-ring" ref=${stripRef}>
         ${strip.map((m, i) => {
           const isCurrent = sameSpecificMonth(period, m.year, m.month);
+          const otherYear = m.year !== today.getFullYear();
           return html`
             <button
               class=${"period-month" + (isCurrent ? " is-current" : "")}
@@ -145,7 +154,7 @@ export function PeriodPicker({ period, onChange, operations }) {
               onClick=${() => onChange({ kind: "specificMonth", year: m.year, month: m.month })}
               title=${monthLabel(m.year, m.month)}
               key=${`${m.year}-${m.month}`}>
-              ${MONTHS_NOM[m.month]} <span class="period-month-year">${String(m.year).slice(-2)}</span>
+              ${MONTHS_NOM[m.month]}${otherYear ? html` <span class="period-month-year">${m.year}</span>` : null}
             </button>
           `;
         })}
