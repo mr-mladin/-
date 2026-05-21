@@ -17,6 +17,12 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     autoRefreshToken: true,
     detectSessionInUrl: false,
     storageKey: "fin.auth",
+    // Планер и финансы делят один ключ сессии "fin.auth". Стандартная
+    // межвкладочная блокировка supabase-js (navigator.locks) при этом может
+    // не освободиться и навсегда подвесить запросы (запись уходит на сервер,
+    // но промис не завершается). Для приложения одного пользователя блокировка
+    // не нужна — выполняем операцию сразу, без ожидания лока.
+    lock: (_name, _acquireTimeout, fn) => fn(),
   },
 });
 
