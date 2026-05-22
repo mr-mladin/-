@@ -152,7 +152,7 @@ export function occursOn(tmpl, dateISO) {
 
 function base(t) {
   return {
-    title: t.title, notes: t.notes || "", color: t.color || null,
+    title: t.title, notes: t.notes || "", color: t.color || null, icon: t.icon || null,
     list_id: t.list_id || null, start_min: t.start_min, duration_min: t.duration_min,
   };
 }

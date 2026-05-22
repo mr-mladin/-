@@ -575,13 +575,15 @@ function Planner() {
                   const colW = `(100% - ${GUTTER}px) / ${i._cols}`;
                   const showTime = height >= 40;
                   const { emoji, text } = splitEmoji(i.title);
+                  const icon = i.icon || emoji;
+                  const ttl = i.icon ? i.title : (text || i.title);
                   return html`<div class=${"grid-block" + (i.done ? " done" : "") + (drag && drag.key === i.key ? " dragging" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;left:calc(${GUTTER}px + (${colW}) * ${i._col} + 2px);width:calc(${colW} - 4px);--c:${colorOf(i)};`}
                     onPointerDown=${e => onBlockPointerDown(e, i)}>
                     <div class="grid-block-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
-                    <span class="grid-block-icon">${emoji || ""}</span>
+                    <span class="grid-block-icon">${icon || ""}</span>
                     <div class="grid-block-text">
-                      <div class="grid-block-title">${i.recurring ? html`<span class="grid-block-rep">${Icon.repeat()}</span>` : ""}${text || i.title}</div>
+                      <div class="grid-block-title">${i.recurring ? html`<span class="grid-block-rep">${Icon.repeat()}</span>` : ""}${ttl}</div>
                       ${showTime && html`<div class="grid-block-time">${minRangeLabel(i._start, i._dur)}</div>`}</div>
                     <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                       onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
