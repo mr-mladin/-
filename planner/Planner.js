@@ -424,11 +424,6 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
   function openPreview(item) { setPreview(item); }
-  function previewToggle() {
-    if (!preview) return;
-    toggleDone(preview);
-    setPreview(p => p && { ...p, done: !p.done });
-  }
   function handleDelete(item) {
     setPreview(null);
     if (item.recurring) { openEdit(item); return; }
@@ -643,9 +638,7 @@ function Planner() {
     </div>
 
     ${preview && html`<${EventCard} item=${preview}
-      listName=${preview.list_id ? listById[preview.list_id]?.name : ""} color=${colorOf(preview)}
-      onClose=${() => setPreview(null)} onEdit=${() => { openEdit(preview); setPreview(null); }}
-      onToggleDone=${previewToggle} onDelete=${() => handleDelete(preview)} />`}
+      onClose=${() => setPreview(null)} onDelete=${() => handleDelete(preview)} />`}
     ${delItem && html`<${ConfirmModal} title="Удалить задачу?"
       message=${`«${delItem.title}» будет удалена без возможности восстановления.`}
       onCancel=${() => setDelItem(null)}
