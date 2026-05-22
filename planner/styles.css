@@ -153,7 +153,7 @@ textarea.input { resize: vertical; }
 
 /* Планер: плоская страница без рамок-блоков */
 .planner { display: flex; gap: 0; flex: 1; min-height: 0; padding: 0; }
-.planner-aside { width: 540px; flex: none; display: flex; flex-direction: column;
+.planner-aside { width: 440px; flex: none; display: flex; flex-direction: column;
   padding: 16px 16px 16px 18px; }
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
@@ -286,8 +286,7 @@ textarea.input { resize: vertical; }
 .tl { position: relative; width: 100%; margin-top: 14px; user-select: none; -webkit-user-select: none; }
 .tl-spine { position: absolute; top: 0; bottom: 0; left: 77px; width: 2px; border-radius: 2px;
   background: color-mix(in srgb, var(--border) 70%, transparent); }
-.tl-event.sel .tl-pill { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent),
-  0 0 18px 3px color-mix(in srgb, var(--c) 45%, transparent); }
+.tl-event.sel .tl-pill { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); }
 .tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
   background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
