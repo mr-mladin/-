@@ -387,10 +387,10 @@ function Planner() {
       if (copy) {
         const list = group ? group : [{ item, start: item.start_min, dur: item.duration_min || 0 }];
         const off = group ? delta : (newStart - item.start_min);
-        store.batch("копирование", () => Promise.all(list.map(g => {
+        for (const g of list) {
           const ns = clamp(g.start + off, 0, 1440 - g.dur);
-          return store.actions.tasks.create(copyPayload(g.item, ns)).catch(showErr);
-        })));
+          store.actions.tasks.create(copyPayload(g.item, ns)).catch(showErr);
+        }
       } else if (group) {
         store.batch("перенос", () => {
           for (const g of group) {

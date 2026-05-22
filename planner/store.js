@@ -112,10 +112,13 @@ export function StoreProvider({ children }) {
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
   }
-  async function batch(label, fn) {
+  // Синхронная сборка: все записи истории, сделанные внутри fn() синхронно,
+  // объединяются в один шаг отмены. (Асинхронные записи — напр. создание копий —
+  // в пакет не попадают сознательно, чтобы не подмешать посторонние действия.)
+  function batch(label, fn) {
     const prev = batching.current;
     batching.current = { items: [], label };
-    try { await fn(); } finally {
+    try { fn(); } finally {
       const b = batching.current; batching.current = prev;
       if (b.items.length === 1) record(b.label, b.items[0].undo, b.items[0].redo);
       else if (b.items.length > 1) record(b.label,
