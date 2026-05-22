@@ -172,9 +172,9 @@ function Planner() {
     };
     const up = () => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
-      setDrag(null);
       if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
-      else if (!moved) openPreview(item);
+      setDrag(null);
+      if (!moved) openPreview(item);
     };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   }
@@ -188,8 +188,8 @@ function Planner() {
       setDrag({ type: "resize", key: item.key, start: item.start_min, dur: newDur }); };
     const up = () => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
-      setDrag(null);
       if (newDur !== item.duration_min) store.actions.tasks.reschedule(item, { duration_min: newDur }).catch(showErr);
+      setDrag(null);
     };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   }
