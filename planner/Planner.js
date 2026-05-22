@@ -59,6 +59,7 @@ function Planner() {
 
   function onGridPointerDown(e) {
     if (e.button !== 0) return;
+    e.preventDefault();
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
     let cur = anchor;
     setDrag({ type: "create", start: anchor, dur: 0 });
@@ -78,6 +79,7 @@ function Planner() {
   function onBlockPointerDown(e, item) {
     e.stopPropagation();
     if (e.button !== 0) return;
+    e.preventDefault();
     const startClientY = e.clientY;
     const grab = yToMin(e.clientY) - item.start_min;
     let newStart = item.start_min, moved = false;
@@ -98,6 +100,7 @@ function Planner() {
   function onResizePointerDown(e, item) {
     e.stopPropagation();
     if (e.button !== 0) return;
+    e.preventDefault();
     let newDur = item.duration_min;
     const move = ev => { newDur = clamp(snap(yToMin(ev.clientY) - item.start_min), MIN_DUR, 1440 - item.start_min);
       setDrag({ type: "resize", key: item.key, start: item.start_min, dur: newDur }); };

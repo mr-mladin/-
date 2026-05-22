@@ -136,13 +136,13 @@ textarea.input { resize: vertical; }
 .tray-task-list { font-size: 11px; }
 .tray-task.done .tray-task-title { text-decoration: line-through; color: var(--text-mute); }
 
-.task-check { flex: none; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border-strong);
+.task-check { flex: none; width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border-strong);
   background: transparent; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; color: #fff; padding: 0; }
-.task-check .ico { width: 14px; height: 14px; opacity: 0; }
+.task-check .ico { width: 16px; height: 16px; opacity: 0; }
 .task-check.on { background: var(--accent); border-color: var(--accent); }
 .task-check.on .ico { opacity: 1; }
-.task-check.sm { width: 18px; height: 18px; }
-.task-check.sm .ico { width: 12px; height: 12px; }
+.task-check.sm { width: 22px; height: 22px; }
+.task-check.sm .ico { width: 14px; height: 14px; }
 
 .planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius-lg); }
@@ -153,7 +153,7 @@ textarea.input { resize: vertical; }
   border-left: 3px solid var(--c); font-family: inherit; }
 .untimed-chip.done { text-decoration: line-through; color: var(--text-mute); }
 
-.planner-grid { position: relative; width: 100%; }
+.planner-grid { position: relative; width: 100%; user-select: none; -webkit-user-select: none; }
 .grid-hour { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--border); padding-left: 56px; }
 .grid-hour-label { position: absolute; left: 8px; top: -8px; font-size: 11px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 .grid-now { position: absolute; left: 56px; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 4; }
