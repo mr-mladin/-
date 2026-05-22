@@ -157,8 +157,33 @@ export function StoreProvider({ children }) {
   }
 
   const taskLists = {
-    create: (payload) => insertRow("lists", { sort_order: state.taskLists.length, ...payload }, "taskLists"),
-    update: (id, payload) => updateRow("lists", id, payload, "taskLists"),
+    // Оптимистично: проект появляется/меняется сразу, форма закрывается мгновенно.
+    // Запись в базу идёт в фоне, при ошибке — откат и тост. Защищает от редких
+    // «зависаний» сетевого ответа (форма не застревает на «Сохранение…»).
+    create: (payload) => {
+      const tempId = "tmp-" + Math.random().toString(36).slice(2);
+      const optimistic = { sort_order: state.taskLists.length, ...payload, id: tempId, user_id: state.user?.id };
+      dispatch({ type: "upsertOne", key: "taskLists", item: optimistic });
+      supabase.from("lists").insert(withUser({ sort_order: state.taskLists.length, ...payload })).select().single()
+        .then(({ data, error }) => {
+          dispatch({ type: "removeOne", key: "taskLists", id: tempId });
+          if (error || !data) { pushToast("Не удалось сохранить проект", "error"); return; }
+          dispatch({ type: "upsertOne", key: "taskLists", item: data });
+        })
+        .catch(() => { dispatch({ type: "removeOne", key: "taskLists", id: tempId }); pushToast("Не удалось сохранить проект", "error"); });
+      return Promise.resolve(optimistic);
+    },
+    update: (id, payload) => {
+      const prev = state.taskLists.find(l => l.id === id);
+      if (prev) dispatch({ type: "upsertOne", key: "taskLists", item: { ...prev, ...payload } });
+      supabase.from("lists").update(payload).eq("id", id).select().single()
+        .then(({ data, error }) => {
+          if (error || !data) { if (prev) dispatch({ type: "upsertOne", key: "taskLists", item: prev }); pushToast("Не удалось сохранить проект", "error"); return; }
+          dispatch({ type: "upsertOne", key: "taskLists", item: data });
+        })
+        .catch(() => { if (prev) dispatch({ type: "upsertOne", key: "taskLists", item: prev }); pushToast("Не удалось сохранить проект", "error"); });
+      return Promise.resolve();
+    },
     remove: async (id) => {
       await deleteRow("lists", id, "taskLists");
       dispatch({ type: "replaceMany", key: "tasks",
