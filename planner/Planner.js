@@ -3,13 +3,15 @@ import { useState, useRef, useEffect, useMemo } from "preact/hooks";
 import { useStore } from "./store.js";
 import {
   Icon, todayISO, toISO, fromISO, weekdayFull, monthGen, relLabel,
-  minRangeLabel, itemsForDate, unscheduledTasks,
+  minRangeLabel, minToHHMM, itemsForDate, unscheduledTasks,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm } from "./components.js";
 
 const HOUR_PX = 56;
+const GUTTER = 56;
 const SNAP = 5;
 const MIN_DUR = 15;
+const HOLD_MS = 350;
 const snap = m => Math.round(m / SNAP) * SNAP;
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -59,21 +61,45 @@ function Planner() {
 
   function onGridPointerDown(e) {
     if (e.button !== 0) return;
-    e.preventDefault();
+    const touch = e.pointerType === "touch";
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
-    let cur = anchor;
-    setDrag({ type: "create", start: anchor, dur: 0 });
-    const move = ev => { cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
-      setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) }); };
-    const up = () => {
-      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+    let cur = anchor, active = false, hold = null;
+    const begin = () => {
+      active = true;
+      setDrag({ type: "create", start: anchor, dur: 0 });
+      if (touch && navigator.vibrate) navigator.vibrate(10);
+    };
+    const move = ev => {
+      if (!active) {
+        // до активации: палец поехал (скролл) — отменяем долгое нажатие
+        if (touch && Math.abs(ev.clientY - e.clientY) > 8) finish(false);
+        return;
+      }
+      ev.preventDefault();
+      cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
+      setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
+    };
+    const finish = (commit) => {
+      clearTimeout(hold);
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", cancel);
       setDrag(null);
+      if (!active || !commit) return;
       const start = Math.min(anchor, cur); let dur = Math.abs(cur - anchor);
       if (dur < MIN_DUR) dur = 60;
       setCreating({ date, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
         list_id: filter !== "all" && filter !== "inbox" ? filter : null });
     };
-    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", cancel);
+    // На тач — создаём только по долгому нажатию (обычный тап/скролл ничего не делает).
+    // Мышью — сразу, как было (клик-и-тянуть).
+    if (touch) hold = setTimeout(begin, HOLD_MS);
+    else { e.preventDefault(); begin(); }
   }
 
   function onBlockPointerDown(e, item) {
@@ -214,13 +240,14 @@ function Planner() {
               <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * HOUR_PX}px;`}>
                 ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * HOUR_PX}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
-                ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * HOUR_PX}px;`}><span></span></div>`}
+                ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * HOUR_PX}px;`}>
+                  <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
                 ${laidOut.map(i => {
                   const top = (i._start / 60) * HOUR_PX;
                   const height = Math.max(18, (i._dur / 60) * HOUR_PX);
-                  const left = (i._col / i._cols) * 100, width = 100 / i._cols;
+                  const colW = `(100% - ${GUTTER}px) / ${i._cols}`;
                   return html`<div class=${"grid-block" + (i.done ? " done" : "") + (drag && drag.key === i.key ? " dragging" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;left:calc(${left}% + 2px);width:calc(${width}% - 4px);--c:${colorOf(i)};`}
+                    style=${`top:${top}px;height:${height}px;left:calc(${GUTTER}px + (${colW}) * ${i._col} + 2px);width:calc(${colW} - 4px);--c:${colorOf(i)};`}
                     onPointerDown=${e => onBlockPointerDown(e, i)}>
                     <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                       onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
@@ -231,7 +258,7 @@ function Planner() {
                   </div>`;
                 })}
                 ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="grid-block ghost"
-                  style=${`top:${(drag.start / 60) * HOUR_PX}px;height:${(drag.dur / 60) * HOUR_PX}px;left:2px;width:calc(100% - 4px);`}>
+                  style=${`top:${(drag.start / 60) * HOUR_PX}px;height:${(drag.dur / 60) * HOUR_PX}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);`}>
                   <div class="grid-block-time">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
               </div>
             </div>

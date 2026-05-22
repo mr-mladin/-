@@ -154,9 +154,16 @@ export function StoreProvider({ children }) {
     update: (id, payload) => updateRow("tasks", id, payload, "tasks"),
     remove: (id) => deleteRow("tasks", id, "tasks"),
     toggleDone: (item) => {
-      const patch = { done: !item.done, done_at: !item.done ? new Date().toISOString() : null };
-      if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
-      return materializeOverride(item, patch);
+      const next = !item.done;
+      const patch = { done: next, done_at: next ? new Date().toISOString() : null };
+      if (!(item.kind === "concrete" || item.id)) return materializeOverride(item, patch);
+      const prev = state.tasks.find(t => t.id === item.id);
+      if (prev) dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...patch } });
+      return supabase.from("tasks").update(patch).eq("id", item.id).select().single()
+        .then(({ data, error }) => {
+          if (error) { if (prev) dispatch({ type: "upsertOne", key: "tasks", item: prev }); throw error; }
+          dispatch({ type: "upsertOne", key: "tasks", item: data });
+        });
     },
     reschedule: (item, patch) => {
       if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
