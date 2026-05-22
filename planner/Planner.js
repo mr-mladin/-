@@ -333,10 +333,12 @@ function Planner() {
   function deleteSelected() {
     const items = dayTl.filter(i => selected.has(i.key));
     if (items.length === 0) return;
-    for (const i of items) {
-      if (i.kind === "concrete") store.actions.tasks.remove(i.id).catch(showErr);
-      else store.actions.tasks.removeOccurrence(i).catch(showErr);
-    }
+    store.batch("удаление", () => {
+      for (const i of items) {
+        if (i.kind === "concrete") store.actions.tasks.remove(i.id).catch(showErr);
+        else store.actions.tasks.removeOccurrence(i).catch(showErr);
+      }
+    });
     setSelected(new Set());
     store.pushToast(items.length > 1 ? `Удалено: ${items.length}` : "Задача удалена", "success");
   }
@@ -377,10 +379,12 @@ function Planner() {
       setDrag(null); setDnd(null);
       if (!moved) { handleTap(item, shift); return; }
       if (group) {
-        for (const g of group) {
-          const ns = clamp(g.start + delta, 0, 1440 - g.dur);
-          if (ns !== g.start) store.actions.tasks.reschedule(g.item, { start_min: ns }).catch(showErr);
-        }
+        store.batch("перенос", () => {
+          for (const g of group) {
+            const ns = clamp(g.start + delta, 0, 1440 - g.dur);
+            if (ns !== g.start) store.actions.tasks.reschedule(g.item, { start_min: ns }).catch(showErr);
+          }
+        });
       } else if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
         store.actions.tasks.update(item.id, { start_min: null, duration_min: null }).catch(showErr);
       } else if (newStart !== item.start_min) {
