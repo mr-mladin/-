@@ -7,7 +7,7 @@ import {
   monthMatrix, weekRangeLabel, weekStart,
   splitEmoji, gapCaption,
 } from "./lib.js";
-import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard } from "./components.js";
+import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
 
 const VIEWS = [["month", "Месяц"], ["week", "Неделя"], ["day", "День"]];
 function readView() {
@@ -38,7 +38,7 @@ export function App() {
 
 function Planner() {
   const store = useStore();
-  const { tasks, taskLists, theme } = store;
+  const { tasks, taskLists } = store;
 
   const [date, setDate] = useState(todayISO());
   const [view, setView] = useState(readView());
@@ -55,6 +55,8 @@ function Planner() {
   const [projOpen, setProjOpen] = useState(false);
   const [ctx, setCtx] = useState(null);
   const [swipeId, setSwipeId] = useState(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -471,17 +473,6 @@ function Planner() {
 
   return html`
     <div class="app">
-      <header class="topbar">
-        <div class="brand">${Icon.calendar()} <span>Планер</span></div>
-        <div class="topbar-actions">
-          <button class="btn-mini" title="Тема"
-            onClick=${() => store.setTheme(theme === "dark" ? "light" : "dark")}>
-            ${theme === "dark" ? Icon.sun() : Icon.moon()}</button>
-          <span class="muted small">${store.user?.email}</span>
-          <button class="btn-mini" title="Выйти" onClick=${() => store.auth.signOut()}>${Icon.signout()}</button>
-        </div>
-      </header>
-
       <div class="planner">
         <aside class="planner-aside">
           <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
@@ -561,6 +552,8 @@ function Planner() {
               <button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>
               <button class="btn primary sm" onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
                 ${Icon.plus()} Задача</button>
+              <button class="icon-btn" title="Поиск" onClick=${() => setSearchOpen(true)}>${Icon.search()}</button>
+              <button class="icon-btn" title="Настройки" onClick=${() => setSettingsOpen(true)}>${Icon.gear()}</button>
             </div>
           </div>
 
@@ -699,6 +692,9 @@ function Planner() {
         <button class="ctx-item danger" onClick=${() => { setDelList(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.trash()} Удалить</button>
       </div>
     </div>`}
+    ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
+    ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
+      onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
     ${creating && html`<${TaskForm} defaults=${creating} onClose=${() => setCreating(null)} />`}
     ${editing && html`<${TaskForm} initial=${editing.task} occ=${editing.occ} onClose=${() => setEditing(null)} />`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
