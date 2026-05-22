@@ -127,19 +127,19 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
   }
   async function submit(e) {
     e?.preventDefault();
-    if (!title.trim()) { setError("Введите название задачи"); return; }
+    if (!title.trim()) { setError("Введите название задачи"); store.pushToast("Введите название задачи", "error"); return; }
     setBusy(true);
     try {
       if (editing) await store.actions.tasks.update(initial.id, payload());
       else await store.actions.tasks.create(payload());
       store.pushToast(editing ? "Задача обновлена" : "Задача добавлена", "success");
       onClose();
-    } catch (e) { setError(dbHint(e.message)); } finally { setBusy(false); }
+    } catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); }
   }
   async function run(fn, msg) {
     setBusy(true);
     try { await fn(); store.pushToast(msg, "success"); onClose(); }
-    catch (e) { setError(dbHint(e.message)); } finally { setBusy(false); }
+    catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); }
   }
 
   return html`
@@ -148,6 +148,7 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
         <button class="btn ghost" onClick=${onClose}>Отмена</button>
         <button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? "Сохранение…" : "Сохранить"}</button>`}>
       <form onSubmit=${submit} class="form">
+        ${error && html`<div class="notice error">${error}</div>`}
         <div class="field"><label>Название</label>
           <input class="input" placeholder="Что нужно сделать" autofocus
             value=${title} onInput=${e => setTitle(e.target.value)} /></div>
@@ -200,8 +201,6 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
 
         <div class="field"><label>Заметка</label>
           <textarea class="input" rows="2" value=${notes} onInput=${e => setNotes(e.target.value)}></textarea></div>
-
-        ${error && html`<div class="notice error">${error}</div>`}
 
         ${editing && !confirmDel && html`
           <button type="button" class="btn ghost danger" style="align-self:flex-start;"
