@@ -47,6 +47,7 @@ function Planner() {
   const [preview, setPreview] = useState(null);
   const [delItem, setDelItem] = useState(null);
   const [drag, setDrag] = useState(null);
+  const [dnd, setDnd] = useState(null);
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
@@ -62,6 +63,7 @@ function Planner() {
   const zoomAnchor = useRef(null);
   const projRef = useRef(null);
   const swipedRef = useRef(false);
+  const trayClickGuard = useRef(false);
 
   useEffect(() => {
     if (!projOpen) { setSwipeId(null); return; }
@@ -147,15 +149,18 @@ function Planner() {
 
   const dayItems = useMemo(() => itemsForDate(tasks, date).filter(i => matches(i.list_id)), [tasks, date, filter]);
   const timed = dayItems.filter(i => i.start_min !== null && i.start_min !== undefined);
-  const untimed = dayItems.filter(i => i.start_min === null || i.start_min === undefined);
-  // Все задачи выбранного проекта (для боковой панели): и без времени, и
-  // запланированные. Без дублей повторений (берём только шаблоны/одиночные).
+  // id задач, уже стоящих блоком в сетке текущего дня (одиночные — по id,
+  // повторяющиеся — по id шаблона). Их не показываем в боковой панели.
+  const gridIds = new Set(timed.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
+  // Боковая панель: задачи проекта, которых нет в сетке этого дня (без времени,
+  // другого дня или вовсе без даты). Без дублей повторений (только шаблоны).
   const projTasks = useMemo(() => tasks
     .filter(t => !t.recurrence_parent && matches(t.list_id))
     .sort((a, b) => (a.done - b.done)
       || ((a.date || "9999-99") < (b.date || "9999-99") ? -1 : (a.date || "9999-99") > (b.date || "9999-99") ? 1 : 0)
       || ((a.start_min ?? 1e9) - (b.start_min ?? 1e9))
       || ((a.sort_order || 0) - (b.sort_order || 0))), [tasks, filter]);
+  const trayTasks = projTasks.filter(t => !gridIds.has(t.id));
 
   const week = useMemo(() => {
     const base = fromISO(date);
@@ -254,25 +259,89 @@ function Planner() {
     else { e.preventDefault(); begin(); }
   }
 
+  // В какой зоне находится точка: над сеткой дня или над боковой панелью.
+  function dndZoneAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    if (el.closest(".planner-grid-scroll")) return "grid";
+    if (el.closest(".planner-aside")) return "tray";
+    return null;
+  }
+
   function onBlockPointerDown(e, item) {
     e.stopPropagation();
     if (e.button !== 0) return;
     e.preventDefault();
-    const startClientY = e.clientY;
+    const startClientY = e.clientY, startClientX = e.clientX;
     const grab = yToMin(e.clientY) - item.start_min;
     let newStart = item.start_min, moved = false;
     const move = ev => {
-      if (Math.abs(ev.clientY - startClientY) > 4) moved = true;
+      if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) > 4) moved = true;
+      // Утянули в боковую панель — задача «снимается» из сетки (плавающий ярлык).
+      if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
+        setDrag(null);
+        setDnd({ source: "grid", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "tray" });
+        return;
+      }
+      setDnd(null);
       newStart = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - item.duration_min);
       setDrag({ type: "move", key: item.key, start: newStart, dur: item.duration_min });
     };
-    const up = () => {
+    const up = (ev) => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
-      if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
-      setDrag(null);
-      if (!moved) openPreview(item);
+      setDrag(null); setDnd(null);
+      if (!moved) { openPreview(item); return; }
+      if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
+        store.actions.tasks.update(item.id, { start_min: null, duration_min: null }).catch(showErr);
+      } else if (newStart !== item.start_min) {
+        store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
+      }
     };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+  }
+
+  // Перетаскивание задачи из боковой панели в сетку дня (назначить время).
+  function startTrayDrag(e, t) {
+    if (e.button !== 0) return;
+    const touch = e.pointerType === "touch";
+    const sx = e.clientX, sy = e.clientY;
+    let active = false, hold = null;
+    const dur = t.duration_min || 60;
+    const update = (ev) => {
+      const zone = dndZoneAt(ev.clientX, ev.clientY);
+      const gridMin = zone === "grid" && innerRef.current ? clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur) : null;
+      setDnd({ source: "tray", title: t.title, color: listById[t.list_id]?.color || "var(--accent)",
+        x: ev.clientX, y: ev.clientY, zone, gridMin, dur });
+    };
+    const begin = (ev) => { active = true; trayClickGuard.current = true; update(ev || { clientX: sx, clientY: sy }); };
+    const move = (ev) => {
+      if (!active) {
+        if (touch) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(hold); cleanup(); } return; }
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+        begin(ev);
+      }
+      ev.preventDefault();
+      update(ev);
+    };
+    const up = (ev) => {
+      clearTimeout(hold); cleanup();
+      if (!active) return;
+      if (dndZoneAt(ev.clientX, ev.clientY) === "grid" && innerRef.current) {
+        const start = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
+        store.actions.tasks.update(t.id, { date, start_min: start, duration_min: dur }).catch(showErr);
+      }
+      setDnd(null);
+      setTimeout(() => { trayClickGuard.current = false; }, 0);
+    };
+    const cleanup = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", up);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+    if (touch) hold = setTimeout(() => begin(), HOLD_MS);
   }
 
   function onResizePointerDown(e, item) {
@@ -424,20 +493,23 @@ function Planner() {
             </div>
           </div>
 
-          <div class="proj-tasks">
-            ${projTasks.length === 0
+          <div class=${"proj-tasks" + (dnd && dnd.zone === "tray" ? " drop-active" : "")}>
+            ${trayTasks.length === 0
               ? html`<div class="muted small" style="padding:10px 6px;">Здесь пока нет задач.</div>`
-              : projTasks.map(t => html`
-                <div class=${"tray-task" + (t.done ? " done" : "")} key=${t.id}>
+              : trayTasks.map(t => html`
+                <div class="tray-task-wrap" key=${t.id} onPointerDown=${e => startTrayDrag(e, t)}>
+                  <div class=${"tray-task" + (t.done ? " done" : "")}>
                   <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
                     style=${t.done ? `background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};` : ""}
+                    onPointerDown=${e => e.stopPropagation()}
                     onClick=${() => store.actions.tasks.toggleDone({ kind: "concrete", id: t.id, done: t.done }).catch(showErr)}>${Icon.check()}</button>
-                  <button class="tray-task-body" onClick=${() => setEditing({ task: t, occ: null })}>
+                  <button class="tray-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
                     <span class="tray-task-title">${t.title}</span>
                     <span class="tray-task-meta">
                       ${filter === "all" && t.list_id ? html`<span class="tray-task-list" style=${`color:${listById[t.list_id]?.color};`}>${listById[t.list_id]?.name} · </span>` : ""}${taskMeta(t)}</span>
                   </button>
-                  ${!t.date ? html`<button class="btn-mini" title="Запланировать на этот день" onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>` : ""}
+                  ${!t.date ? html`<button class="btn-mini" title="Запланировать на этот день" onPointerDown=${e => e.stopPropagation()} onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>` : ""}
+                  </div>
                 </div>`)}
             <button class="btn sm ghost proj-add"
               onClick=${() => setCreating({ list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
@@ -475,13 +547,7 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
-            <div class="planner-grid-scroll" ref=${scrollRef}>
-              ${untimed.length > 0 && html`<div class="planner-untimed">
-                ${untimed.map(i => html`<button class=${"untimed-chip" + (i.done ? " done" : "")} key=${i.key}
-                  style=${`--c:${colorOf(i)};`} onClick=${() => openPreview(i)}>
-                  <span class=${"task-check sm" + (i.done ? " on" : "")}
-                    onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</span>${i.title}</button>`)}
-              </div>`}
+            <div class=${"planner-grid-scroll" + (dnd && dnd.source === "tray" && dnd.zone === "grid" ? " drop-active" : "")} ref=${scrollRef}>
               <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
@@ -506,6 +572,9 @@ function Planner() {
                 ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="grid-block ghost"
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${(drag.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);`}>
                   <div class="grid-block-time">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
+                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="grid-block ghost"
+                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${(dnd.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);--c:${dnd.color};`}>
+                  <div class="grid-block-time">${minRangeLabel(dnd.gridMin, dnd.dur)}</div></div>`}
               </div>
             </div>
           </div>`}
@@ -582,6 +651,10 @@ function Planner() {
       onCancel=${() => setDelItem(null)}
       onConfirm=${async () => { try { await store.actions.tasks.remove(delItem.id); store.pushToast("Задача удалена", "success"); }
         catch (e) { showErr(e); } setDelItem(null); }} />`}
+    ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
+      <span class="dnd-ghost-dot"></span>${dnd.title}
+      ${dnd.zone === "tray" ? html`<span class="dnd-ghost-hint">снять время</span>` : ""}
+    </div>`}
     ${ctx && html`<div class="ctx-back" onPointerDown=${() => setCtx(null)} onContextMenu=${e => { e.preventDefault(); setCtx(null); }}>
       <div class="ctx-menu" style=${`left:${ctx.x}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
         <button class="ctx-item" onClick=${() => { setListModal(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
