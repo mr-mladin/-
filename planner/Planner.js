@@ -51,6 +51,8 @@ function Planner() {
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
   const [projOpen, setProjOpen] = useState(false);
+  const [ctx, setCtx] = useState(null);
+  const [swipeId, setSwipeId] = useState(null);
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -59,9 +61,10 @@ function Planner() {
   const hourPxRef = useRef(hourPx);
   const zoomAnchor = useRef(null);
   const projRef = useRef(null);
+  const swipedRef = useRef(false);
 
   useEffect(() => {
-    if (!projOpen) return;
+    if (!projOpen) { setSwipeId(null); return; }
     const onDown = (e) => { if (projRef.current && !projRef.current.contains(e.target)) setProjOpen(false); };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
@@ -303,6 +306,46 @@ function Planner() {
     const start = date === todayISO() ? clamp(snap(now.getHours() * 60 + now.getMinutes() + 5), 0, 1440 - 60) : 9 * 60;
     store.actions.tasks.update(t.id, { date, start_min: start, duration_min: 60 }).catch(showErr);
   }
+  // Свайп влево по строке проекта (тач) открывает кнопки «Изменить/Удалить».
+  function projSwipe(e, l) {
+    if (e.pointerType !== "touch") return;
+    const el = e.currentTarget;
+    const startX = e.clientX, startY = e.clientY;
+    const wasOpen = swipeId === l.id;
+    let decided = false, horiz = false, dx = 0;
+    const move = (ev) => {
+      const mx = ev.clientX - startX, my = ev.clientY - startY;
+      if (!decided) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        decided = true; horiz = Math.abs(mx) > Math.abs(my);
+        if (!horiz) { cleanup(); return; }
+        swipedRef.current = true;
+      }
+      ev.preventDefault();
+      dx = clamp((wasOpen ? -132 : 0) + mx, -132, 0);
+      el.style.transform = `translateX(${dx}px)`;
+    };
+    const up = () => {
+      cleanup();
+      if (!horiz) return;
+      el.style.transform = "";
+      setSwipeId(dx < -50 ? l.id : null);
+      setTimeout(() => { swipedRef.current = false; }, 0);
+    };
+    const cleanup = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", up);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+  }
+  function selectProj(l) {
+    if (swipedRef.current) { swipedRef.current = false; return; }
+    if (swipeId === l.id) { setSwipeId(null); return; }
+    setFilter(l.id); setProjOpen(false);
+  }
   function shift(delta) {
     const d = fromISO(date);
     if (view === "month") d.setMonth(d.getMonth() + delta);
@@ -363,11 +406,18 @@ function Planner() {
                 <span class="proj-opt-name">Входящие</span>
                 <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
               ${lists.map(l => html`
-                <button class=${"proj-opt" + (filter === l.id ? " active" : "")} key=${l.id}
-                  onClick=${() => { setFilter(l.id); setProjOpen(false); }} onDblClick=${() => setListModal(l)}>
-                  <span class="proj-opt-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
-                  <span class="proj-opt-name">${l.name}</span>
-                  <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>`)}
+                <div class=${"proj-row" + (swipeId === l.id ? " swipe-open" : "")} key=${l.id}>
+                  <div class="proj-row-actions">
+                    <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); setProjOpen(false); }}>${Icon.edit()}</button>
+                    <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); setProjOpen(false); }}>${Icon.trash()}</button>
+                  </div>
+                  <button class=${"proj-opt" + (filter === l.id ? " active" : "")}
+                    onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
+                    onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
+                    <span class="proj-opt-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
+                    <span class="proj-opt-name">${l.name}</span>
+                    <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>
+                </div>`)}
               <button class="proj-opt proj-opt-new" onClick=${() => { setListModal("new"); setProjOpen(false); }}>
                 <span class="proj-opt-ico">${Icon.plus()}</span>
                 <span class="proj-opt-name">Новый проект</span></button>
@@ -532,6 +582,12 @@ function Planner() {
       onCancel=${() => setDelItem(null)}
       onConfirm=${async () => { try { await store.actions.tasks.remove(delItem.id); store.pushToast("Задача удалена", "success"); }
         catch (e) { showErr(e); } setDelItem(null); }} />`}
+    ${ctx && html`<div class="ctx-back" onPointerDown=${() => setCtx(null)} onContextMenu=${e => { e.preventDefault(); setCtx(null); }}>
+      <div class="ctx-menu" style=${`left:${ctx.x}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
+        <button class="ctx-item" onClick=${() => { setListModal(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
+        <button class="ctx-item danger" onClick=${() => { setDelList(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.trash()} Удалить</button>
+      </div>
+    </div>`}
     ${creating && html`<${TaskForm} defaults=${creating} onClose=${() => setCreating(null)} />`}
     ${editing && html`<${TaskForm} initial=${editing.task} occ=${editing.occ} onClose=${() => setEditing(null)} />`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
