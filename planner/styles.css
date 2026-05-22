@@ -184,6 +184,29 @@ textarea.input { resize: vertical; }
 .proj-opt-new { color: var(--text-soft); margin-top: 2px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding-top: 10px; }
 .proj-opt-new .ico { width: 16px; height: 16px; }
 
+/* Строка проекта со свайпом (тач) и кнопками под ней */
+.proj-row { position: relative; overflow: hidden; border-radius: var(--radius-sm); }
+.proj-row-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+.proj-row-actions button { border: none; cursor: pointer; color: #fff; display: inline-flex; align-items: center; justify-content: center; width: 66px; }
+.proj-row-actions .edit { background: #64748b; }
+.proj-row-actions .del { background: var(--danger); }
+.proj-row-actions .ico { width: 18px; height: 18px; }
+.proj-row .proj-opt { position: relative; background: var(--surface); touch-action: pan-y;
+  transition: transform 0.22s cubic-bezier(.2,.7,.3,1); }
+.proj-row .proj-opt.active { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); }
+.proj-row.swipe-open .proj-opt { transform: translateX(-132px); }
+
+/* Контекстное меню проекта (правый клик) */
+.ctx-back { position: fixed; inset: 0; z-index: 70; }
+.ctx-menu { position: fixed; min-width: 160px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); box-shadow: 0 14px 34px rgba(0,0,0,0.22); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+.ctx-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border: none; background: transparent;
+  border-radius: var(--radius-sm); cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; text-align: left; }
+.ctx-item:hover { background: var(--bg-soft); }
+.ctx-item.danger { color: var(--danger); }
+.ctx-item.danger:hover { background: rgba(239, 68, 68, 0.1); }
+.ctx-item .ico { width: 16px; height: 16px; }
+
 /* Список задач проекта */
 .proj-tasks { flex: 1; min-height: 0; overflow-y: auto; margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
 .proj-add { margin-top: 8px; width: 100%; justify-content: center; }
