@@ -2,12 +2,12 @@ import { html } from "htm/preact";
 import { useState, useRef, useEffect, useMemo } from "preact/hooks";
 import { useStore } from "./store.js";
 import {
-  Icon, todayISO, toISO, fromISO, weekdayFull, monthGen, relLabel,
+  Icon, todayISO, toISO, fromISO, monthGen, relLabel,
   minRangeLabel, minToHHMM, itemsForDate, unscheduledTasks,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm } from "./components.js";
 
-const HOUR_PX = 56;
+const HOUR_PX = 80;
 const GUTTER = 56;
 const SNAP = 5;
 const MIN_DUR = 15;
@@ -47,6 +47,17 @@ function Planner() {
   const untimed = dayItems.filter(i => i.start_min === null || i.start_min === undefined);
   const tray = useMemo(() => unscheduledTasks(tasks).filter(t => matches(t.list_id))
     .sort((a, b) => (a.done - b.done) || (a.sort_order || 0) - (b.sort_order || 0)), [tasks, filter]);
+
+  const week = useMemo(() => {
+    const base = fromISO(date);
+    const off = (base.getDay() + 6) % 7;
+    const mon = new Date(base); mon.setDate(base.getDate() - off);
+    const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    return Array.from({ length: 7 }, (_, k) => {
+      const dd = new Date(mon); dd.setDate(mon.getDate() + k);
+      return { iso: toISO(dd), day: dd.getDate(), short: WD[k] };
+    });
+  }, [date]);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -195,18 +206,26 @@ function Planner() {
         <div class="planner-content">
           <div class="planner-head">
             <div class="planner-nav">
-              <button class="btn-mini" onClick=${() => shiftDay(-1)} title="Назад">${Icon.left()}</button>
-              <button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>
-              <button class="btn-mini" onClick=${() => shiftDay(1)} title="Вперёд">${Icon.right()}</button>
+              <button class="btn-mini" onClick=${() => shiftDay(-7)} title="Прошлая неделя">${Icon.left()}</button>
               <button class="planner-date" onClick=${() => { const el = dateInputRef.current; el?.showPicker ? el.showPicker() : el?.focus(); }}>
-                <span class="planner-date-ico">${Icon.calendar()}</span>
-                <span><span class="planner-date-main">${dateLabel}</span><span class="planner-date-sub">${weekdayFull(d)}</span></span>
+                <span class="planner-date-main">${dateLabel}</span>
                 <input class="planner-date-input" type="date" ref=${dateInputRef} value=${date}
                   onInput=${e => e.target.value && setDate(e.target.value)} />
               </button>
+              <button class="btn-mini" onClick=${() => shiftDay(7)} title="Следующая неделя">${Icon.right()}</button>
             </div>
-            <button class="btn primary" onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
-              ${Icon.plus()} Задача</button>
+            <div class="planner-head-actions">
+              <button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>
+              <button class="btn primary sm" onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
+                ${Icon.plus()} Задача</button>
+            </div>
+          </div>
+
+          <div class="planner-week">
+            ${week.map(w => html`<button key=${w.iso}
+              class=${"wday" + (w.iso === date ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
+              onClick=${() => setDate(w.iso)}>
+              <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
           </div>
 
           <div class="planner-body">
