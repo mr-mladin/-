@@ -1,7 +1,8 @@
 import { html } from "htm/preact";
 import { useState, useEffect } from "preact/hooks";
 import { useStore } from "./store.js";
-import { Icon, todayISO, minToHHMM, hhmmToMin, RECUR_OPTIONS } from "./lib.js";
+import { Icon, todayISO, fromISO, minRangeLabel, weekdayFull, monthGen, RECUR_OPTIONS } from "./lib.js";
+import { minToHHMM, hhmmToMin } from "./lib.js";
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -38,6 +39,40 @@ export function Toasts() {
   return html`<div class="toasts">
     ${toasts.map(t => html`<div class=${"toast " + t.type} key=${t.id}>${t.text}</div>`)}
   </div>`;
+}
+
+export function EventCard({ item, listName, color, onClose, onEdit, onToggleDone, onDelete }) {
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose?.(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const d = item.occDate ? fromISO(item.occDate) : null;
+  const dateLabel = d ? `${weekdayFull(d)}, ${d.getDate()} ${monthGen(d)}` : "";
+  const timed = item.start_min !== null && item.start_min !== undefined;
+  return html`
+    <div class="modal-back" onClick=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
+      <div class="event-card" role="dialog" style=${`--c:${color};`}>
+        <div class="event-card-head">
+          <span class="event-card-bar"></span>
+          <h3 class=${item.done ? "done" : ""}>${item.title}</h3>
+          <button class="btn-mini" onClick=${onClose} aria-label="Закрыть">${Icon.close()}</button>
+        </div>
+        <div class="event-card-rows">
+          ${dateLabel && html`<div class="event-card-row">${Icon.calendar()}<span>${dateLabel}</span></div>`}
+          <div class="event-card-row">${Icon.clock()}<span>${timed ? minRangeLabel(item.start_min, item.duration_min) : "Без времени"}</span></div>
+          ${item.recurring && html`<div class="event-card-row">${Icon.repeat()}<span>Повторяется</span></div>`}
+          <div class="event-card-row">${Icon.dot()}<span>${listName || "Входящие"}</span></div>
+          ${item.notes && html`<div class="event-card-row note">${Icon.note()}<span>${item.notes}</span></div>`}
+        </div>
+        <div class="event-card-actions">
+          <button class=${"btn sm" + (item.done ? " ghost" : " primary")} onClick=${onToggleDone}>
+            ${Icon.check()} ${item.done ? "Снять отметку" : "Готово"}</button>
+          <button class="btn sm" onClick=${onEdit}>${Icon.edit()} Изменить</button>
+          <button class="btn sm danger" onClick=${onDelete}>${Icon.trash()} Удалить</button>
+        </div>
+      </div>
+    </div>`;
 }
 
 function durLabel(min) {

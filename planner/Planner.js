@@ -2,10 +2,17 @@ import { html } from "htm/preact";
 import { useState, useRef, useEffect, useMemo } from "preact/hooks";
 import { useStore } from "./store.js";
 import {
-  Icon, todayISO, toISO, fromISO, monthGen, relLabel,
+  Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate, unscheduledTasks,
+  monthMatrix, weekRangeLabel, weekStart,
 } from "./lib.js";
-import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm } from "./components.js";
+import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard } from "./components.js";
+
+const VIEWS = [["month", "Месяц"], ["week", "Неделя"], ["day", "День"]];
+function readView() {
+  try { const v = localStorage.getItem("planner.view"); return VIEWS.some(x => x[0] === v) ? v : "day"; }
+  catch (e) { return "day"; }
+}
 
 const HOUR_PX = 80;
 const GUTTER = 56;
@@ -27,16 +34,22 @@ function Planner() {
   const { tasks, taskLists, theme } = store;
 
   const [date, setDate] = useState(todayISO());
+  const [view, setView] = useState(readView());
   const [filter, setFilter] = useState("all");
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [preview, setPreview] = useState(null);
+  const [delItem, setDelItem] = useState(null);
   const [drag, setDrag] = useState(null);
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
+  const weekScrollRef = useRef(null);
   const dateInputRef = useRef(null);
+
+  useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
 
   const lists = useMemo(() => [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [taskLists]);
   const listById = useMemo(() => Object.fromEntries(lists.map(l => [l.id, l])), [lists]);
@@ -59,12 +72,44 @@ function Planner() {
     });
   }, [date]);
 
+  const monthWeeks = useMemo(() => view === "month" ? monthMatrix(date) : null, [view, date]);
+  const monthItems = useMemo(() => {
+    if (view !== "month" || !monthWeeks) return null;
+    const map = {};
+    for (const wk of monthWeeks) for (const c of wk) {
+      map[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i.list_id))
+        .sort((a, b) => {
+          const at = a.start_min ?? 1e9, bt = b.start_min ?? 1e9;
+          return at - bt;
+        });
+    }
+    return map;
+  }, [view, monthWeeks, tasks, filter]);
+
+  const weekDays = useMemo(() => {
+    if (view !== "week") return null;
+    const mon = weekStart(date);
+    const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    return Array.from({ length: 7 }, (_, k) => {
+      const dd = new Date(mon); dd.setDate(mon.getDate() + k);
+      const iso = toISO(dd);
+      const items = itemsForDate(tasks, iso).filter(i => matches(i.list_id));
+      const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
+      return {
+        iso, day: dd.getDate(), short: WD[k], isToday: iso === todayISO(),
+        timed: layoutColumns(t, null),
+        untimed: items.filter(i => i.start_min === null || i.start_min === undefined),
+      };
+    });
+  }, [view, date, tasks, filter]);
+
   useEffect(() => {
-    if (!scrollRef.current) return;
+    const el = view === "day" ? scrollRef.current : view === "week" ? weekScrollRef.current : null;
+    if (!el) return;
     const now = new Date();
-    const target = date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
-    scrollRef.current.scrollTop = Math.max(0, (target / 60) * HOUR_PX - 120);
-  }, []);
+    const target = view === "day" && date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
+    el.scrollTop = Math.max(0, (target / 60) * HOUR_PX - 120);
+  }, [view, date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / HOUR_PX) * 60;
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
@@ -129,7 +174,7 @@ function Planner() {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
       setDrag(null);
       if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
-      else if (!moved) openEdit(item);
+      else if (!moved) openPreview(item);
     };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   }
@@ -159,12 +204,32 @@ function Planner() {
     const start = date === todayISO() ? clamp(snap(now.getHours() * 60 + now.getMinutes() + 5), 0, 1440 - 60) : 9 * 60;
     store.actions.tasks.update(t.id, { date, start_min: start, duration_min: 60 }).catch(showErr);
   }
-  function shiftDay(delta) { const d = fromISO(date); d.setDate(d.getDate() + delta); setDate(toISO(d)); }
+  function shift(delta) {
+    const d = fromISO(date);
+    if (view === "month") d.setMonth(d.getMonth() + delta);
+    else if (view === "week") d.setDate(d.getDate() + delta * 7);
+    else d.setDate(d.getDate() + delta);
+    setDate(toISO(d));
+  }
+  function openDay(iso) { setDate(iso); setView("day"); }
+  function openPreview(item) { setPreview(item); }
+  function previewToggle() {
+    if (!preview) return;
+    toggleDone(preview);
+    setPreview(p => p && { ...p, done: !p.done });
+  }
+  function handleDelete(item) {
+    setPreview(null);
+    if (item.recurring) { openEdit(item); return; }
+    setDelItem(item);
+  }
 
   const laidOut = useMemo(() => layoutColumns(timed, drag), [timed, drag]);
   const d = fromISO(date);
   const rel = relLabel(date);
-  const dateLabel = (rel ? rel + " · " : "") + `${d.getDate()} ${monthGen(d)}`;
+  const dayLabel = (rel ? rel + " · " : "") + `${d.getDate()} ${monthGen(d)}`;
+  const monthLabel = `${monthNom(d)[0].toUpperCase()}${monthNom(d).slice(1)} ${d.getFullYear()}`;
+  const headLabel = view === "month" ? monthLabel : view === "week" ? weekRangeLabel(date) : dayLabel;
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
 
@@ -206,13 +271,17 @@ function Planner() {
         <div class="planner-content">
           <div class="planner-head">
             <div class="planner-nav">
-              <button class="btn-mini" onClick=${() => shiftDay(-7)} title="Прошлая неделя">${Icon.left()}</button>
+              <button class="btn-mini" onClick=${() => shift(-1)} title="Назад">${Icon.left()}</button>
               <button class="planner-date" onClick=${() => { const el = dateInputRef.current; el?.showPicker ? el.showPicker() : el?.focus(); }}>
-                <span class="planner-date-main">${dateLabel}</span>
+                <span class="planner-date-main">${headLabel}</span>
                 <input class="planner-date-input" type="date" ref=${dateInputRef} value=${date}
                   onInput=${e => e.target.value && setDate(e.target.value)} />
               </button>
-              <button class="btn-mini" onClick=${() => shiftDay(7)} title="Следующая неделя">${Icon.right()}</button>
+              <button class="btn-mini" onClick=${() => shift(1)} title="Вперёд">${Icon.right()}</button>
+            </div>
+            <div class="seg">
+              ${VIEWS.map(([v, label]) => html`<button key=${v}
+                class=${"seg-btn" + (view === v ? " on" : "")} onClick=${() => setView(v)}>${label}</button>`)}
             </div>
             <div class="planner-head-actions">
               <button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>
@@ -221,14 +290,14 @@ function Planner() {
             </div>
           </div>
 
-          <div class="planner-week">
+          ${view === "day" && html`<div class="planner-week">
             ${week.map(w => html`<button key=${w.iso}
               class=${"wday" + (w.iso === date ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
               onClick=${() => setDate(w.iso)}>
               <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
-          </div>
+          </div>`}
 
-          <div class="planner-body">
+          ${view === "day" && html`<div class="planner-body">
             <div class="planner-tray">
               <div class="planner-tray-head">${Icon.inbox()} <span>Без времени</span></div>
               ${tray.length === 0
@@ -252,7 +321,7 @@ function Planner() {
             <div class="planner-grid-scroll" ref=${scrollRef}>
               ${untimed.length > 0 && html`<div class="planner-untimed">
                 ${untimed.map(i => html`<button class=${"untimed-chip" + (i.done ? " done" : "")} key=${i.key}
-                  style=${`--c:${colorOf(i)};`} onClick=${() => openEdit(i)}>
+                  style=${`--c:${colorOf(i)};`} onClick=${() => openPreview(i)}>
                   <span class=${"task-check sm" + (i.done ? " on" : "")}
                     onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</span>${i.title}</button>`)}
               </div>`}
@@ -282,11 +351,80 @@ function Planner() {
                   <div class="grid-block-time">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
               </div>
             </div>
-          </div>
+          </div>`}
+
+          ${view === "week" && html`<div class="week-scroll" ref=${weekScrollRef}>
+            <div class="week-head">
+              <div class="week-gutter-cell"></div>
+              ${weekDays.map(wd => html`<button key=${wd.iso}
+                class=${"week-day-head" + (wd.iso === todayISO() ? " today" : "")} onClick=${() => openDay(wd.iso)}>
+                <span class="week-day-name">${wd.short}</span>
+                <span class="week-day-num">${wd.day}</span></button>`)}
+            </div>
+            ${weekDays.some(wd => wd.untimed.length) && html`<div class="week-allday">
+              <div class="week-gutter-cell small">весь<br/>день</div>
+              ${weekDays.map(wd => html`<div class="week-allday-cell" key=${wd.iso}>
+                ${wd.untimed.slice(0, 3).map(i => html`<button class="week-chip" key=${i.key}
+                  style=${`--c:${colorOf(i)};`} onClick=${() => openPreview(i)}>${i.title}</button>`)}
+                ${wd.untimed.length > 3 && html`<button class="week-more" onClick=${() => openDay(wd.iso)}>+${wd.untimed.length - 3}</button>`}
+              </div>`)}
+            </div>`}
+            <div class="week-grid" style=${`height:${24 * HOUR_PX}px;`}>
+              ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * HOUR_PX}px;`} key=${h}>
+                <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
+              ${weekDays.map((wd, di) => html`<div class="week-col" key=${wd.iso}
+                style=${`left:calc(${GUTTER}px + (100% - ${GUTTER}px) / 7 * ${di});width:calc((100% - ${GUTTER}px) / 7);`}
+                onClick=${() => openDay(wd.iso)}>
+                ${wd.isToday && html`<div class="grid-now col" style=${`top:${(nowMin / 60) * HOUR_PX}px;`}><span class="grid-now-dot"></span></div>`}
+                ${wd.timed.map(i => {
+                  const top = (i._start / 60) * HOUR_PX;
+                  const height = Math.max(16, (i._dur / 60) * HOUR_PX);
+                  const sub = `100% / ${i._cols}`;
+                  return html`<button class=${"week-block" + (i.done ? " done" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;left:calc((${sub}) * ${i._col});width:calc((${sub}) - 2px);--c:${colorOf(i)};`}
+                    onClick=${e => { e.stopPropagation(); openPreview(i); }}>
+                    <span class="week-block-title">${i.title}</span></button>`;
+                })}
+              </div>`)}
+            </div>
+          </div>`}
+
+          ${view === "month" && html`<div class="month">
+            <div class="month-weekdays">
+              ${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(n => html`<div key=${n}>${n}</div>`)}
+            </div>
+            <div class="month-weeks">
+              ${monthWeeks.map((wk, wi) => html`<div class="month-week" key=${wi}>
+                ${wk.map(c => {
+                  const its = monthItems[c.iso] || [];
+                  return html`<div class=${"month-cell" + (c.inMonth ? "" : " out") + (c.iso === date ? " sel" : "")}
+                    key=${c.iso} onClick=${() => openDay(c.iso)}>
+                    <div class=${"month-cell-num" + (c.isToday ? " today" : "")}>${c.day}</div>
+                    <div class="month-cell-items">
+                      ${its.slice(0, 3).map(i => html`<button class=${"month-chip" + (i.done ? " done" : "")} key=${i.key}
+                        style=${`--c:${colorOf(i)};`} onClick=${e => { e.stopPropagation(); openPreview(i); }}>
+                        ${(i.start_min !== null && i.start_min !== undefined) ? html`<span class="month-chip-dot"></span>` : ""}
+                        <span class="month-chip-title">${i.title}</span></button>`)}
+                      ${its.length > 3 && html`<div class="month-more">ещё ${its.length - 3}</div>`}
+                    </div>
+                  </div>`;
+                })}
+              </div>`)}
+            </div>
+          </div>`}
         </div>
       </div>
     </div>
 
+    ${preview && html`<${EventCard} item=${preview}
+      listName=${preview.list_id ? listById[preview.list_id]?.name : ""} color=${colorOf(preview)}
+      onClose=${() => setPreview(null)} onEdit=${() => { openEdit(preview); setPreview(null); }}
+      onToggleDone=${previewToggle} onDelete=${() => handleDelete(preview)} />`}
+    ${delItem && html`<${ConfirmModal} title="Удалить задачу?"
+      message=${`«${delItem.title}» будет удалена без возможности восстановления.`}
+      onCancel=${() => setDelItem(null)}
+      onConfirm=${async () => { try { await store.actions.tasks.remove(delItem.id); store.pushToast("Задача удалена", "success"); }
+        catch (e) { showErr(e); } setDelItem(null); }} />`}
     ${creating && html`<${TaskForm} defaults=${creating} onClose=${() => setCreating(null)} />`}
     ${editing && html`<${TaskForm} initial=${editing.task} occ=${editing.occ} onClose=${() => setEditing(null)} />`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
