@@ -154,6 +154,8 @@ export function StoreProvider({ children }) {
     return data;
   }
   async function deleteRow(table, id, key) {
+    // Временные (оптимистичные) строки ещё не в базе — убираем только из стейта.
+    if (typeof id === "string" && id.startsWith("tmp-")) { dispatch({ type: "removeOne", key, id }); return; }
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) throw error;
     dispatch({ type: "removeOne", key, id });

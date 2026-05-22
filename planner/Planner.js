@@ -57,6 +57,8 @@ function Planner() {
   const [swipeId, setSwipeId] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [selected, setSelected] = useState(() => new Set());
+  const [selRange, setSelRange] = useState(null);
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -67,6 +69,7 @@ function Planner() {
   const projRef = useRef(null);
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
+  const lastTap = useRef({ key: null, t: 0 });
 
   useEffect(() => {
     if (!projOpen) { setSwipeId(null); return; }
@@ -90,6 +93,23 @@ function Planner() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Удаление выделенных задач клавишами Delete/Backspace.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== "Delete" && e.key !== "Backspace") return;
+      const t = e.target, tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      if (selected.size === 0) return;
+      e.preventDefault();
+      deleteSelected();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected]);
+
+  // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
+  useEffect(() => { setSelected(new Set()); setSelRange(null); }, [date, view, filter]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
@@ -219,21 +239,44 @@ function Planner() {
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
 
+  function startRangeSelect(e) {
+    e.preventDefault();
+    const anchor = clamp(yToMin(e.clientY), 0, 1440);
+    const base = new Set(selected);
+    const apply = (cur) => {
+      const lo = Math.min(anchor, cur), hi = Math.max(anchor, cur);
+      const n = new Set(base);
+      for (const it of dayTl) {
+        const s = it.start_min, en = s + (it.duration_min || 0);
+        if (s < hi && en > lo) n.add(it.key);
+      }
+      setSelected(n);
+      setSelRange({ lo, hi });
+    };
+    const move = ev => { ev.preventDefault(); apply(clamp(yToMin(ev.clientY), 0, 1440)); };
+    const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); setSelRange(null); };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    apply(anchor);
+  }
+
   function onGridPointerDown(e) {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.pointerType !== "touch") return;
+    if (e.shiftKey) { startRangeSelect(e); return; }
     const touch = e.pointerType === "touch";
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
     let cur = anchor, active = false, hold = null;
     const begin = () => {
       active = true;
+      setSelected(new Set());
       setDrag({ type: "create", start: anchor, dur: 0 });
       if (touch && navigator.vibrate) navigator.vibrate(10);
     };
     const move = ev => {
       if (!active) {
-        // до активации: палец поехал (скролл) — отменяем долгое нажатие
-        if (touch && Math.abs(ev.clientY - e.clientY) > 8) finish(false);
-        return;
+        const far = Math.abs(ev.clientY - e.clientY) > 6 || Math.abs(ev.clientX - e.clientX) > 6;
+        if (touch) { if (far) finish(false); return; }
+        if (far) begin(); else return;
       }
       ev.preventDefault();
       cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
@@ -245,7 +288,8 @@ function Planner() {
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", cancel);
       setDrag(null);
-      if (!active || !commit) return;
+      if (!active) { if (commit) setSelected(new Set()); return; }
+      if (!commit) return;
       const start = Math.min(anchor, cur); let dur = Math.abs(cur - anchor);
       if (dur < MIN_DUR) dur = 60;
       store.actions.tasks.create({ title: "", date, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
@@ -257,10 +301,7 @@ function Planner() {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", cancel);
-    // На тач — создаём только по долгому нажатию (обычный тап/скролл ничего не делает).
-    // Мышью — сразу, как было (клик-и-тянуть).
     if (touch) hold = setTimeout(begin, HOLD_MS);
-    else { e.preventDefault(); begin(); }
   }
 
   // В какой зоне находится точка: над сеткой дня или над боковой панелью.
@@ -272,15 +313,55 @@ function Planner() {
     return null;
   }
 
+  // Одиночный тап — выделить; двойной — открыть карточку; Shift+тап — добавить
+  // или убрать из выделения.
+  function handleTap(item, shift) {
+    if (shift) {
+      setSelected(prev => { const n = new Set(prev); n.has(item.key) ? n.delete(item.key) : n.add(item.key); return n; });
+      return;
+    }
+    const now = Date.now();
+    if (lastTap.current.key === item.key && now - lastTap.current.t < 320) {
+      lastTap.current = { key: null, t: 0 };
+      openPreview(item);
+      return;
+    }
+    lastTap.current = { key: item.key, t: now };
+    setSelected(new Set([item.key]));
+  }
+
+  function deleteSelected() {
+    const items = dayTl.filter(i => selected.has(i.key));
+    if (items.length === 0) return;
+    for (const i of items) {
+      if (i.kind === "concrete") store.actions.tasks.remove(i.id).catch(showErr);
+      else store.actions.tasks.removeOccurrence(i).catch(showErr);
+    }
+    setSelected(new Set());
+    store.pushToast(items.length > 1 ? `Удалено: ${items.length}` : "Задача удалена", "success");
+  }
+
   function onBlockPointerDown(e, item) {
     e.stopPropagation();
+    if (e.button === 2) return; // правый клик — контекстное меню (карточка)
     if (e.button !== 0) return;
     e.preventDefault();
     const startClientY = e.clientY, startClientX = e.clientX;
+    const shift = e.shiftKey;
     const grab = yToMin(e.clientY) - item.start_min;
-    let newStart = item.start_min, moved = false;
+    // Если тащим за одну из нескольких выделенных задач — двигаем всю группу.
+    const group = !shift && selected.has(item.key) && selected.size > 1
+      ? dayTl.filter(i => selected.has(i.key)).map(i => ({ item: i, start: i.start_min, dur: i.duration_min || 0 }))
+      : null;
+    let newStart = item.start_min, moved = false, delta = 0;
     const move = ev => {
       if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) > 4) moved = true;
+      if (!moved) return;
+      if (group) {
+        delta = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440) - item.start_min;
+        setDrag({ type: "moveGroup", keys: group.map(g => g.item.key), delta });
+        return;
+      }
       // Утянули в боковую панель — задача «снимается» из сетки (плавающий ярлык).
       if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
         setDrag(null);
@@ -294,8 +375,13 @@ function Planner() {
     const up = (ev) => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
       setDrag(null); setDnd(null);
-      if (!moved) { openPreview(item); return; }
-      if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
+      if (!moved) { handleTap(item, shift); return; }
+      if (group) {
+        for (const g of group) {
+          const ns = clamp(g.start + delta, 0, 1440 - g.dur);
+          if (ns !== g.start) store.actions.tasks.reschedule(g.item, { start_min: ns }).catch(showErr);
+        }
+      } else if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
         store.actions.tasks.update(item.id, { start_min: null, duration_min: null }).catch(showErr);
       } else if (newStart !== item.start_min) {
         store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
@@ -588,17 +674,23 @@ function Planner() {
                 })}
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
+                ${selRange && html`<div class="tl-selrect"
+                  style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
                 ${dayTl.map(i => {
-                  const dragging = drag && drag.key === i.key;
-                  const start = dragging ? drag.start : i.start_min;
-                  const dur = dragging ? drag.dur : (i.duration_min || 0);
+                  let start = i.start_min, dur = i.duration_min || 0;
+                  const inGroup = drag && drag.type === "moveGroup" && drag.keys.includes(i.key);
+                  if (inGroup) start = clamp(i.start_min + drag.delta, 0, 1440 - dur);
+                  else if (drag && drag.key === i.key) { start = drag.start; dur = drag.dur; }
+                  const dragging = inGroup || (drag && drag.key === i.key);
+                  const sel = selected.has(i.key);
                   const top = (start / 60) * hourPx;
                   const height = Math.max(38, (dur / 60) * hourPx);
                   const { emoji, text } = splitEmoji(i.title);
                   const icon = i.icon || emoji;
                   const ttl = i.icon ? i.title : (text || i.title);
-                  return html`<div class=${"tl-event" + (i.done ? " done" : "") + (dragging ? " dragging" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
+                  return html`<div class=${"tl-event" + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
+                    onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${e => onBlockPointerDown(e, i)}>
                       <div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
                       <span class="tl-pill-icon">${icon || ""}</span>
