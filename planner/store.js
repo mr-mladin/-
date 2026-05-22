@@ -42,6 +42,7 @@ export function StoreProvider({ children }) {
   const [toasts, setToasts] = useState([]);
   const loadEpoch = useRef(0);
   const undoStack = useRef([]);
+  const redoStack = useRef([]);
 
   useEffect(() => { applyTheme(state.theme); }, []);
 
@@ -97,16 +98,24 @@ export function StoreProvider({ children }) {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
   }
 
-  // Стек отмены: каждое действие кладёт сюда «обратную» операцию.
-  function pushUndo(entry) {
-    undoStack.current.push(entry);
+  // История действий: каждое запоминает, как его отменить (undo) и повторить
+  // (redo). Новое действие очищает «будущее» (redo).
+  function record(label, undo, redo) {
+    undoStack.current.push({ label, undo, redo });
     if (undoStack.current.length > 50) undoStack.current.shift();
+    redoStack.current = [];
   }
   async function undo() {
     const entry = undoStack.current.pop();
     if (!entry) { pushToast("Отменять нечего", "info"); return; }
-    try { await entry.run(); pushToast("Отменено" + (entry.label ? ": " + entry.label : ""), "info"); }
+    try { await entry.undo(); redoStack.current.push(entry); pushToast("Отменено" + (entry.label ? ": " + entry.label : ""), "info"); }
     catch (e) { pushToast("Не удалось отменить действие", "error"); }
+  }
+  async function redo() {
+    const entry = redoStack.current.pop();
+    if (!entry) { pushToast("Повторять нечего", "info"); return; }
+    try { await entry.redo(); undoStack.current.push(entry); pushToast("Возвращено" + (entry.label ? ": " + entry.label : ""), "info"); }
+    catch (e) { pushToast("Не удалось повторить действие", "error"); }
   }
 
   const auth = {
@@ -197,7 +206,9 @@ export function StoreProvider({ children }) {
   const tasks = {
     create: async (payload) => {
       const data = await insertRow("tasks", payload, "tasks");
-      pushUndo({ label: "новая задача", run: () => deleteRow("tasks", data.id, "tasks") });
+      record("новая задача",
+        () => deleteRow("tasks", data.id, "tasks"),
+        () => reinsertRow("tasks", data, "tasks"));
       return data;
     },
     update: (id, payload) => {
@@ -205,13 +216,17 @@ export function StoreProvider({ children }) {
       if (prev) {
         const restore = {};
         Object.keys(payload).forEach(k => { restore[k] = prev[k] === undefined ? null : prev[k]; });
-        pushUndo({ label: "изменение задачи", run: () => updateTaskOptimistic(id, restore) });
+        record("изменение задачи",
+          () => updateTaskOptimistic(id, restore),
+          () => updateTaskOptimistic(id, payload));
       }
       return updateTaskOptimistic(id, payload);
     },
     remove: (id) => {
       const prev = state.tasks.find(t => t.id === id);
-      if (prev) pushUndo({ label: "удаление задачи", run: () => reinsertRow("tasks", prev, "tasks") });
+      if (prev) record("удаление задачи",
+        () => reinsertRow("tasks", prev, "tasks"),
+        () => deleteRow("tasks", id, "tasks"));
       return deleteRow("tasks", id, "tasks");
     },
     toggleDone: (item) => {
@@ -219,14 +234,19 @@ export function StoreProvider({ children }) {
       const patch = { done: next, done_at: next ? new Date().toISOString() : null };
       if (!(item.kind === "concrete" || item.id)) {
         return materializeOverride(item, patch).then(data => {
-          if (data) pushUndo({ label: "отметку", run: () => deleteRow("tasks", data.id, "tasks") });
+          if (data) record("отметку",
+            () => deleteRow("tasks", data.id, "tasks"),
+            () => reinsertRow("tasks", data, "tasks"));
           return data;
         });
       }
       const prev = state.tasks.find(t => t.id === item.id);
       if (prev) {
         dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...patch } });
-        pushUndo({ label: "отметку", run: () => updateTaskOptimistic(item.id, { done: prev.done, done_at: prev.done_at === undefined ? null : prev.done_at }) });
+        const restore = { done: prev.done, done_at: prev.done_at === undefined ? null : prev.done_at };
+        record("отметку",
+          () => updateTaskOptimistic(item.id, restore),
+          () => updateTaskOptimistic(item.id, patch));
       }
       return supabase.from("tasks").update(patch).eq("id", item.id).select().single()
         .then(({ data, error }) => {
@@ -237,27 +257,33 @@ export function StoreProvider({ children }) {
     reschedule: (item, patch) => {
       if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
       return materializeOverride(item, patch).then(data => {
-        if (data) pushUndo({ label: "перенос", run: () => deleteRow("tasks", data.id, "tasks") });
+        if (data) record("перенос",
+          () => deleteRow("tasks", data.id, "tasks"),
+          () => reinsertRow("tasks", data, "tasks"));
         return data;
       });
     },
     removeOccurrence: (item) => {
       if (item.id) return tasks.update(item.id, { skipped: true });
       return materializeOverride(item, { skipped: true }).then(data => {
-        if (data) pushUndo({ label: "удаление повторения", run: () => deleteRow("tasks", data.id, "tasks") });
+        if (data) record("удаление повторения",
+          () => deleteRow("tasks", data.id, "tasks"),
+          () => reinsertRow("tasks", data, "tasks"));
         return data;
       });
     },
     removeSeries: async (templateId) => {
       const removed = state.tasks.filter(t => t.id === templateId || t.recurrence_parent === templateId);
-      await deleteRow("tasks", templateId, "tasks");
-      dispatch({ type: "replaceMany", key: "tasks",
-        items: state.tasks.filter(t => t.id !== templateId && t.recurrence_parent !== templateId) });
-      pushUndo({ label: "удаление повторов", run: async () => {
-        const tmpl = removed.find(r => r.id === templateId);
-        if (tmpl) await reinsertRow("tasks", tmpl, "tasks");
-        removed.filter(r => r.id !== templateId).forEach(r => dispatch({ type: "upsertOne", key: "tasks", item: r }));
-      }});
+      const tmpl = removed.find(r => r.id === templateId);
+      const overrides = removed.filter(r => r.id !== templateId);
+      const doRemove = async () => {
+        await deleteRow("tasks", templateId, "tasks");
+        overrides.forEach(r => dispatch({ type: "removeOne", key: "tasks", id: r.id }));
+      };
+      await doRemove();
+      record("удаление повторов",
+        async () => { if (tmpl) await reinsertRow("tasks", tmpl, "tasks"); overrides.forEach(r => dispatch({ type: "upsertOne", key: "tasks", item: r })); },
+        doRemove);
     },
   };
 
@@ -266,7 +292,7 @@ export function StoreProvider({ children }) {
     dispatch({ type: "set", payload: { theme: mode } });
   }
 
-  const value = { ...state, toasts, pushToast, undo, auth, setTheme, actions: { taskLists, tasks } };
+  const value = { ...state, toasts, pushToast, undo, redo, auth, setTheme, actions: { taskLists, tasks } };
   return h(StoreContext.Provider, { value }, children);
 }
 
