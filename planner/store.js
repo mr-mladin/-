@@ -102,20 +102,30 @@ export function StoreProvider({ children }) {
   // (redo). Новое действие очищает «будущее» (redo).
   function record(label, undo, redo) {
     undoStack.current.push({ label, undo, redo });
-    if (undoStack.current.length > 50) undoStack.current.shift();
+    if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
   }
-  async function undo() {
+  // Стеки обновляем синхронно (UI меняется оптимистично), а запись в БД идёт
+  // фоном. Так быстрый Cmd+Z → Cmd+Shift+Z не теряет шаг из-за сетевой задержки.
+  function step(entry, run, fromStack, toStack, okLabel, errLabel) {
+    toStack.current.push(entry);
+    pushToast(okLabel + (entry.label ? ": " + entry.label : ""), "info");
+    Promise.resolve().then(run).catch(() => {
+      const i = toStack.current.lastIndexOf(entry);
+      if (i >= 0) toStack.current.splice(i, 1);
+      fromStack.current.push(entry);
+      pushToast(errLabel, "error");
+    });
+  }
+  function undo() {
     const entry = undoStack.current.pop();
     if (!entry) { pushToast("Отменять нечего", "info"); return; }
-    try { await entry.undo(); redoStack.current.push(entry); pushToast("Отменено" + (entry.label ? ": " + entry.label : ""), "info"); }
-    catch (e) { pushToast("Не удалось отменить действие", "error"); }
+    step(entry, entry.undo, undoStack, redoStack, "Отменено", "Не удалось отменить действие");
   }
-  async function redo() {
+  function redo() {
     const entry = redoStack.current.pop();
     if (!entry) { pushToast("Повторять нечего", "info"); return; }
-    try { await entry.redo(); undoStack.current.push(entry); pushToast("Возвращено" + (entry.label ? ": " + entry.label : ""), "info"); }
-    catch (e) { pushToast("Не удалось повторить действие", "error"); }
+    step(entry, entry.redo, redoStack, undoStack, "Возвращено", "Не удалось повторить действие");
   }
 
   const auth = {
