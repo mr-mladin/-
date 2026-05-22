@@ -716,11 +716,13 @@ function Planner() {
                     </div>
                     <div class="tl-body" onPointerDown=${e => onBlockPointerDown(e, i)}>
                       <div class="tl-text">
-                        <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+                        <div class="tl-titlerow">
+                          <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+                          <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
+                            onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
+                        </div>
                         <div class="tl-meta">${minRangeLabel(start, dur)} (${durHuman(dur)})</div>
                       </div>
-                      <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
-                        onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                     </div>
                   </div>`;
                 })}
