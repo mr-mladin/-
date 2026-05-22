@@ -285,6 +285,11 @@ textarea.input { resize: vertical; }
 .tl { position: relative; width: 100%; margin-top: 14px; user-select: none; -webkit-user-select: none; }
 .tl-spine { position: absolute; top: 0; bottom: 0; left: 77px; width: 2px; border-radius: 2px;
   background: color-mix(in srgb, var(--border) 70%, transparent); }
+.tl-event.sel::before { content: ""; position: absolute; left: 52px; right: 30px; top: -4px; bottom: -4px;
+  background: color-mix(in srgb, var(--c) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c) 45%, transparent); border-radius: 16px; }
+.tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
+  background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1); }
 .zooming .tl-event { transition: none; }
