@@ -151,7 +151,7 @@ textarea.input { resize: vertical; }
 
 /* Планер */
 .planner { display: flex; gap: 16px; flex: 1; min-height: 0; padding: 16px 20px; }
-.planner-aside { width: 232px; flex: none; display: flex; flex-direction: column;
+.planner-aside { width: 288px; flex: none; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; }
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
