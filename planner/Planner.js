@@ -3,7 +3,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "preact/ho
 import { useStore } from "./store.js";
 import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
-  minRangeLabel, minToHHMM, itemsForDate, unscheduledTasks,
+  minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard } from "./components.js";
@@ -50,6 +50,7 @@ function Planner() {
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
+  const [projOpen, setProjOpen] = useState(false);
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -122,8 +123,14 @@ function Planner() {
   const dayItems = useMemo(() => itemsForDate(tasks, date).filter(i => matches(i.list_id)), [tasks, date, filter]);
   const timed = dayItems.filter(i => i.start_min !== null && i.start_min !== undefined);
   const untimed = dayItems.filter(i => i.start_min === null || i.start_min === undefined);
-  const tray = useMemo(() => unscheduledTasks(tasks).filter(t => matches(t.list_id))
-    .sort((a, b) => (a.done - b.done) || (a.sort_order || 0) - (b.sort_order || 0)), [tasks, filter]);
+  // Все задачи выбранного проекта (для боковой панели): и без времени, и
+  // запланированные. Без дублей повторений (берём только шаблоны/одиночные).
+  const projTasks = useMemo(() => tasks
+    .filter(t => !t.recurrence_parent && matches(t.list_id))
+    .sort((a, b) => (a.done - b.done)
+      || ((a.date || "9999-99") < (b.date || "9999-99") ? -1 : (a.date || "9999-99") > (b.date || "9999-99") ? 1 : 0)
+      || ((a.start_min ?? 1e9) - (b.start_min ?? 1e9))
+      || ((a.sort_order || 0) - (b.sort_order || 0))), [tasks, filter]);
 
   const week = useMemo(() => {
     const base = fromISO(date);
@@ -263,6 +270,12 @@ function Planner() {
     if (row) setEditing({ task: row, occ: item.kind === "occurrence" ? item : null });
   }
   const toggleDone = (item) => store.actions.tasks.toggleDone(item).catch(showErr);
+  function taskMeta(t) {
+    if (!t.date) return "без времени";
+    const dd = fromISO(t.date);
+    const base = relLabel(t.date) || `${dd.getDate()} ${monthGen(dd)}`;
+    return t.start_min !== null && t.start_min !== undefined ? `${base}, ${minToHHMM(t.start_min)}` : base;
+  }
   function quickSchedule(t) {
     const now = new Date();
     const start = date === todayISO() ? clamp(snap(now.getHours() * 60 + now.getMinutes() + 5), 0, 1440 - 60) : 9 * 60;
@@ -312,24 +325,53 @@ function Planner() {
 
       <div class="planner">
         <aside class="planner-aside">
-          <div class="planner-aside-head"><span>Списки</span>
-            <button class="btn-mini" title="Новый список" onClick=${() => setListModal("new")}>${Icon.plus()}</button></div>
-          <div class="planner-lists">
-            <button class=${"planner-list" + (filter === "all" ? " active" : "")} onClick=${() => setFilter("all")}>
-              <span class="planner-list-ico" style="color:var(--accent);">${Icon.calendar()}</span>
-              <span class="planner-list-name">Все задачи</span></button>
-            <button class=${"planner-list" + (filter === "inbox" ? " active" : "")} onClick=${() => setFilter("inbox")}>
-              <span class="planner-list-ico" style="color:#64748b;">${Icon.inbox()}</span>
-              <span class="planner-list-name">Входящие</span>
-              <span class="planner-list-count">${countOpen(tasks, null)}</span></button>
-            ${lists.map(l => html`
-              <button class=${"planner-list" + (filter === l.id ? " active" : "")} key=${l.id}
-                onClick=${() => setFilter(l.id)} onDblClick=${() => setListModal(l)}>
-                <span class="planner-list-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
-                <span class="planner-list-name">${l.name}</span>
-                <span class="planner-list-count">${countOpen(tasks, l.id)}</span></button>`)}
+          <div class=${"proj-select" + (projOpen ? " open" : "")}
+            onMouseEnter=${() => setProjOpen(true)} onMouseLeave=${() => setProjOpen(false)}>
+            <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
+              <span class="proj-current-ico" style=${`color:${filter === "all" ? "var(--accent)" : filter === "inbox" ? "#64748b" : (listById[filter]?.color || "var(--accent)")};`}>
+                ${filter === "all" ? Icon.calendar() : filter === "inbox" ? Icon.inbox() : Icon.dot()}</span>
+              <span class="proj-current-name">${filter === "all" ? "Все задачи" : filter === "inbox" ? "Входящие" : (listById[filter]?.name || "Проект")}</span>
+              <span class="proj-caret">${Icon.right()}</span>
+            </button>
+            <div class="proj-menu">
+              <button class=${"proj-opt" + (filter === "all" ? " active" : "")} onClick=${() => { setFilter("all"); setProjOpen(false); }}>
+                <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
+                <span class="proj-opt-name">Все задачи</span></button>
+              <button class=${"proj-opt" + (filter === "inbox" ? " active" : "")} onClick=${() => { setFilter("inbox"); setProjOpen(false); }}>
+                <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
+                <span class="proj-opt-name">Входящие</span>
+                <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
+              ${lists.map(l => html`
+                <button class=${"proj-opt" + (filter === l.id ? " active" : "")} key=${l.id}
+                  onClick=${() => { setFilter(l.id); setProjOpen(false); }} onDblClick=${() => setListModal(l)}>
+                  <span class="proj-opt-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
+                  <span class="proj-opt-name">${l.name}</span>
+                  <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>`)}
+              <button class="proj-opt proj-opt-new" onClick=${() => { setListModal("new"); setProjOpen(false); }}>
+                <span class="proj-opt-ico">${Icon.plus()}</span>
+                <span class="proj-opt-name">Новый проект</span></button>
+            </div>
           </div>
-          <div class="muted small" style="margin-top:auto;padding:8px 6px;">Двойной клик по списку — изменить.</div>
+
+          <div class="proj-tasks">
+            ${projTasks.length === 0
+              ? html`<div class="muted small" style="padding:10px 6px;">Здесь пока нет задач.</div>`
+              : projTasks.map(t => html`
+                <div class=${"tray-task" + (t.done ? " done" : "")} key=${t.id}>
+                  <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
+                    style=${t.done ? `background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};` : ""}
+                    onClick=${() => store.actions.tasks.toggleDone({ kind: "concrete", id: t.id, done: t.done }).catch(showErr)}>${Icon.check()}</button>
+                  <button class="tray-task-body" onClick=${() => setEditing({ task: t, occ: null })}>
+                    <span class="tray-task-title">${t.title}</span>
+                    <span class="tray-task-meta">
+                      ${filter === "all" && t.list_id ? html`<span class="tray-task-list" style=${`color:${listById[t.list_id]?.color};`}>${listById[t.list_id]?.name} · </span>` : ""}${taskMeta(t)}</span>
+                  </button>
+                  ${!t.date ? html`<button class="btn-mini" title="Запланировать на этот день" onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>` : ""}
+                </div>`)}
+            <button class="btn sm ghost proj-add"
+              onClick=${() => setCreating({ list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
+              ${Icon.plus()} Добавить задачу</button>
+          </div>
         </aside>
 
         <div class="planner-content">
@@ -362,26 +404,6 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
-            <div class="planner-tray">
-              <div class="planner-tray-head">${Icon.inbox()} <span>Без времени</span></div>
-              ${tray.length === 0
-                ? html`<div class="muted small" style="padding:8px 4px;">Нет задач без времени.</div>`
-                : tray.map(t => html`
-                  <div class=${"tray-task" + (t.done ? " done" : "")} key=${t.id}>
-                    <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
-                      style=${t.done ? `background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};` : ""}
-                      onClick=${() => store.actions.tasks.toggleDone({ kind: "concrete", id: t.id, done: t.done }).catch(showErr)}>${Icon.check()}</button>
-                    <button class="tray-task-body" onClick=${() => setEditing({ task: t, occ: null })}>
-                      <span class="tray-task-title">${t.title}</span>
-                      ${t.list_id && html`<span class="tray-task-list" style=${`color:${listById[t.list_id]?.color};`}>${listById[t.list_id]?.name || ""}</span>`}
-                    </button>
-                    <button class="btn-mini" title="Запланировать на этот день" onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>
-                  </div>`)}
-              <button class="btn sm ghost" style="margin-top:8px;width:100%;justify-content:center;"
-                onClick=${() => setCreating({ list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
-                ${Icon.plus()} Во «Входящие»</button>
-            </div>
-
             <div class="planner-grid-scroll" ref=${scrollRef}>
               ${untimed.length > 0 && html`<div class="planner-untimed">
                 ${untimed.map(i => html`<button class=${"untimed-chip" + (i.done ? " done" : "")} key=${i.key}
@@ -494,11 +516,11 @@ function Planner() {
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}
       onClose=${() => setListModal(null)} />`}
-    ${delList && html`<${ConfirmModal} title="Удалить список?"
-      message="Задачи из списка переедут во «Входящие», не пропадут."
+    ${delList && html`<${ConfirmModal} title="Удалить проект?"
+      message="Задачи из проекта переедут во «Входящие», не пропадут."
       onCancel=${() => setDelList(null)}
       onConfirm=${async () => { await store.actions.taskLists.remove(delList.id);
-        if (filter === delList.id) setFilter("all"); setDelList(null); store.pushToast("Список удалён", "success"); }} />`}
+        if (filter === delList.id) setFilter("all"); setDelList(null); store.pushToast("Проект удалён", "success"); }} />`}
   `;
 }
 

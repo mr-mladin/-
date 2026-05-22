@@ -58,6 +58,14 @@ html[data-theme="dark"].is-scrolling .planner-grid-scroll::-webkit-scrollbar-thu
 html[data-theme="dark"].is-scrolling .planner-tray::-webkit-scrollbar-thumb, html[data-theme="dark"].is-scrolling .planner-aside::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.28);
 }
+.proj-tasks, .proj-menu { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 0.4s ease; }
+html.is-scrolling .proj-tasks, html.is-scrolling .proj-menu { scrollbar-color: rgba(15, 23, 42, 0.30) transparent; }
+html[data-theme="dark"].is-scrolling .proj-tasks, html[data-theme="dark"].is-scrolling .proj-menu { scrollbar-color: rgba(255, 255, 255, 0.28) transparent; }
+.proj-tasks::-webkit-scrollbar, .proj-menu::-webkit-scrollbar { width: 10px; height: 10px; }
+.proj-tasks::-webkit-scrollbar-thumb, .proj-menu::-webkit-scrollbar-thumb {
+  background-color: transparent; border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; transition: background-color 0.4s ease; }
+html.is-scrolling .proj-tasks::-webkit-scrollbar-thumb, html.is-scrolling .proj-menu::-webkit-scrollbar-thumb { background-color: rgba(15, 23, 42, 0.30); }
+html[data-theme="dark"].is-scrolling .proj-tasks::-webkit-scrollbar-thumb, html[data-theme="dark"].is-scrolling .proj-menu::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.28); }
 
 .muted { color: var(--text-mute); }
 .small { font-size: 12px; }
@@ -145,17 +153,42 @@ textarea.input { resize: vertical; }
 .planner { display: flex; gap: 16px; flex: 1; min-height: 0; padding: 16px 20px; }
 .planner-aside { width: 232px; flex: none; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; }
-.planner-aside-head { display: flex; align-items: center; justify-content: space-between;
-  font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-mute); padding: 2px 6px 8px; }
-.planner-lists { display: flex; flex-direction: column; gap: 2px; }
-.planner-list { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--radius);
-  border: none; background: transparent; cursor: pointer; color: var(--text); font-size: 14px; text-align: left; width: 100%; font-family: inherit; }
-.planner-list:hover { background: var(--bg-soft); }
-.planner-list.active { background: var(--accent-soft); color: var(--accent); }
-.planner-list-ico { display: inline-flex; }
-.planner-list-ico .ico { width: 18px; height: 18px; }
-.planner-list-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.planner-list-count { color: var(--text-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* Выбор проекта (раскрывается при наведении) */
+.proj-select { position: relative; flex: none; }
+.proj-current { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--bg-soft);
+  cursor: pointer; color: var(--text); font-family: inherit; }
+.proj-current:hover { border-color: var(--border-strong); }
+.proj-current-ico { display: inline-flex; }
+.proj-current-ico .ico { width: 18px; height: 18px; }
+.proj-current-name { flex: 1; min-width: 0; text-align: left; font-weight: 600; font-size: 15px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-caret { display: inline-flex; color: var(--text-mute); transform: rotate(90deg); transition: transform 0.2s ease; }
+.proj-caret .ico { width: 16px; height: 16px; }
+.proj-select.open .proj-caret { transform: rotate(-90deg); }
+
+.proj-menu { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.2); padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  max-height: 60vh; overflow-y: auto; opacity: 0; transform: translateY(-6px); pointer-events: none;
+  transition: opacity 0.18s ease, transform 0.18s ease; }
+.proj-select.open .proj-menu { opacity: 1; transform: none; pointer-events: auto; }
+.proj-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: none; background: transparent;
+  border-radius: var(--radius-sm); cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; text-align: left; width: 100%; }
+.proj-opt:hover { background: var(--bg-soft); }
+.proj-opt.active { background: var(--accent-soft); color: var(--accent); }
+.proj-opt-ico { display: inline-flex; }
+.proj-opt-ico .ico { width: 18px; height: 18px; }
+.proj-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-opt-count { color: var(--text-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
+.proj-opt-new { color: var(--text-soft); margin-top: 2px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding-top: 10px; }
+.proj-opt-new .ico { width: 16px; height: 16px; }
+
+/* Список задач проекта */
+.proj-tasks { flex: 1; min-height: 0; overflow-y: auto; margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.proj-add { margin-top: 8px; width: 100%; justify-content: center; }
+.tray-task-meta { font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tray-task.done .tray-task-meta { color: var(--text-mute); }
 
 .planner-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .planner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -325,11 +358,8 @@ textarea.input { resize: vertical; }
 @media (max-width: 860px) {
   .planner { flex-direction: column; padding: 12px; gap: 12px; }
   .planner-aside { width: 100%; }
-  .planner-lists { flex-direction: row; flex-wrap: wrap; }
-  .planner-list { width: auto; }
-  .planner-list-count { display: none; }
+  .proj-tasks { max-height: 30vh; }
   .planner-body { flex-direction: column; }
-  .planner-tray { width: 100%; max-height: 180px; }
   .planner-grid-scroll { height: 68vh; border: none; border-radius: 0; }
   .planner-head { gap: 8px; }
   .seg { order: 3; width: 100%; }

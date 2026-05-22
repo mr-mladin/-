@@ -240,7 +240,7 @@ export function ListForm({ initial, onDelete, onClose }) {
     } catch (e) { setError(dbHint(e.message)); } finally { setBusy(false); }
   }
   return html`
-    <${Modal} title=${editing ? "Список" : "Новый список"} onClose=${onClose}
+    <${Modal} title=${editing ? "Проект" : "Новый проект"} onClose=${onClose}
       footer=${html`
         <button class="btn ghost" onClick=${onClose}>Отмена</button>
         <button class="btn primary" disabled=${busy} onClick=${submit}>Сохранить</button>`}>
@@ -254,7 +254,7 @@ export function ListForm({ initial, onDelete, onClose }) {
           </div></div>
         ${error && html`<div class="notice error">${error}</div>`}
         ${editing && onDelete && html`<button type="button" class="btn ghost danger" style="align-self:flex-start;"
-          onClick=${onDelete}>${Icon.trash()} Удалить список</button>`}
+          onClick=${onDelete}>${Icon.trash()} Удалить проект</button>`}
       </form>
     <//>`;
 }
