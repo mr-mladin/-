@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  durHuman, splitEmoji, gapCaption, dayAgenda,
+  splitEmoji,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard } from "./components.js";
 
@@ -206,10 +206,11 @@ function Planner() {
   }, [view, date, tasks, filter]);
 
   useEffect(() => {
-    if (view === "day") { if (scrollRef.current) scrollRef.current.scrollTop = 0; return; }
-    const el = view === "week" ? weekScrollRef.current : null;
+    const el = view === "day" ? scrollRef.current : view === "week" ? weekScrollRef.current : null;
     if (!el) return;
-    el.scrollTop = Math.max(0, (8 * 60 / 60) * hourPx - 120);
+    const now = new Date();
+    const target = view === "day" && date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
+    el.scrollTop = Math.max(0, (target / 60) * hourPx - 120);
   }, [view, date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
@@ -359,6 +360,26 @@ function Planner() {
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
   }
 
+  // Растягивание за верхний край: двигаем начало, конец остаётся на месте.
+  function onResizeTopPointerDown(e, item) {
+    e.stopPropagation();
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const end = item.start_min + item.duration_min;
+    let newStart = item.start_min, newDur = item.duration_min;
+    const move = ev => {
+      newStart = clamp(snap(yToMin(ev.clientY)), 0, end - MIN_DUR);
+      newDur = end - newStart;
+      setDrag({ type: "resize", key: item.key, start: newStart, dur: newDur });
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+      if (newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart, duration_min: newDur }).catch(showErr);
+      setDrag(null);
+    };
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+  }
+
   function openEdit(item) {
     const row = item.kind === "concrete" ? tasks.find(t => t.id === item.id) : tasks.find(t => t.id === item.templateId);
     if (row) setEditing({ task: row, occ: item.kind === "occurrence" ? item : null });
@@ -438,7 +459,6 @@ function Planner() {
   const headLabel = view === "month" ? monthLabel : view === "week" ? weekRangeLabel(date) : dayLabel;
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
-  const agenda = view === "day" ? dayAgenda(timed, isToday ? nowMin : null) : [];
 
   return html`
     <div class="app">
@@ -543,34 +563,38 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
-            <div class="agenda-scroll" ref=${scrollRef}>
-              ${timed.length === 0
-                ? html`<div class="agenda-empty">На этот день дел со временем нет.<br/>Добавьте через «+» или перетащите из списка слева.</div>`
-                : html`<div class="agenda">
-                  ${agenda.map((row, ri) => {
-                    if (row.type === "now") return html`<div class="agenda-now" key="now">
-                      <span class="agenda-now-time">${minToHHMM(row.min)}</span>
-                      <span class="agenda-now-line"></span></div>`;
-                    if (row.type === "gap") return html`<div class="agenda-gap" key=${"g" + ri}>
-                      <span class="agenda-gap-text">${gapCaption(row.mins)} · ${durHuman(row.mins)}</span></div>`;
-                    const i = row.it;
-                    const { emoji, text } = splitEmoji(i.title);
-                    const past = isToday && row._end <= nowMin;
-                    const current = isToday && row._start <= nowMin && nowMin < row._end;
-                    const h = clamp(Math.round((i.duration_min || 0) * 0.8), 46, 200);
-                    return html`<div class=${"agenda-row" + (i.done ? " done" : "") + (past ? " past" : "") + (current ? " current" : "")} key=${i.key}>
-                      <button class="agenda-pill" style=${`--c:${colorOf(i)};height:${h}px;`} onClick=${() => openPreview(i)}>
-                        ${emoji ? html`<span class="agenda-emoji">${emoji}</span>` : (i.recurring ? Icon.repeat() : Icon.dot())}</button>
-                      <button class="agenda-text" onClick=${() => openPreview(i)}>
-                        <div class="agenda-meta">${minRangeLabel(row._start, i.duration_min)} · ${durHuman(i.duration_min)}${i.recurring ? html` ${Icon.repeat()}` : ""}</div>
-                        <div class="agenda-title">${text || "Без названия"}</div>
-                        ${i.notes ? html`<div class="agenda-note">${i.notes}</div>` : ""}
-                      </button>
-                      <button class=${"task-check" + (i.done ? " on" : "")}
-                        onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
-                    </div>`;
-                  })}
-                </div>`}
+            <div class="planner-grid-scroll" ref=${scrollRef}>
+              <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
+                ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
+                  <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
+                ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
+                  <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
+                ${laidOut.map(i => {
+                  const top = (i._start / 60) * hourPx;
+                  const height = Math.max(22, (i._dur / 60) * hourPx);
+                  const colW = `(100% - ${GUTTER}px) / ${i._cols}`;
+                  const showTime = height >= 40;
+                  const { emoji, text } = splitEmoji(i.title);
+                  return html`<div class=${"grid-block" + (i.done ? " done" : "") + (drag && drag.key === i.key ? " dragging" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;left:calc(${GUTTER}px + (${colW}) * ${i._col} + 2px);width:calc(${colW} - 4px);--c:${colorOf(i)};`}
+                    onPointerDown=${e => onBlockPointerDown(e, i)}>
+                    <div class="grid-block-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
+                    <span class="grid-block-icon">${emoji || ""}</span>
+                    <div class="grid-block-text">
+                      <div class="grid-block-title">${i.recurring ? html`<span class="grid-block-rep">${Icon.repeat()}</span>` : ""}${text || i.title}</div>
+                      ${showTime && html`<div class="grid-block-time">${minRangeLabel(i._start, i._dur)}</div>`}</div>
+                    <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
+                      onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
+                    <div class="grid-block-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
+                  </div>`;
+                })}
+                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="grid-block ghost"
+                  style=${`top:${(drag.start / 60) * hourPx}px;height:${(drag.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);`}>
+                  <div class="grid-block-time">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
+                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="grid-block ghost"
+                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${(dnd.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);--c:${dnd.color};`}>
+                  <div class="grid-block-time">${minRangeLabel(dnd.gridMin, dnd.dur)}</div></div>`}
+              </div>
             </div>
           </div>`}
 

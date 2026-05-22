@@ -112,53 +112,12 @@ export function minRangeLabel(start, dur) {
   return minToHHMM(start) + "–" + minToHHMM(start + (dur || 0));
 }
 
-export function durHuman(m) {
-  m = Math.max(0, Math.round(m || 0));
-  const h = Math.floor(m / 60), mm = m % 60;
-  if (h && mm) return `${h} ч ${mm} мин`;
-  if (h) return `${h} ч`;
-  return `${mm} мин`;
-}
-
-// Ведущий эмодзи из названия выносим в кружок на ленте дня.
+// Ведущий эмодзи названия выносим в кружок-иконку пилюли.
 export function splitEmoji(title) {
   const t = title || "";
   const m = t.match(/^(\p{Extended_Pictographic}[‍️\p{Extended_Pictographic}]*)\s*/u);
   if (m) return { emoji: m[1], text: t.slice(m[0].length) };
   return { emoji: "", text: t };
-}
-
-const GAP_LINES = [
-  "Пауза подошла к концу. Вперёд к свершениям!",
-  "Время прошло и принесло ценные знания.",
-  "Небольшой перерыв — и снова в дело.",
-  "Свободное окно. Можно выдохнуть.",
-  "Передышка завершена, продолжаем.",
-];
-export function gapCaption(mins) {
-  return GAP_LINES[Math.floor((mins || 0) / 37) % GAP_LINES.length];
-}
-
-// Лента дня в стиле Structured: задачи по порядку, крупные промежутки —
-// отдельной строкой-подписью, маркер «сейчас» (если nowMin не null).
-export function dayAgenda(items, nowMin) {
-  const ts = items
-    .filter(i => i.start_min !== null && i.start_min !== undefined)
-    .map(i => ({ it: i, _start: i.start_min, _end: i.start_min + (i.duration_min || 0) }))
-    .sort((a, b) => a._start - b._start || a._end - b._end);
-  const rows = [];
-  let prevEnd = null, placedNow = false;
-  const maybeNow = (before) => {
-    if (nowMin != null && !placedNow && nowMin <= before) { rows.push({ type: "now", min: nowMin }); placedNow = true; }
-  };
-  for (const t of ts) {
-    maybeNow(t._start);
-    if (prevEnd != null && t._start - prevEnd >= 25) rows.push({ type: "gap", mins: t._start - prevEnd, at: prevEnd });
-    rows.push({ type: "task", it: t.it, _start: t._start, _end: t._end });
-    prevEnd = prevEnd == null ? t._end : Math.max(prevEnd, t._end);
-  }
-  if (nowMin != null && !placedNow) rows.push({ type: "now", min: nowMin });
-  return rows;
 }
 
 // ---------- Повторения ----------
