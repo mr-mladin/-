@@ -243,4 +243,6 @@ export const Icon = {
   signout: () => wrap(html`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`),
   edit: () => wrap(html`<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>`),
   note: () => wrap(html`<path d="M4 5h16M4 10h16M4 15h10"/>`),
+  search: () => wrap(html`<circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/>`),
+  gear: () => wrap(html`<circle cx="12" cy="12" r="3.1"/><path d="M19.4 13a7.7 7.7 0 0 0 0-2l2-1.5-2-3.5-2.4 1a7.6 7.6 0 0 0-1.7-1L15 2.5h-4l-.3 2.5a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.5 2 1.5a7.7 7.7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7.6 7.6 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.5z"/>`),
 };

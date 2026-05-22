@@ -142,17 +142,19 @@ textarea.input { resize: vertical; }
 .auth-card .field { text-align: left; }
 
 /* Шапка */
-.app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
-.topbar { display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
-.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; }
-.brand .ico { width: 22px; height: 22px; color: var(--accent); }
-.topbar-actions { display: flex; align-items: center; gap: 10px; }
+.app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 
-/* Планер */
-.planner { display: flex; gap: 16px; flex: 1; min-height: 0; padding: 16px 20px; }
-.planner-aside { width: 288px; flex: none; display: flex; flex-direction: column;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; }
+/* Круглая кнопка-иконка (поиск, настройки) */
+.icon-btn { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text-soft); display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; transition: color .15s, background .15s; }
+.icon-btn:hover { color: var(--text); background: var(--bg-soft); }
+.icon-btn .ico { width: 19px; height: 19px; }
+
+/* Планер: плоская страница без рамок-блоков */
+.planner { display: flex; gap: 0; flex: 1; min-height: 0; padding: 0; }
+.planner-aside { width: 280px; flex: none; display: flex; flex-direction: column;
+  padding: 16px 14px 16px 18px; }
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
 .proj-current { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px;
@@ -208,13 +210,13 @@ textarea.input { resize: vertical; }
 .ctx-item .ico { width: 16px; height: 16px; }
 
 /* Список задач проекта */
-.proj-tasks { flex: 1; min-height: 0; overflow-y: auto; margin-top: 12px; display: flex; flex-direction: column; gap: 2px; }
+.proj-tasks { flex: 1; min-height: 0; overflow-y: auto; margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
 .proj-add { margin-top: 8px; width: 100%; justify-content: center; }
 .tray-task-meta { font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tray-task.done .tray-task-meta { color: var(--text-mute); }
 
-.planner-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
-.planner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
+.planner-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding-top: 14px; }
+.planner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; padding: 0 18px 0 4px; }
 .planner-nav { display: flex; align-items: center; gap: 6px; }
 .planner-date { position: relative; display: flex; align-items: center; gap: 8px; margin-left: 6px;
   padding: 4px 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-family: inherit; color: var(--text); }
@@ -224,7 +226,7 @@ textarea.input { resize: vertical; }
 .planner-head-actions { display: flex; align-items: center; gap: 8px; }
 
 /* Недельная полоса дней */
-.planner-week { display: flex; gap: 4px; margin-bottom: 14px; }
+.planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 18px 0 4px; }
 .wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 0 9px;
   border: none; background: transparent; cursor: pointer; border-radius: var(--radius); font-family: inherit; color: var(--text); }
 .wday:hover { background: var(--bg-soft); }
@@ -240,10 +242,11 @@ textarea.input { resize: vertical; }
 .planner-tray-head { display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text-mute); margin-bottom: 8px; }
 .planner-tray-head .ico { width: 16px; height: 16px; }
-.tray-task-wrap { cursor: grab; touch-action: pan-y; border-radius: var(--radius-sm); }
+.tray-task-wrap { cursor: grab; touch-action: pan-y; border-radius: var(--radius); }
 .tray-task-wrap:active { cursor: grabbing; }
-.tray-task { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: var(--radius-sm); }
-.tray-task-wrap:hover .tray-task { background: var(--bg-soft); }
+.tray-task { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: var(--radius);
+  background: var(--surface); border: 1px solid var(--border); }
+.tray-task-wrap:hover .tray-task { border-color: var(--border-strong); }
 
 /* Плавающий ярлык при перетаскивании задачи между панелью и сеткой */
 .dnd-ghost { position: fixed; z-index: 80; transform: translate(12px, 12px); pointer-events: none;
@@ -268,7 +271,7 @@ textarea.input { resize: vertical; }
 .task-check.sm .ico { width: 14px; height: 14px; }
 
 .planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
-  border: 1px solid var(--border); border-radius: var(--radius-lg); }
+  border: none; border-radius: 20px 20px 0 0; padding: 6px 0 0; box-shadow: 0 -1px 0 var(--border); }
 .grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
 .grid-hour-label { position: absolute; right: calc(100% + 8px); top: -7px; font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .grid-now { position: absolute; left: 56px; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 4; }
@@ -461,3 +464,34 @@ textarea.input { resize: vertical; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
   .month-chip-title { font-size: 10px; }
 }
+
+/* Настройки */
+.set-section { margin-bottom: 20px; }
+.set-section:last-child { margin-bottom: 0; }
+.set-label { font-size: 11px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-mute); margin-bottom: 8px; }
+.set-seg { display: flex; }
+.set-seg .seg-btn { flex: 1; text-align: center; padding: 7px 0; font-size: 14px; }
+.set-email { font-size: 14px; color: var(--text); margin-bottom: 12px; }
+.set-signout { color: var(--danger); }
+.set-signout .ico { width: 16px; height: 16px; }
+
+/* Поиск */
+.search-back { align-items: start; }
+.search-box { width: 100%; max-width: 540px; margin-top: 8vh; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: 0 18px 50px rgba(0,0,0,0.3);
+  display: flex; flex-direction: column; max-height: 70dvh; animation: sheetIn .2s cubic-bezier(.2,.7,.3,1); }
+.search-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 12px 16px; border-bottom: 1px solid var(--border); }
+.search-ico { display: inline-flex; color: var(--text-mute); }
+.search-ico .ico { width: 19px; height: 19px; }
+.search-input { flex: 1; min-width: 0; border: none; background: transparent; font-family: inherit;
+  font-size: 16px; color: var(--text); }
+.search-input:focus { outline: none; }
+.search-results { overflow-y: auto; padding: 6px; scrollbar-width: thin; }
+.search-empty { padding: 18px; text-align: center; color: var(--text-mute); font-size: 14px; }
+.search-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 10px; border: none;
+  background: transparent; border-radius: var(--radius); cursor: pointer; font-family: inherit; text-align: left; }
+.search-item:hover { background: var(--bg-soft); }
+.search-item-title { flex: 1; min-width: 0; font-size: 14px; color: var(--text); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.search-item.done .search-item-title { text-decoration: line-through; color: var(--text-mute); }
+.search-item-meta { flex: none; font-size: 12px; color: var(--text-mute); }

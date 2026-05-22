@@ -43,6 +43,66 @@ export function ConfirmModal({ title, message, onCancel, onConfirm }) {
   <//>`;
 }
 
+export function SettingsModal({ onClose }) {
+  const store = useStore();
+  const THEMES = [["auto", "Авто"], ["light", "Светлая"], ["dark", "Тёмная"]];
+  return html`<${Modal} title="Настройки" onClose=${onClose}>
+    <div class="set-section">
+      <div class="set-label">Тема оформления</div>
+      <div class="seg set-seg">
+        ${THEMES.map(([v, l]) => html`<button key=${v} class=${"seg-btn" + (store.theme === v ? " on" : "")}
+          onClick=${() => store.setTheme(v)}>${l}</button>`)}
+      </div>
+    </div>
+    <div class="set-section">
+      <div class="set-label">Учётная запись</div>
+      <div class="set-email">${store.user?.email || ""}</div>
+      <button class="btn ghost set-signout" onClick=${() => store.auth.signOut()}>${Icon.signout()} Выйти</button>
+    </div>
+  <//>`;
+}
+
+export function SearchModal({ onClose, onPick }) {
+  const store = useStore();
+  const [q, setQ] = useState("");
+  const inputRef = useRef(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+    const onKey = e => { if (e.key === "Escape") onClose?.(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const lists = store.taskLists;
+  const listById = Object.fromEntries(lists.map(l => [l.id, l]));
+  const term = q.trim().toLowerCase();
+  const results = term
+    ? store.tasks.filter(t => !t.recurrence_parent && (t.title || "").toLowerCase().includes(term))
+        .sort((a, b) => (a.done - b.done)).slice(0, 60)
+    : [];
+  return html`
+    <div class="modal-back search-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
+      <div class="search-box" role="dialog">
+        <div class="search-head">
+          <span class="search-ico">${Icon.search()}</span>
+          <input class="search-input" ref=${inputRef} placeholder="Поиск по задачам…"
+            value=${q} onInput=${e => setQ(e.target.value)} />
+          <button class="btn-mini" title="Закрыть" onClick=${onClose}>${Icon.close()}</button>
+        </div>
+        ${term && html`<div class="search-results">
+          ${results.length === 0
+            ? html`<div class="search-empty">Ничего не найдено</div>`
+            : results.map(t => html`<button class=${"search-item" + (t.done ? " done" : "")} key=${t.id}
+                onClick=${() => onPick?.(t)}>
+                <span class=${"task-check sm" + (t.done ? " on" : "")}>${Icon.check()}</span>
+                <span class="search-item-title">${t.title}</span>
+                <span class="search-item-meta" style=${t.list_id ? `color:${listById[t.list_id]?.color};` : ""}>
+                  ${t.list_id ? (listById[t.list_id]?.name || "") : "Входящие"}</span>
+              </button>`)}
+        </div>`}
+      </div>
+    </div>`;
+}
+
 export function Toasts() {
   const { toasts } = useStore();
   return html`<div class="toasts">
