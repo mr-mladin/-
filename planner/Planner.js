@@ -60,6 +60,19 @@ function Planner() {
   const zoomAnchor = useRef(null);
 
   useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
+
+  // Отмена последнего действия по Cmd/Ctrl+Z (кроме случаев ввода текста).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.code !== "KeyZ") return;
+      const t = e.target, tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      e.preventDefault();
+      store.undo();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
