@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useState, useRef, useEffect, useMemo } from "preact/hooks";
+import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "preact/hooks";
 import { useStore } from "./store.js";
 import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
@@ -14,12 +14,18 @@ function readView() {
   catch (e) { return "day"; }
 }
 
-const HOUR_PX = 80;
+const HOUR_DEFAULT = 80;
+const HOUR_MIN = 36;
+const HOUR_MAX = 220;
 const GUTTER = 56;
 const SNAP = 5;
 const MIN_DUR = 15;
 const HOLD_MS = 350;
 const snap = m => Math.round(m / SNAP) * SNAP;
+function readHourPx() {
+  try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
+  catch (e) { return HOUR_DEFAULT; }
+}
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
 export function App() {
@@ -43,13 +49,71 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
+  const [hourPx, setHourPx] = useState(readHourPx());
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
   const weekScrollRef = useRef(null);
   const dateInputRef = useRef(null);
+  const hourPxRef = useRef(hourPx);
+  const zoomAnchor = useRef(null);
 
   useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
+  useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
+
+  // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
+  // оставить это же время дня под курсором (как в Apple Календаре).
+  function zoomAnchorAt(clientY) {
+    const cont = scrollRef.current, grid = innerRef.current;
+    if (!cont || !grid) return;
+    const yInContainer = clientY - cont.getBoundingClientRect().top;
+    const timeMin = (clientY - grid.getBoundingClientRect().top) / hourPxRef.current * 60;
+    zoomAnchor.current = { timeMin, yInContainer };
+  }
+  useLayoutEffect(() => {
+    const a = zoomAnchor.current;
+    const cont = scrollRef.current, grid = innerRef.current;
+    if (!a || !cont || !grid) return;
+    zoomAnchor.current = null;
+    const gridOffset = (grid.getBoundingClientRect().top - cont.getBoundingClientRect().top) + cont.scrollTop;
+    cont.scrollTop = gridOffset + (a.timeMin / 60) * hourPx - a.yInContainer;
+  }, [hourPx]);
+
+  // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
+  // зажатым Ctrl, в Safari — события gesture* со свойством scale.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (view !== "day" || !el) return;
+    let clsTimer = null;
+    const markZooming = () => {
+      el.classList.add("zooming");
+      clearTimeout(clsTimer);
+      clsTimer = setTimeout(() => el.classList.remove("zooming"), 180);
+    };
+    const onWheel = (e) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+      markZooming();
+      zoomAnchorAt(e.clientY);
+      setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), HOUR_MIN, HOUR_MAX));
+    };
+    let base = hourPxRef.current;
+    const onGStart = (e) => { e.preventDefault(); base = hourPxRef.current; };
+    const onGChange = (e) => {
+      e.preventDefault();
+      markZooming();
+      zoomAnchorAt(e.clientY);
+      setHourPx(clamp(Math.round(base * e.scale), HOUR_MIN, HOUR_MAX));
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("gesturestart", onGStart);
+    el.addEventListener("gesturechange", onGChange);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("gesturestart", onGStart);
+      el.removeEventListener("gesturechange", onGChange);
+    };
+  }, [view]);
 
   const lists = useMemo(() => [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [taskLists]);
   const listById = useMemo(() => Object.fromEntries(lists.map(l => [l.id, l])), [lists]);
@@ -108,10 +172,10 @@ function Planner() {
     if (!el) return;
     const now = new Date();
     const target = view === "day" && date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
-    el.scrollTop = Math.max(0, (target / 60) * HOUR_PX - 120);
+    el.scrollTop = Math.max(0, (target / 60) * hourPx - 120);
   }, [view, date]);
 
-  const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / HOUR_PX) * 60;
+  const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
 
@@ -325,14 +389,14 @@ function Planner() {
                   <span class=${"task-check sm" + (i.done ? " on" : "")}
                     onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</span>${i.title}</button>`)}
               </div>`}
-              <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * HOUR_PX}px;`}>
-                ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * HOUR_PX}px;`} key=${h}>
+              <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
+                ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
-                ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * HOUR_PX}px;`}>
+                ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
                 ${laidOut.map(i => {
-                  const top = (i._start / 60) * HOUR_PX;
-                  const height = Math.max(18, (i._dur / 60) * HOUR_PX);
+                  const top = (i._start / 60) * hourPx;
+                  const height = Math.max(18, (i._dur / 60) * hourPx);
                   const colW = `(100% - ${GUTTER}px) / ${i._cols}`;
                   const showTime = height >= 40;
                   return html`<div class=${"grid-block" + (i.done ? " done" : "") + (drag && drag.key === i.key ? " dragging" : "")} key=${i.key}
@@ -347,7 +411,7 @@ function Planner() {
                   </div>`;
                 })}
                 ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="grid-block ghost"
-                  style=${`top:${(drag.start / 60) * HOUR_PX}px;height:${(drag.dur / 60) * HOUR_PX}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);`}>
+                  style=${`top:${(drag.start / 60) * hourPx}px;height:${(drag.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);`}>
                   <div class="grid-block-time">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
               </div>
             </div>
@@ -369,16 +433,16 @@ function Planner() {
                 ${wd.untimed.length > 3 && html`<button class="week-more" onClick=${() => openDay(wd.iso)}>+${wd.untimed.length - 3}</button>`}
               </div>`)}
             </div>`}
-            <div class="week-grid" style=${`height:${24 * HOUR_PX}px;`}>
-              ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * HOUR_PX}px;`} key=${h}>
+            <div class="week-grid" style=${`height:${24 * hourPx}px;`}>
+              ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                 <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
               ${weekDays.map((wd, di) => html`<div class="week-col" key=${wd.iso}
                 style=${`left:calc(${GUTTER}px + (100% - ${GUTTER}px) / 7 * ${di});width:calc((100% - ${GUTTER}px) / 7);`}
                 onClick=${() => openDay(wd.iso)}>
-                ${wd.isToday && html`<div class="grid-now col" style=${`top:${(nowMin / 60) * HOUR_PX}px;`}><span class="grid-now-dot"></span></div>`}
+                ${wd.isToday && html`<div class="grid-now col" style=${`top:${(nowMin / 60) * hourPx}px;`}><span class="grid-now-dot"></span></div>`}
                 ${wd.timed.map(i => {
-                  const top = (i._start / 60) * HOUR_PX;
-                  const height = Math.max(16, (i._dur / 60) * HOUR_PX);
+                  const top = (i._start / 60) * hourPx;
+                  const height = Math.max(16, (i._dur / 60) * hourPx);
                   const sub = `100% / ${i._cols}`;
                   return html`<button class=${"week-block" + (i.done ? " done" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;left:calc((${sub}) * ${i._col});width:calc((${sub}) - 2px);--c:${colorOf(i)};`}
