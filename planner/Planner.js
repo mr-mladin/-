@@ -58,17 +58,26 @@ function Planner() {
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
   const zoomAnchor = useRef(null);
+  const projRef = useRef(null);
+
+  useEffect(() => {
+    if (!projOpen) return;
+    const onDown = (e) => { if (projRef.current && !projRef.current.contains(e.target)) setProjOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [projOpen]);
 
   useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
 
-  // Отмена последнего действия по Cmd/Ctrl+Z (кроме случаев ввода текста).
+  // Отмена/возврат: Cmd/Ctrl+Z — отменить, Cmd/Ctrl+Shift+Z — повторить.
+  // (кроме случаев ввода текста в полях).
   useEffect(() => {
     const onKey = (e) => {
-      if (!(e.metaKey || e.ctrlKey) || e.shiftKey || e.code !== "KeyZ") return;
+      if (!(e.metaKey || e.ctrlKey) || e.code !== "KeyZ") return;
       const t = e.target, tag = t && t.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
       e.preventDefault();
-      store.undo();
+      e.shiftKey ? store.redo() : store.undo();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -338,8 +347,7 @@ function Planner() {
 
       <div class="planner">
         <aside class="planner-aside">
-          <div class=${"proj-select" + (projOpen ? " open" : "")}
-            onMouseEnter=${() => setProjOpen(true)} onMouseLeave=${() => setProjOpen(false)}>
+          <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
             <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
               <span class="proj-current-ico" style=${`color:${filter === "all" ? "var(--accent)" : filter === "inbox" ? "#64748b" : (listById[filter]?.color || "var(--accent)")};`}>
                 ${filter === "all" ? Icon.calendar() : filter === "inbox" ? Icon.inbox() : Icon.dot()}</span>
