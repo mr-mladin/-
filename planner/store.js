@@ -249,17 +249,17 @@ export function StoreProvider({ children }) {
         ...payload, id: tempId, user_id: state.user?.id,
       };
       dispatch({ type: "upsertOne", key: "tasks", item: optimistic });
-      supabase.from("tasks").insert(withUser(payload)).select().single()
+      return supabase.from("tasks").insert(withUser(payload)).select().single()
         .then(({ data, error }) => {
           dispatch({ type: "removeOne", key: "tasks", id: tempId });
-          if (error || !data) { pushToast("Не удалось сохранить задачу", "error"); return; }
+          if (error || !data) { pushToast("Не удалось сохранить задачу", "error"); return null; }
           dispatch({ type: "upsertOne", key: "tasks", item: data });
           record("новая задача",
             () => deleteRow("tasks", data.id, "tasks"),
             () => reinsertRow("tasks", data, "tasks"));
+          return data;
         })
-        .catch(() => { dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); });
-      return Promise.resolve(optimistic);
+        .catch(() => { dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); return null; });
     },
     update: (id, payload) => {
       const prev = state.tasks.find(t => t.id === id);

@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  splitEmoji, gapCaption,
+  splitEmoji, gapCaption, durHuman,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
 
@@ -248,8 +248,9 @@ function Planner() {
       if (!active || !commit) return;
       const start = Math.min(anchor, cur); let dur = Math.abs(cur - anchor);
       if (dur < MIN_DUR) dur = 60;
-      setCreating({ date, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
-        list_id: filter !== "all" && filter !== "inbox" ? filter : null });
+      store.actions.tasks.create({ title: "", date, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
+        list_id: filter !== "all" && filter !== "inbox" ? filter : null })
+        .then(row => { if (row) openPreview(rowToItem(row)); }).catch(showErr);
     };
     const up = () => finish(true);
     const cancel = () => finish(false);
@@ -446,6 +447,15 @@ function Planner() {
     setDate(toISO(d));
   }
   function openDay(iso) { setDate(iso); setView("day"); }
+  function rowToItem(row) {
+    return {
+      key: row.id, kind: "concrete", id: row.id, templateId: null,
+      occDate: row.date, recurring: false, done: !!row.done,
+      title: row.title || "", notes: row.notes || "", color: row.color || null,
+      icon: row.icon || null, list_id: row.list_id || null,
+      start_min: row.start_min, duration_min: row.duration_min,
+    };
+  }
   function openPreview(item) { setPreview(item); }
   function handleDelete(item) {
     setPreview(null);
@@ -595,19 +605,21 @@ function Planner() {
                       <div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
                     </div>
                     <div class="tl-body" onPointerDown=${e => onBlockPointerDown(e, i)}>
-                      <div class="tl-meta">${minRangeLabel(start, dur)}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
-                      <div class="tl-title">${ttl}</div>
+                      <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+                      <div class="tl-meta">${minRangeLabel(start, dur)} (${durHuman(dur)})</div>
                     </div>
                     <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                       onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                   </div>`;
                 })}
                 ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost"
-                  style=${`top:${(drag.start / 60) * hourPx}px;height:${(drag.dur / 60) * hourPx}px;`}>
-                  ${minRangeLabel(drag.start, drag.dur)}</div>`}
+                  style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(38, (drag.dur / 60) * hourPx)}px;`}>
+                  <div class="tl-ghost-pill"></div>
+                  <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
                 ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-ghost"
-                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${(dnd.dur / 60) * hourPx}px;--c:${dnd.color};`}>
-                  ${minRangeLabel(dnd.gridMin, dnd.dur)}</div>`}
+                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${Math.max(38, (dnd.dur / 60) * hourPx)}px;--c:${dnd.color};`}>
+                  <div class="tl-ghost-pill"></div>
+                  <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
             </div>
           </div>`}

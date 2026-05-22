@@ -112,6 +112,14 @@ export function minRangeLabel(start, dur) {
   return minToHHMM(start) + "–" + minToHHMM(start + (dur || 0));
 }
 
+export function durHuman(m) {
+  m = Math.max(0, Math.round(m || 0));
+  const h = Math.floor(m / 60), mm = m % 60;
+  if (h && mm) return `${h} ч ${mm} мин`;
+  if (h) return `${h} ч`;
+  return `${mm} мин`;
+}
+
 const GAP_LINES = [
   "Пауза подошла к концу. Вперёд к свершениям!",
   "Время прошло и принесло ценные знания.",
