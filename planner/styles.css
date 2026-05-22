@@ -157,7 +157,10 @@ textarea.input { resize: vertical; }
 .grid-hour { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--border); padding-left: 56px; }
 .grid-hour-label { position: absolute; left: 8px; top: -8px; font-size: 11px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
 .grid-now { position: absolute; left: 56px; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 4; }
-.grid-now span { position: absolute; left: -4px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
+.grid-now-dot { position: absolute; left: -4px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
+.grid-now-time { position: absolute; right: 100%; top: -8px; margin-right: 5px; padding: 0 4px; border-radius: 4px;
+  background: var(--danger); color: #fff; font-size: 10px; font-weight: 700; line-height: 16px;
+  font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .grid-block { position: absolute; box-sizing: border-box; border-radius: 8px; padding: 4px 6px;
   background: color-mix(in srgb, var(--c) 18%, var(--surface)); border-left: 3px solid var(--c);
