@@ -216,7 +216,7 @@ textarea.input { resize: vertical; }
 .tray-task.done .tray-task-meta { color: var(--text-mute); }
 
 .planner-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; padding-top: 14px; }
-.planner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; padding: 0 18px 0 4px; }
+.planner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; padding: 0 16px 0 4px; }
 .planner-nav { display: flex; align-items: center; gap: 6px; }
 .planner-date { position: relative; display: flex; align-items: center; gap: 8px; margin-left: 6px;
   padding: 4px 10px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-family: inherit; color: var(--text); }
@@ -226,7 +226,7 @@ textarea.input { resize: vertical; }
 .planner-head-actions { display: flex; align-items: center; gap: 8px; }
 
 /* Недельная полоса дней */
-.planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 18px 0 4px; }
+.planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 16px 0 4px; }
 .wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 0 9px;
   border: none; background: transparent; cursor: pointer; border-radius: var(--radius); font-family: inherit; color: var(--text); }
 .wday:hover { background: var(--bg-soft); }
@@ -271,7 +271,8 @@ textarea.input { resize: vertical; }
 .task-check.sm .ico { width: 14px; height: 14px; }
 
 .planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
-  border: none; border-radius: 20px 20px 0 0; padding: 6px 0 0; box-shadow: 0 -1px 0 var(--border); }
+  border: 1px solid var(--border); border-bottom: none; border-radius: 28px 28px 0 0; padding: 6px 0 0;
+  margin-right: 16px; box-shadow: 0 6px 34px rgba(2, 6, 23, 0.12); }
 .grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
 .grid-hour-label { position: absolute; right: calc(100% + 8px); top: -7px; font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .grid-now { position: absolute; left: 56px; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 4; }
@@ -303,7 +304,7 @@ textarea.input { resize: vertical; }
 .tl-handle.top { top: 0; }
 .tl-handle.bottom { bottom: 0; }
 .tl-body { position: absolute; left: 108px; right: 16px; top: 0; bottom: 0; display: flex; align-items: center;
-  gap: 9px; cursor: default; }
+  gap: 20px; cursor: default; }
 .tl-text { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .tl-body .task-check { flex: none; cursor: default; }
 .tl-meta { font-size: 12px; color: var(--text-mute); display: flex; align-items: center; gap: 4px;
@@ -459,7 +460,7 @@ textarea.input { resize: vertical; }
   .planner-aside { width: 100%; }
   .proj-tasks { max-height: 30vh; }
   .planner-body { flex-direction: column; }
-  .planner-grid-scroll { height: 68vh; border: none; border-radius: 0; }
+  .planner-grid-scroll { height: 68vh; border: none; border-radius: 16px; margin-right: 0; box-shadow: none; }
   .planner-head { gap: 8px; }
   .seg { order: 3; width: 100%; }
   .seg-btn { flex: 1; text-align: center; }
