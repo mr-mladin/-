@@ -583,7 +583,7 @@ function Planner() {
                   const start = dragging ? drag.start : i.start_min;
                   const dur = dragging ? drag.dur : (i.duration_min || 0);
                   const top = (start / 60) * hourPx;
-                  const height = Math.max(26, (dur / 60) * hourPx);
+                  const height = Math.max(38, (dur / 60) * hourPx);
                   const { emoji, text } = splitEmoji(i.title);
                   const icon = i.icon || emoji;
                   const ttl = i.icon ? i.title : (text || i.title);
