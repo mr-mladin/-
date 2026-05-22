@@ -43,8 +43,50 @@ export function fromISO(s) {
 
 const WD_FULL = ["воскресенье", "понедельник", "вторник", "среда", "четверг", "пятница", "суббота"];
 const MONTHS_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+const MONTHS_NOM = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"];
 export function weekdayFull(d) { return WD_FULL[d.getDay()]; }
 export function monthGen(d) { return MONTHS_GEN[d.getMonth()]; }
+export function monthNom(d) { return MONTHS_NOM[d.getMonth()]; }
+
+// Понедельник недели, в которую попадает дата.
+export function weekStart(date) {
+  const base = date instanceof Date ? new Date(date) : fromISO(date);
+  const off = (base.getDay() + 6) % 7;
+  base.setDate(base.getDate() - off);
+  base.setHours(0, 0, 0, 0);
+  return base;
+}
+
+// Подпись диапазона недели: «12–18 мая» либо «28 апр – 4 мая».
+export function weekRangeLabel(date) {
+  const mon = weekStart(date);
+  const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+  const SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
+  if (mon.getMonth() === sun.getMonth()) return `${mon.getDate()}–${sun.getDate()} ${MONTHS_GEN[mon.getMonth()]}`;
+  return `${mon.getDate()} ${SHORT[mon.getMonth()]} – ${sun.getDate()} ${SHORT[sun.getMonth()]}`;
+}
+
+// Сетка месяца: массив недель по 7 дней (Пн–Вс), с «хвостами» соседних месяцев.
+export function monthMatrix(date) {
+  const d = date instanceof Date ? date : fromISO(date);
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const mon = weekStart(first);
+  const month = d.getMonth();
+  const today = todayISO();
+  const weeks = [];
+  let cur = new Date(mon);
+  for (let w = 0; w < 6; w++) {
+    const row = [];
+    for (let i = 0; i < 7; i++) {
+      const iso = toISO(cur);
+      row.push({ iso, day: cur.getDate(), inMonth: cur.getMonth() === month, isToday: iso === today });
+      cur.setDate(cur.getDate() + 1);
+    }
+    weeks.push(row);
+    if (w >= 4 && cur.getMonth() !== month) break;
+  }
+  return weeks;
+}
 export function relLabel(iso) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const diff = Math.round((fromISO(iso) - today) / 86400000);
@@ -179,4 +221,6 @@ export const Icon = {
   sun: () => wrap(html`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`),
   moon: () => wrap(html`<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>`),
   signout: () => wrap(html`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`),
+  edit: () => wrap(html`<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>`),
+  note: () => wrap(html`<path d="M4 5h16M4 10h16M4 15h10"/>`),
 };
