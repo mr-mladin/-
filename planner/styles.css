@@ -25,7 +25,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); -web
    снимается через ~700мс после остановки — мягкое появление/исчезновение.
    Место под полосу зарезервировано всегда (scrollbar-gutter), поэтому ширина
    не «прыгает». Распространяется и на внутренние прокручиваемые области. */
-html { scrollbar-gutter: stable; }
+html { scrollbar-gutter: auto; }
 html, .planner-grid-scroll, .week-scroll, .planner-tray, .planner-aside {
   scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 0.4s ease;
 }
@@ -142,7 +142,7 @@ textarea.input { resize: vertical; }
 .auth-card .field { text-align: left; }
 
 /* Шапка */
-.app { min-height: 100dvh; display: flex; flex-direction: column; }
+.app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 .topbar { display: flex; align-items: center; justify-content: space-between;
   padding: 12px 20px; border-bottom: 1px solid var(--border); background: var(--surface); }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; }
@@ -213,7 +213,7 @@ textarea.input { resize: vertical; }
 .tray-task-meta { font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tray-task.done .tray-task-meta { color: var(--text-mute); }
 
-.planner-content { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.planner-content { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
 .planner-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
 .planner-nav { display: flex; align-items: center; gap: 6px; }
 .planner-date { position: relative; display: flex; align-items: center; gap: 8px; margin-left: 6px;
@@ -379,6 +379,7 @@ textarea.input { resize: vertical; }
 .month-more { font-size: 10px; color: var(--text-mute); padding: 0 5px; }
 
 @media (max-width: 860px) {
+  .app { height: auto; min-height: 100dvh; overflow: visible; }
   .planner { flex-direction: column; padding: 12px; gap: 12px; }
   .planner-aside { width: 100%; }
   .proj-tasks { max-height: 30vh; }
