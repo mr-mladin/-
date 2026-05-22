@@ -246,6 +246,7 @@ function Planner() {
                   const top = (i._start / 60) * HOUR_PX;
                   const height = Math.max(18, (i._dur / 60) * HOUR_PX);
                   const colW = `(100% - ${GUTTER}px) / ${i._cols}`;
+                  const showTime = height >= 40;
                   return html`<div class=${"grid-block" + (i.done ? " done" : "") + (drag && drag.key === i.key ? " dragging" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;left:calc(${GUTTER}px + (${colW}) * ${i._col} + 2px);width:calc(${colW} - 4px);--c:${colorOf(i)};`}
                     onPointerDown=${e => onBlockPointerDown(e, i)}>
@@ -253,7 +254,7 @@ function Planner() {
                       onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                     <div class="grid-block-text">
                       <div class="grid-block-title">${i.recurring ? html`<span class="grid-block-rep">${Icon.repeat()}</span>` : ""}${i.title}</div>
-                      <div class="grid-block-time">${minRangeLabel(i._start, i._dur)}</div></div>
+                      ${showTime && html`<div class="grid-block-time">${Icon.clock()}${minRangeLabel(i._start, i._dur)}</div>`}</div>
                     <div class="grid-block-resize" onPointerDown=${e => onResizePointerDown(e, i)}></div>
                   </div>`;
                 })}
