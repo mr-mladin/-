@@ -137,21 +137,46 @@ export function StoreProvider({ children }) {
     },
   };
 
-  async function materializeOverride(item, patch) {
+  // Создаём «исключение» повторяющейся задачи. Оптимистично: сразу кладём
+  // временную строку в state (UI реагирует мгновенно), затем заменяем её
+  // настоящей из БД; при ошибке временную убираем.
+  function materializeOverride(item, patch) {
     const tmpl = state.tasks.find(t => t.id === item.templateId);
-    if (!tmpl) return;
-    return insertRow("tasks", {
+    if (!tmpl) return Promise.resolve();
+    const row = {
       list_id: tmpl.list_id || null, title: tmpl.title, notes: tmpl.notes || null,
       color: tmpl.color || null, date: item.occDate,
       start_min: tmpl.start_min, duration_min: tmpl.duration_min,
       done: false, recurrence: null, recurrence_parent: tmpl.id,
       occ_date: item.occDate, skipped: false, ...patch,
-    }, "tasks");
+    };
+    const tempId = "tmp-" + Math.random().toString(36).slice(2);
+    dispatch({ type: "upsertOne", key: "tasks", item: { ...row, id: tempId, user_id: state.user?.id } });
+    return supabase.from("tasks").insert(withUser(row)).select().single()
+      .then(({ data, error }) => {
+        dispatch({ type: "removeOne", key: "tasks", id: tempId });
+        if (error) throw error;
+        dispatch({ type: "upsertOne", key: "tasks", item: data });
+        return data;
+      });
+  }
+
+  // Оптимистичное обновление задачи: применяем изменения к state сразу,
+  // в фоне пишем в БД, при ошибке откатываем.
+  function updateTaskOptimistic(id, payload) {
+    const prev = state.tasks.find(t => t.id === id);
+    if (prev) dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...payload } });
+    return supabase.from("tasks").update(payload).eq("id", id).select().single()
+      .then(({ data, error }) => {
+        if (error) { if (prev) dispatch({ type: "upsertOne", key: "tasks", item: prev }); throw error; }
+        dispatch({ type: "upsertOne", key: "tasks", item: data });
+        return data;
+      });
   }
 
   const tasks = {
     create: (payload) => insertRow("tasks", payload, "tasks"),
-    update: (id, payload) => updateRow("tasks", id, payload, "tasks"),
+    update: (id, payload) => updateTaskOptimistic(id, payload),
     remove: (id) => deleteRow("tasks", id, "tasks"),
     toggleDone: (item) => {
       const next = !item.done;
