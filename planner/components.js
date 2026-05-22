@@ -11,8 +11,18 @@ export function Modal({ title, onClose, children, footer }) {
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
+    // Блокируем прокрутку фона и компенсируем ширину исчезающей полосы
+    // прокрутки отступом, иначе фон «дёргается» вбок при открытии модалки.
+    const sbw = window.innerWidth - document.documentElement.clientWidth;
+    const prevOverflow = document.body.style.overflow;
+    const prevPad = document.body.style.paddingRight;
     document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
+    if (sbw > 0) document.body.style.paddingRight = sbw + "px";
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.body.style.overflow = prevOverflow;
+      document.body.style.paddingRight = prevPad;
+    };
   }, [onClose]);
   return html`
     <div class="modal-back" onClick=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
