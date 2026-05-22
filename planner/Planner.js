@@ -306,7 +306,7 @@ function Planner() {
     const touch = e.pointerType === "touch";
     const sx = e.clientX, sy = e.clientY;
     let active = false, hold = null;
-    const dur = t.duration_min || 60;
+    const dur = 60;
     const update = (ev) => {
       const zone = dndZoneAt(ev.clientX, ev.clientY);
       const gridMin = zone === "grid" && innerRef.current ? clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur) : null;
@@ -493,7 +493,7 @@ function Planner() {
             </div>
           </div>
 
-          <div class=${"proj-tasks" + (dnd && dnd.zone === "tray" ? " drop-active" : "")}>
+          <div class="proj-tasks">
             ${trayTasks.length === 0
               ? html`<div class="muted small" style="padding:10px 6px;">Здесь пока нет задач.</div>`
               : trayTasks.map(t => html`
@@ -547,7 +547,7 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
-            <div class=${"planner-grid-scroll" + (dnd && dnd.source === "tray" && dnd.zone === "grid" ? " drop-active" : "")} ref=${scrollRef}>
+            <div class="planner-grid-scroll" ref=${scrollRef}>
               <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
