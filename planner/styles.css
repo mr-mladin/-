@@ -17,11 +17,47 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-/* Всегда резервируем место под полосу прокрутки — страница не «дёргается»
-   при открытии модалки (когда прокрутка фона блокируется). */
-html { scrollbar-gutter: stable; }
 body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 #app { height: 100%; }
+
+/* Полоса прокрутки видна только во время прокрутки.
+   .is-scrolling ставится на <html> из main.js, пока идёт прокрутка, и
+   снимается через ~700мс после остановки — мягкое появление/исчезновение.
+   Место под полосу зарезервировано всегда (scrollbar-gutter), поэтому ширина
+   не «прыгает». Распространяется и на внутренние прокручиваемые области. */
+html { scrollbar-gutter: stable; }
+html, .planner-grid-scroll, .week-scroll, .planner-tray, .planner-aside {
+  scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 0.4s ease;
+}
+html.is-scrolling,
+html.is-scrolling .planner-grid-scroll, html.is-scrolling .week-scroll,
+html.is-scrolling .planner-tray, html.is-scrolling .planner-aside {
+  scrollbar-color: rgba(15, 23, 42, 0.30) transparent;
+}
+html[data-theme="dark"].is-scrolling,
+html[data-theme="dark"].is-scrolling .planner-grid-scroll, html[data-theme="dark"].is-scrolling .week-scroll,
+html[data-theme="dark"].is-scrolling .planner-tray, html[data-theme="dark"].is-scrolling .planner-aside {
+  scrollbar-color: rgba(255, 255, 255, 0.28) transparent;
+}
+html::-webkit-scrollbar, .planner-grid-scroll::-webkit-scrollbar, .week-scroll::-webkit-scrollbar,
+.planner-tray::-webkit-scrollbar, .planner-aside::-webkit-scrollbar { width: 12px; height: 12px; }
+html::-webkit-scrollbar-track, .planner-grid-scroll::-webkit-scrollbar-track, .week-scroll::-webkit-scrollbar-track,
+.planner-tray::-webkit-scrollbar-track, .planner-aside::-webkit-scrollbar-track { background: transparent; }
+html::-webkit-scrollbar-thumb, .planner-grid-scroll::-webkit-scrollbar-thumb, .week-scroll::-webkit-scrollbar-thumb,
+.planner-tray::-webkit-scrollbar-thumb, .planner-aside::-webkit-scrollbar-thumb {
+  background-color: transparent; border-radius: 10px; border: 3px solid transparent;
+  background-clip: padding-box; transition: background-color 0.4s ease;
+}
+html.is-scrolling::-webkit-scrollbar-thumb,
+html.is-scrolling .planner-grid-scroll::-webkit-scrollbar-thumb, html.is-scrolling .week-scroll::-webkit-scrollbar-thumb,
+html.is-scrolling .planner-tray::-webkit-scrollbar-thumb, html.is-scrolling .planner-aside::-webkit-scrollbar-thumb {
+  background-color: rgba(15, 23, 42, 0.30);
+}
+html[data-theme="dark"].is-scrolling::-webkit-scrollbar-thumb,
+html[data-theme="dark"].is-scrolling .planner-grid-scroll::-webkit-scrollbar-thumb, html[data-theme="dark"].is-scrolling .week-scroll::-webkit-scrollbar-thumb,
+html[data-theme="dark"].is-scrolling .planner-tray::-webkit-scrollbar-thumb, html[data-theme="dark"].is-scrolling .planner-aside::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.28);
+}
 
 .muted { color: var(--text-mute); }
 .small { font-size: 12px; }
