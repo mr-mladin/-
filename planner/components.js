@@ -6,6 +6,9 @@ import { minToHHMM, hhmmToMin } from "./lib.js";
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
+const TASK_EMOJIS = ["💼", "📞", "✉️", "💻", "📝", "📚", "🎯", "💡", "📅", "⏰",
+  "🏋️", "🏃", "🧘", "🚶", "☕", "🍳", "🍽️", "🛒", "🧹", "🚗",
+  "✈️", "💊", "🩺", "💤", "🎵", "🎮", "🎨", "💰", "❤️", "🐝", "🌅", "⭐"];
 
 export function Modal({ title, onClose, children, footer }) {
   useEffect(() => {
@@ -60,9 +63,12 @@ export function EventCard({ item, onClose, onDelete }) {
   const [day, setDay] = useState(item.occDate || todayISO());
   const [start, setStart] = useState(minToHHMM(item.start_min ?? 9 * 60));
   const [dur, setDur] = useState(item.duration_min || 60);
+  const [icon, setIcon] = useState(item.icon || "");
   const [expand, setExpand] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const projRef = useRef(null);
+  const emojiRef = useRef(null);
 
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
@@ -75,6 +81,12 @@ export function EventCard({ item, onClose, onDelete }) {
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
   }, [projOpen]);
+  useEffect(() => {
+    if (!emojiOpen) return;
+    const onDown = e => { if (emojiRef.current && !emojiRef.current.contains(e.target)) setEmojiOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [emojiOpen]);
 
   const save = (patch) => store.actions.tasks.update(rowId, patch).catch(() => {});
   const curList = lists.find(l => l.id === listId);
@@ -92,6 +104,15 @@ export function EventCard({ item, onClose, onDelete }) {
       <div class="evc" role="dialog" style=${`--c:${dotColor};`}>
         <div class="evc-head">
           <button class=${"task-check sm" + (done ? " on" : "")} title="Готово" onClick=${toggleDone}>${Icon.check()}</button>
+          <div class="evc-emoji" ref=${emojiRef}>
+            <button class=${"evc-emoji-btn" + (icon ? " set" : "")} style=${`--c:${dotColor};`}
+              title="Иконка" onClick=${() => setEmojiOpen(o => !o)}>${icon || "🙂"}</button>
+            ${emojiOpen && html`<div class="evc-emoji-menu">
+              ${TASK_EMOJIS.map(em => html`<button class=${"evc-emoji-cell" + (icon === em ? " on" : "")} key=${em}
+                onClick=${() => { setIcon(em); save({ icon: em }); setEmojiOpen(false); }}>${em}</button>`)}
+              <button class="evc-emoji-clear" onClick=${() => { setIcon(""); save({ icon: null }); setEmojiOpen(false); }}>Без иконки</button>
+            </div>`}
+          </div>
           <input class=${"evc-title" + (done ? " done" : "")} value=${title} placeholder="Без названия"
             onInput=${e => setTitle(e.target.value)} onBlur=${() => save({ title: title.trim() || "Без названия" })} />
           <div class="evc-proj" ref=${projRef}>
