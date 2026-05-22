@@ -163,9 +163,9 @@ textarea.input { resize: vertical; }
   border-left: 3px solid var(--c); font-family: inherit; }
 .untimed-chip.done { text-decoration: line-through; color: var(--text-mute); }
 
-.planner-grid { position: relative; width: 100%; user-select: none; -webkit-user-select: none; }
-.grid-hour { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--border); padding-left: 56px; }
-.grid-hour-label { position: absolute; left: 10px; top: -8px; font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; }
+.planner-grid { position: relative; width: 100%; margin-top: 14px; user-select: none; -webkit-user-select: none; }
+.grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid var(--border); }
+.grid-hour-label { position: absolute; right: calc(100% + 8px); top: -7px; font-size: 12px; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .grid-now { position: absolute; left: 56px; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 4; }
 .grid-now-dot { position: absolute; left: -4px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
 .grid-now-time { position: absolute; right: 100%; top: -8px; margin-right: 4px; padding: 0 5px; border-radius: 4px;
@@ -232,7 +232,7 @@ textarea.input { resize: vertical; }
 .week-chip { background: color-mix(in srgb, var(--c) 16%, var(--surface));
   color: color-mix(in srgb, var(--c) 65%, var(--text)); border-left: 2px solid var(--c); }
 .week-more { color: var(--text-mute); background: none; }
-.week-grid { position: relative; width: 100%; user-select: none; }
+.week-grid { position: relative; width: 100%; margin-top: 14px; user-select: none; }
 .week-col { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
 .week-col:first-of-type { border-left: none; }
 .week-block { position: absolute; box-sizing: border-box; border-radius: 4px; padding: 1px 4px; overflow: hidden;
