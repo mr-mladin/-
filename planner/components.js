@@ -1,7 +1,7 @@
 import { html } from "htm/preact";
-import { useState, useEffect } from "preact/hooks";
+import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
-import { Icon, todayISO, fromISO, minRangeLabel, weekdayFull, monthGen, RECUR_OPTIONS } from "./lib.js";
+import { Icon, todayISO, fromISO, monthGen, RECUR_OPTIONS } from "./lib.js";
 import { minToHHMM, hhmmToMin } from "./lib.js";
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
@@ -47,36 +47,98 @@ export function Toasts() {
   </div>`;
 }
 
-export function EventCard({ item, listName, color, onClose, onEdit, onToggleDone, onDelete }) {
+export function EventCard({ item, onClose, onDelete }) {
+  const store = useStore();
+  const lists = [...store.taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  const rowId = item.id || item.templateId;
+
+  const [title, setTitle] = useState(item.title || "");
+  const [notes, setNotes] = useState(item.notes || "");
+  const [listId, setListId] = useState(item.list_id || "");
+  const [done, setDone] = useState(!!item.done);
+  const [allDay, setAllDay] = useState(item.start_min === null || item.start_min === undefined);
+  const [day, setDay] = useState(item.occDate || todayISO());
+  const [start, setStart] = useState(minToHHMM(item.start_min ?? 9 * 60));
+  const [dur, setDur] = useState(item.duration_min || 60);
+  const [expand, setExpand] = useState(false);
+  const [projOpen, setProjOpen] = useState(false);
+  const projRef = useRef(null);
+
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
-  const d = item.occDate ? fromISO(item.occDate) : null;
-  const dateLabel = d ? `${weekdayFull(d)}, ${d.getDate()} ${monthGen(d)}` : "";
-  const timed = item.start_min !== null && item.start_min !== undefined;
+  useEffect(() => {
+    if (!projOpen) return;
+    const onDown = e => { if (projRef.current && !projRef.current.contains(e.target)) setProjOpen(false); };
+    document.addEventListener("pointerdown", onDown);
+    return () => document.removeEventListener("pointerdown", onDown);
+  }, [projOpen]);
+
+  const save = (patch) => store.actions.tasks.update(rowId, patch).catch(() => {});
+  const curList = lists.find(l => l.id === listId);
+  const dotColor = curList?.color || "var(--accent)";
+  const endMin = (allDay ? 0 : hhmmToMin(start)) + dur;
+  const dd = fromISO(day);
+  const summary = allDay
+    ? `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · весь день`
+    : `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · ${start} — ${minToHHMM(endMin)}`;
+
+  function toggleDone() { const next = !done; setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
+
   return html`
-    <div class="modal-back" onClick=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
-      <div class="event-card" role="dialog" style=${`--c:${color};`}>
-        <div class="event-card-head">
-          <span class="event-card-bar"></span>
-          <h3 class=${item.done ? "done" : ""}>${item.title}</h3>
-          <button class="btn-mini" onClick=${onClose} aria-label="Закрыть">${Icon.close()}</button>
+    <div class="modal-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
+      <div class="evc" role="dialog" style=${`--c:${dotColor};`}>
+        <div class="evc-head">
+          <button class=${"task-check sm" + (done ? " on" : "")} title="Готово" onClick=${toggleDone}>${Icon.check()}</button>
+          <input class=${"evc-title" + (done ? " done" : "")} value=${title} placeholder="Без названия"
+            onInput=${e => setTitle(e.target.value)} onBlur=${() => save({ title: title.trim() || "Без названия" })} />
+          <div class="evc-proj" ref=${projRef}>
+            <button class="evc-dot" title="Проект" onClick=${() => setProjOpen(o => !o)}>
+              <span class="evc-dot-c" style=${`background:${dotColor};`}></span>${Icon.right()}</button>
+            ${projOpen && html`<div class="evc-proj-menu">
+              <button class="evc-proj-item" onClick=${() => { setListId(""); save({ list_id: null }); setProjOpen(false); }}>
+                <span class="evc-pcheck">${listId ? "" : Icon.check()}</span>
+                <span class="evc-pdot" style="background:#94a3b8;"></span>Входящие</button>
+              ${lists.map(l => html`<button class="evc-proj-item" key=${l.id}
+                onClick=${() => { setListId(l.id); save({ list_id: l.id }); setProjOpen(false); }}>
+                <span class="evc-pcheck">${listId === l.id ? Icon.check() : ""}</span>
+                <span class="evc-pdot" style=${`background:${l.color};`}></span>${l.name}</button>`)}
+            </div>`}
+          </div>
+          <button class="evc-icon-btn" title="Удалить" onClick=${onDelete}>${Icon.trash()}</button>
+          <button class="evc-icon-btn" title="Закрыть" onClick=${onClose}>${Icon.close()}</button>
         </div>
-        <div class="event-card-rows">
-          ${dateLabel && html`<div class="event-card-row">${Icon.calendar()}<span>${dateLabel}</span></div>`}
-          <div class="event-card-row">${Icon.clock()}<span>${timed ? minRangeLabel(item.start_min, item.duration_min) : "Без времени"}</span></div>
-          ${item.recurring && html`<div class="event-card-row">${Icon.repeat()}<span>Повторяется</span></div>`}
-          <div class="event-card-row">${Icon.dot()}<span>${listName || "Входящие"}</span></div>
-          ${item.notes && html`<div class="event-card-row note">${Icon.note()}<span>${item.notes}</span></div>`}
-        </div>
-        <div class="event-card-actions">
-          <button class=${"btn sm" + (item.done ? " ghost" : " primary")} onClick=${onToggleDone}>
-            ${Icon.check()} ${item.done ? "Снять отметку" : "Готово"}</button>
-          <button class="btn sm" onClick=${onEdit}>${Icon.edit()} Изменить</button>
-          <button class="btn sm danger" onClick=${onDelete}>${Icon.trash()} Удалить</button>
-        </div>
+
+        <button class="evc-summary" onClick=${() => setExpand(e => !e)}>
+          ${Icon.clock()}<span>${summary}</span></button>
+
+        ${expand && html`<div class="evc-group">
+          <label class="evc-line">
+            <span>Весь день</span>
+            <input type="checkbox" checked=${allDay} onChange=${e => {
+              const v = e.target.checked; setAllDay(v);
+              if (v) save({ start_min: null, duration_min: null });
+              else save({ start_min: hhmmToMin(start), duration_min: dur });
+            }} /></label>
+          ${!allDay && html`
+            <div class="evc-line"><span>Начало</span>
+              <span class="evc-line-r">
+                <input class="evc-inp" type="date" value=${day}
+                  onInput=${e => { if (e.target.value) { setDay(e.target.value); save({ date: e.target.value }); } }} />
+                <input class="evc-inp" type="time" value=${start}
+                  onInput=${e => { if (e.target.value) { setStart(e.target.value); save({ start_min: hhmmToMin(e.target.value), duration_min: dur }); } }} />
+              </span></div>
+            <div class="evc-line"><span>Конец</span>
+              <span class="evc-line-r">
+                <input class="evc-inp" type="time" value=${minToHHMM(endMin)}
+                  onInput=${e => { if (e.target.value) { const nd = hhmmToMin(e.target.value) - hhmmToMin(start); if (nd > 0) { setDur(nd); save({ duration_min: nd }); } } }} />
+              </span></div>`}
+        </div>`}
+
+        <textarea class="evc-notes" rows="2" placeholder="Добавить заметку"
+          value=${notes} onInput=${e => setNotes(e.target.value)} onBlur=${() => save({ notes: notes.trim() || null })}></textarea>
       </div>
     </div>`;
 }
