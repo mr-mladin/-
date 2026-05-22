@@ -183,7 +183,8 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
                 <input class="input" type="time" value=${start} onInput=${e => setStart(e.target.value)} /></div>
               <div class="field" style="flex:1;min-width:120px;"><label>Длительность</label>
                 <select class="select" value=${String(duration)} onChange=${e => setDuration(Number(e.target.value))}>
-                  ${DURATIONS.map(d => html`<option value=${String(d)} key=${d}>${durLabel(d)}</option>`)}
+                  ${(DURATIONS.includes(duration) ? DURATIONS : [...DURATIONS, duration].sort((a, b) => a - b))
+                    .map(d => html`<option value=${String(d)} key=${d}>${durLabel(d)}</option>`)}
                 </select>
                 <div class="muted small" style="margin-top:4px;">до ${minToHHMM(hhmmToMin(start) + Number(duration))}</div>
               </div>

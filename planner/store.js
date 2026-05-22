@@ -204,12 +204,27 @@ export function StoreProvider({ children }) {
   }
 
   const tasks = {
-    create: async (payload) => {
-      const data = await insertRow("tasks", payload, "tasks");
-      record("новая задача",
-        () => deleteRow("tasks", data.id, "tasks"),
-        () => reinsertRow("tasks", data, "tasks"));
-      return data;
+    create: (payload) => {
+      // Оптимистично: задача появляется сразу, форма закрывается мгновенно.
+      // Запись в базу идёт в фоне; при ошибке — откат и тост. Это защищает от
+      // редких «зависаний» сетевого запроса (форма не застревает на «Сохранение…»).
+      const tempId = "tmp-" + Math.random().toString(36).slice(2);
+      const optimistic = {
+        done: false, recurrence_parent: null, occ_date: null, skipped: false,
+        ...payload, id: tempId, user_id: state.user?.id,
+      };
+      dispatch({ type: "upsertOne", key: "tasks", item: optimistic });
+      supabase.from("tasks").insert(withUser(payload)).select().single()
+        .then(({ data, error }) => {
+          dispatch({ type: "removeOne", key: "tasks", id: tempId });
+          if (error || !data) { pushToast("Не удалось сохранить задачу", "error"); return; }
+          dispatch({ type: "upsertOne", key: "tasks", item: data });
+          record("новая задача",
+            () => deleteRow("tasks", data.id, "tasks"),
+            () => reinsertRow("tasks", data, "tasks"));
+        })
+        .catch(() => { dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); });
+      return Promise.resolve(optimistic);
     },
     update: (id, payload) => {
       const prev = state.tasks.find(t => t.id === id);
