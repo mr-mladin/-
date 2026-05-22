@@ -302,8 +302,8 @@ textarea.input { resize: vertical; }
 .tl-handle { position: absolute; left: 0; right: 0; height: 11px; cursor: ns-resize; touch-action: none; z-index: 2; }
 .tl-handle.top { top: 0; }
 .tl-handle.bottom { bottom: 0; }
-.tl-body { position: absolute; left: 108px; right: 36px; top: 0; display: flex; flex-direction: column;
-  gap: 1px; cursor: default; }
+.tl-body { position: absolute; left: 108px; right: 36px; top: 0; bottom: 0; display: flex; flex-direction: column;
+  justify-content: center; gap: 1px; cursor: default; }
 .tl-meta { font-size: 12px; color: var(--text-mute); display: flex; align-items: center; gap: 4px;
   font-variant-numeric: tabular-nums; }
 .tl-rep { display: inline-flex; }

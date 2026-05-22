@@ -112,10 +112,10 @@ export function StoreProvider({ children }) {
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
   }
-  function batch(label, fn) {
+  async function batch(label, fn) {
     const prev = batching.current;
     batching.current = { items: [], label };
-    try { fn(); } finally {
+    try { await fn(); } finally {
       const b = batching.current; batching.current = prev;
       if (b.items.length === 1) record(b.label, b.items[0].undo, b.items[0].redo);
       else if (b.items.length > 1) record(b.label,
