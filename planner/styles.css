@@ -153,7 +153,7 @@ textarea.input { resize: vertical; }
 
 /* Планер: плоская страница без рамок-блоков */
 .planner { display: flex; gap: 0; flex: 1; min-height: 0; padding: 0; }
-.planner-aside { width: 440px; flex: none; display: flex; flex-direction: column;
+.planner-aside { width: 400px; flex: none; display: flex; flex-direction: column;
   padding: 16px 16px 16px 18px; }
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
@@ -272,7 +272,7 @@ textarea.input { resize: vertical; }
 .task-check.sm .ico { width: 14px; height: 14px; }
 
 .planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
-  border: 1px solid var(--border); border-bottom: none; border-radius: 28px 28px 0 0; padding: 6px 0 0;
+  border: 1px solid var(--border); border-bottom: none; border-radius: 28px 28px 0 0; padding: 6px 0 0 18px;
   margin-right: 16px; box-shadow: 0 14px 44px rgba(15, 23, 42, 0.08); }
 .grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent); }
 .grid-hour-label { position: absolute; right: calc(100% + 8px); top: -6px; font-size: 10px; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
