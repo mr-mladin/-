@@ -225,6 +225,7 @@ textarea.input { resize: vertical; }
     left .16s cubic-bezier(.2,.7,.3,1), width .16s cubic-bezier(.2,.7,.3,1); }
 .grid-block:hover { box-shadow: 0 1px 6px rgba(0,0,0,0.10); }
 .grid-block.dragging { cursor: grabbing; box-shadow: 0 6px 18px rgba(0,0,0,0.22); z-index: 6; opacity: 0.97; transition: none; }
+.zooming .grid-block { transition: none; }
 .grid-block.done { opacity: 0.55; }
 .grid-block.done .grid-block-title { text-decoration: line-through; }
 .grid-block.ghost { background: var(--accent-soft); border: 1px dashed var(--accent); pointer-events: none; align-items: flex-start; z-index: 5; transition: none; }
