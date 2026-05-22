@@ -343,6 +343,11 @@ function Planner() {
     store.pushToast(items.length > 1 ? `Удалено: ${items.length}` : "Задача удалена", "success");
   }
 
+  function copyPayload(it, startMin) {
+    return { title: it.title || "", notes: it.notes || null, color: it.color || null, icon: it.icon || null,
+      list_id: it.list_id || null, date, start_min: startMin, duration_min: it.duration_min || 60 };
+  }
+
   function onBlockPointerDown(e, item) {
     e.stopPropagation();
     if (e.button === 2) return; // правый клик — контекстное меню (карточка)
@@ -350,6 +355,7 @@ function Planner() {
     e.preventDefault();
     const startClientY = e.clientY, startClientX = e.clientX;
     const shift = e.shiftKey;
+    const copy = e.altKey; // Option/Alt + перетаскивание — создать копию
     const grab = yToMin(e.clientY) - item.start_min;
     // Если тащим за одну из нескольких выделенных задач — двигаем всю группу.
     const group = !shift && selected.has(item.key) && selected.size > 1
@@ -361,24 +367,31 @@ function Planner() {
       if (!moved) return;
       if (group) {
         delta = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440) - item.start_min;
-        setDrag({ type: "moveGroup", keys: group.map(g => g.item.key), delta });
+        setDrag({ type: copy ? "copyGroup" : "moveGroup", keys: group.map(g => g.item.key), delta });
         return;
       }
       // Утянули в боковую панель — задача «снимается» из сетки (плавающий ярлык).
-      if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
+      if (!copy && item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
         setDrag(null);
         setDnd({ source: "grid", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "tray" });
         return;
       }
       setDnd(null);
       newStart = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - item.duration_min);
-      setDrag({ type: "move", key: item.key, start: newStart, dur: item.duration_min });
+      setDrag({ type: copy ? "copy" : "move", key: item.key, start: newStart, dur: item.duration_min });
     };
     const up = (ev) => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
       setDrag(null); setDnd(null);
       if (!moved) { handleTap(item, shift); return; }
-      if (group) {
+      if (copy) {
+        const list = group ? group : [{ item, start: item.start_min, dur: item.duration_min || 0 }];
+        const off = group ? delta : (newStart - item.start_min);
+        store.batch("копирование", () => Promise.all(list.map(g => {
+          const ns = clamp(g.start + off, 0, 1440 - g.dur);
+          return store.actions.tasks.create(copyPayload(g.item, ns)).catch(showErr);
+        })));
+      } else if (group) {
         store.batch("перенос", () => {
           for (const g of group) {
             const ns = clamp(g.start + delta, 0, 1440 - g.dur);
@@ -682,10 +695,11 @@ function Planner() {
                   style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
                 ${dayTl.map(i => {
                   let start = i.start_min, dur = i.duration_min || 0;
-                  const inGroup = drag && drag.type === "moveGroup" && drag.keys.includes(i.key);
-                  if (inGroup) start = clamp(i.start_min + drag.delta, 0, 1440 - dur);
-                  else if (drag && drag.key === i.key) { start = drag.start; dur = drag.dur; }
-                  const dragging = inGroup || (drag && drag.key === i.key);
+                  const inGroupMove = drag && drag.type === "moveGroup" && drag.keys.includes(i.key);
+                  const isKeyMove = drag && drag.key === i.key && (drag.type === "move" || drag.type === "resize");
+                  if (inGroupMove) start = clamp(i.start_min + drag.delta, 0, 1440 - dur);
+                  else if (isKeyMove) { start = drag.start; dur = drag.dur; }
+                  const dragging = inGroupMove || isKeyMove;
                   const sel = selected.has(i.key);
                   const top = (start / 60) * hourPx;
                   const height = Math.max(38, (dur / 60) * hourPx);
@@ -707,6 +721,19 @@ function Planner() {
                     <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                       onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                   </div>`;
+                })}
+                ${drag && drag.type === "copy" && (() => {
+                  const src = dayTl.find(x => x.key === drag.key);
+                  return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(38, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
+                    <div class="tl-ghost-pill"></div>
+                    <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
+                })()}
+                ${drag && drag.type === "copyGroup" && drag.keys.map(k => {
+                  const it = dayTl.find(x => x.key === k);
+                  if (!it) return null;
+                  const ns = clamp(it.start_min + drag.delta, 0, 1440 - (it.duration_min || 0));
+                  return html`<div class="tl-ghost" key=${"cg" + k} style=${`top:${(ns / 60) * hourPx}px;height:${Math.max(38, ((it.duration_min || 0) / 60) * hourPx)}px;--c:${colorOf(it)};`}>
+                    <div class="tl-ghost-pill"></div></div>`;
                 })}
                 ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost"
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(38, (drag.dur / 60) * hourPx)}px;`}>
