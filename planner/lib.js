@@ -66,7 +66,9 @@ export function weekRangeLabel(date) {
   return `${mon.getDate()} ${SHORT[mon.getMonth()]} – ${sun.getDate()} ${SHORT[sun.getMonth()]}`;
 }
 
-// Сетка месяца: массив недель по 7 дней (Пн–Вс), с «хвостами» соседних месяцев.
+// Сетка месяца: всегда 6 недель по 7 дней (Пн–Вс), с «хвостами» соседних
+// месяцев. Фиксированное число строк — чтобы размер ячеек не менялся
+// от месяца к месяцу (как в Apple Календаре).
 export function monthMatrix(date) {
   const d = date instanceof Date ? date : fromISO(date);
   const first = new Date(d.getFullYear(), d.getMonth(), 1);
@@ -83,7 +85,6 @@ export function monthMatrix(date) {
       cur.setDate(cur.getDate() + 1);
     }
     weeks.push(row);
-    if (w >= 4 && cur.getMonth() !== month) break;
   }
   return weeks;
 }
