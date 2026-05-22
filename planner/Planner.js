@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  splitEmoji,
+  splitEmoji, gapCaption,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard } from "./components.js";
 
@@ -451,7 +451,6 @@ function Planner() {
     setDelItem(item);
   }
 
-  const laidOut = useMemo(() => layoutColumns(timed, drag), [timed, drag]);
   const d = fromISO(date);
   const rel = relLabel(date);
   const dayLabel = (rel ? rel + " · " : "") + `${d.getDate()} ${monthGen(d)}`;
@@ -459,6 +458,16 @@ function Planner() {
   const headLabel = view === "month" ? monthLabel : view === "week" ? weekRangeLabel(date) : dayLabel;
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
+  const dayTl = useMemo(() => [...timed].sort((a, b) => (a.start_min - b.start_min) || ((a.duration_min || 0) - (b.duration_min || 0))), [timed]);
+  const dayGaps = useMemo(() => {
+    const gaps = []; let prevEnd = null;
+    for (const i of dayTl) {
+      const s = i.start_min, e = s + (i.duration_min || 0);
+      if (prevEnd != null && s - prevEnd >= 30) gaps.push({ start: prevEnd, mins: s - prevEnd });
+      prevEnd = prevEnd == null ? e : Math.max(prevEnd, e);
+    }
+    return gaps;
+  }, [dayTl]);
 
   return html`
     <div class="app">
@@ -564,38 +573,48 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef}>
-              <div class="planner-grid" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
+              <div class="tl" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
+                <div class="tl-spine"></div>
+                ${dayGaps.map(g => {
+                  const gh = (g.mins / 60) * hourPx;
+                  if (gh < 42) return null;
+                  return html`<div class="tl-gap" key=${"g" + g.start} style=${`top:${((g.start + g.mins / 2) / 60) * hourPx}px;`}>
+                    ${gapCaption(g.mins)}</div>`;
+                })}
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
-                ${laidOut.map(i => {
-                  const top = (i._start / 60) * hourPx;
-                  const height = Math.max(22, (i._dur / 60) * hourPx);
-                  const colW = `(100% - ${GUTTER}px) / ${i._cols}`;
-                  const showTime = height >= 40;
+                ${dayTl.map(i => {
+                  const dragging = drag && drag.key === i.key;
+                  const start = dragging ? drag.start : i.start_min;
+                  const dur = dragging ? drag.dur : (i.duration_min || 0);
+                  const top = (start / 60) * hourPx;
+                  const height = Math.max(26, (dur / 60) * hourPx);
                   const { emoji, text } = splitEmoji(i.title);
                   const icon = i.icon || emoji;
                   const ttl = i.icon ? i.title : (text || i.title);
-                  return html`<div class=${"grid-block" + (i.done ? " done" : "") + (drag && drag.key === i.key ? " dragging" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;left:calc(${GUTTER}px + (${colW}) * ${i._col} + 2px);width:calc(${colW} - 4px);--c:${colorOf(i)};`}
-                    onPointerDown=${e => onBlockPointerDown(e, i)}>
-                    <div class="grid-block-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
-                    <span class="grid-block-icon">${icon || ""}</span>
-                    <div class="grid-block-text">
-                      <div class="grid-block-title">${i.recurring ? html`<span class="grid-block-rep">${Icon.repeat()}</span>` : ""}${ttl}</div>
-                      ${showTime && html`<div class="grid-block-time">${minRangeLabel(i._start, i._dur)}</div>`}</div>
+                  return html`<div class=${"tl-event" + (i.done ? " done" : "") + (dragging ? " dragging" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
+                    <div class="tl-pill" onPointerDown=${e => onBlockPointerDown(e, i)}>
+                      <div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
+                      <span class="tl-pill-icon">${icon || ""}</span>
+                      <div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
+                    </div>
+                    <div class="tl-body" onPointerDown=${e => onBlockPointerDown(e, i)}>
+                      <div class="tl-meta">${minRangeLabel(start, dur)}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+                      <div class="tl-title">${ttl}</div>
+                    </div>
                     <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                       onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
-                    <div class="grid-block-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
                   </div>`;
                 })}
-                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="grid-block ghost"
-                  style=${`top:${(drag.start / 60) * hourPx}px;height:${(drag.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);`}>
-                  <div class="grid-block-time">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
-                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="grid-block ghost"
-                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${(dnd.dur / 60) * hourPx}px;left:calc(${GUTTER}px + 2px);width:calc(100% - ${GUTTER}px - 4px);--c:${dnd.color};`}>
-                  <div class="grid-block-time">${minRangeLabel(dnd.gridMin, dnd.dur)}</div></div>`}
+                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost"
+                  style=${`top:${(drag.start / 60) * hourPx}px;height:${(drag.dur / 60) * hourPx}px;`}>
+                  ${minRangeLabel(drag.start, drag.dur)}</div>`}
+                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-ghost"
+                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${(dnd.dur / 60) * hourPx}px;--c:${dnd.color};`}>
+                  ${minRangeLabel(dnd.gridMin, dnd.dur)}</div>`}
               </div>
             </div>
           </div>`}

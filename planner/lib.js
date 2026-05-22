@@ -112,6 +112,17 @@ export function minRangeLabel(start, dur) {
   return minToHHMM(start) + "–" + minToHHMM(start + (dur || 0));
 }
 
+const GAP_LINES = [
+  "Пауза подошла к концу. Вперёд к свершениям!",
+  "Время прошло и принесло ценные знания.",
+  "Небольшой перерыв — и снова в дело.",
+  "Свободное окно. Можно выдохнуть.",
+  "Передышка завершена, продолжаем.",
+];
+export function gapCaption(mins) {
+  return GAP_LINES[Math.floor((mins || 0) / 37) % GAP_LINES.length];
+}
+
 // Ведущий эмодзи названия выносим в кружок-иконку пилюли.
 export function splitEmoji(title) {
   const t = title || "";
