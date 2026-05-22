@@ -43,6 +43,7 @@ export function StoreProvider({ children }) {
   const loadEpoch = useRef(0);
   const undoStack = useRef([]);
   const redoStack = useRef([]);
+  const batching = useRef(null);
 
   useEffect(() => { applyTheme(state.theme); }, []);
 
@@ -100,10 +101,27 @@ export function StoreProvider({ children }) {
 
   // История действий: каждое запоминает, как его отменить (undo) и повторить
   // (redo). Новое действие очищает «будущее» (redo).
+  // batch(label, fn): несколько изменений внутри fn становятся одним шагом отмены.
   function record(label, undo, redo) {
+    if (batching.current) {
+      batching.current.items.push({ undo, redo });
+      if (!batching.current.label) batching.current.label = label;
+      return;
+    }
     undoStack.current.push({ label, undo, redo });
     if (undoStack.current.length > 100) undoStack.current.shift();
     redoStack.current = [];
+  }
+  function batch(label, fn) {
+    const prev = batching.current;
+    batching.current = { items: [], label };
+    try { fn(); } finally {
+      const b = batching.current; batching.current = prev;
+      if (b.items.length === 1) record(b.label, b.items[0].undo, b.items[0].redo);
+      else if (b.items.length > 1) record(b.label,
+        () => Promise.all(b.items.slice().reverse().map(it => it.undo())),
+        () => Promise.all(b.items.map(it => it.redo())));
+    }
   }
   // Стеки обновляем синхронно (UI меняется оптимистично), а запись в БД идёт
   // фоном. Так быстрый Cmd+Z → Cmd+Shift+Z не теряет шаг из-за сетевой задержки.
@@ -344,7 +362,7 @@ export function StoreProvider({ children }) {
     dispatch({ type: "set", payload: { theme: mode } });
   }
 
-  const value = { ...state, toasts, pushToast, undo, redo, auth, setTheme, actions: { taskLists, tasks } };
+  const value = { ...state, toasts, pushToast, undo, redo, batch, auth, setTheme, actions: { taskLists, tasks } };
   return h(StoreContext.Provider, { value }, children);
 }
 
