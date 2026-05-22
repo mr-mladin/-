@@ -41,6 +41,7 @@ export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [toasts, setToasts] = useState([]);
   const loadEpoch = useRef(0);
+  const undoStack = useRef([]);
 
   useEffect(() => { applyTheme(state.theme); }, []);
 
@@ -96,6 +97,18 @@ export function StoreProvider({ children }) {
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
   }
 
+  // Стек отмены: каждое действие кладёт сюда «обратную» операцию.
+  function pushUndo(entry) {
+    undoStack.current.push(entry);
+    if (undoStack.current.length > 50) undoStack.current.shift();
+  }
+  async function undo() {
+    const entry = undoStack.current.pop();
+    if (!entry) { pushToast("Отменять нечего", "info"); return; }
+    try { await entry.run(); pushToast("Отменено" + (entry.label ? ": " + entry.label : ""), "info"); }
+    catch (e) { pushToast("Не удалось отменить действие", "error"); }
+  }
+
   const auth = {
     signIn: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -125,6 +138,13 @@ export function StoreProvider({ children }) {
     const { error } = await supabase.from(table).delete().eq("id", id);
     if (error) throw error;
     dispatch({ type: "removeOne", key, id });
+  }
+  // Вернуть удалённую строку целиком (с тем же id) — для отмены удаления.
+  async function reinsertRow(table, row, key) {
+    const { data, error } = await supabase.from(table).insert(row).select().single();
+    if (error) throw error;
+    dispatch({ type: "upsertOne", key, item: data });
+    return data;
   }
 
   const taskLists = {
@@ -175,15 +195,39 @@ export function StoreProvider({ children }) {
   }
 
   const tasks = {
-    create: (payload) => insertRow("tasks", payload, "tasks"),
-    update: (id, payload) => updateTaskOptimistic(id, payload),
-    remove: (id) => deleteRow("tasks", id, "tasks"),
+    create: async (payload) => {
+      const data = await insertRow("tasks", payload, "tasks");
+      pushUndo({ label: "новая задача", run: () => deleteRow("tasks", data.id, "tasks") });
+      return data;
+    },
+    update: (id, payload) => {
+      const prev = state.tasks.find(t => t.id === id);
+      if (prev) {
+        const restore = {};
+        Object.keys(payload).forEach(k => { restore[k] = prev[k] === undefined ? null : prev[k]; });
+        pushUndo({ label: "изменение задачи", run: () => updateTaskOptimistic(id, restore) });
+      }
+      return updateTaskOptimistic(id, payload);
+    },
+    remove: (id) => {
+      const prev = state.tasks.find(t => t.id === id);
+      if (prev) pushUndo({ label: "удаление задачи", run: () => reinsertRow("tasks", prev, "tasks") });
+      return deleteRow("tasks", id, "tasks");
+    },
     toggleDone: (item) => {
       const next = !item.done;
       const patch = { done: next, done_at: next ? new Date().toISOString() : null };
-      if (!(item.kind === "concrete" || item.id)) return materializeOverride(item, patch);
+      if (!(item.kind === "concrete" || item.id)) {
+        return materializeOverride(item, patch).then(data => {
+          if (data) pushUndo({ label: "отметку", run: () => deleteRow("tasks", data.id, "tasks") });
+          return data;
+        });
+      }
       const prev = state.tasks.find(t => t.id === item.id);
-      if (prev) dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...patch } });
+      if (prev) {
+        dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...patch } });
+        pushUndo({ label: "отметку", run: () => updateTaskOptimistic(item.id, { done: prev.done, done_at: prev.done_at === undefined ? null : prev.done_at }) });
+      }
       return supabase.from("tasks").update(patch).eq("id", item.id).select().single()
         .then(({ data, error }) => {
           if (error) { if (prev) dispatch({ type: "upsertOne", key: "tasks", item: prev }); throw error; }
@@ -192,16 +236,28 @@ export function StoreProvider({ children }) {
     },
     reschedule: (item, patch) => {
       if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
-      return materializeOverride(item, patch);
+      return materializeOverride(item, patch).then(data => {
+        if (data) pushUndo({ label: "перенос", run: () => deleteRow("tasks", data.id, "tasks") });
+        return data;
+      });
     },
     removeOccurrence: (item) => {
       if (item.id) return tasks.update(item.id, { skipped: true });
-      return materializeOverride(item, { skipped: true });
+      return materializeOverride(item, { skipped: true }).then(data => {
+        if (data) pushUndo({ label: "удаление повторения", run: () => deleteRow("tasks", data.id, "tasks") });
+        return data;
+      });
     },
     removeSeries: async (templateId) => {
+      const removed = state.tasks.filter(t => t.id === templateId || t.recurrence_parent === templateId);
       await deleteRow("tasks", templateId, "tasks");
       dispatch({ type: "replaceMany", key: "tasks",
         items: state.tasks.filter(t => t.id !== templateId && t.recurrence_parent !== templateId) });
+      pushUndo({ label: "удаление повторов", run: async () => {
+        const tmpl = removed.find(r => r.id === templateId);
+        if (tmpl) await reinsertRow("tasks", tmpl, "tasks");
+        removed.filter(r => r.id !== templateId).forEach(r => dispatch({ type: "upsertOne", key: "tasks", item: r }));
+      }});
     },
   };
 
@@ -210,7 +266,7 @@ export function StoreProvider({ children }) {
     dispatch({ type: "set", payload: { theme: mode } });
   }
 
-  const value = { ...state, toasts, pushToast, auth, setTheme, actions: { taskLists, tasks } };
+  const value = { ...state, toasts, pushToast, undo, auth, setTheme, actions: { taskLists, tasks } };
   return h(StoreContext.Provider, { value }, children);
 }
 
