@@ -272,7 +272,7 @@ textarea.input { resize: vertical; }
 .task-check.sm .ico { width: 14px; height: 14px; }
 
 .planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
-  border: 1px solid var(--border); border-bottom: none; border-radius: 28px 28px 0 0; padding: 6px 0 0 18px;
+  border: 1px solid var(--border); border-bottom: none; border-radius: 28px 28px 0 0; padding: 6px 0 0;
   margin-right: 16px; box-shadow: 0 14px 44px rgba(15, 23, 42, 0.08); }
 .grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent); }
 .grid-hour-label { position: absolute; right: calc(100% + 8px); top: -6px; font-size: 10px; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -284,7 +284,7 @@ textarea.input { resize: vertical; }
 
 /* Лента дня в стиле Structured: часы слева, цветная пилюля-иконка на линии,
    текст справа от пилюли. */
-.tl { position: relative; width: 100%; margin-top: 14px; user-select: none; -webkit-user-select: none; }
+.tl { position: relative; width: 100%; max-width: 720px; margin: 14px auto 0; user-select: none; -webkit-user-select: none; }
 .tl-spine { position: absolute; top: 0; bottom: 0; left: 77px; width: 2px; border-radius: 2px;
   background: color-mix(in srgb, var(--border) 50%, transparent); }
 .tl-event.sel .tl-pill { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); }
