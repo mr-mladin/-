@@ -505,15 +505,14 @@ textarea.input { resize: vertical; }
   .proj-tasks { max-height: none; }
   .planner-grid-scroll { border: none; border-radius: 18px 18px 0 0; margin-right: 0; box-shadow: none; }
   .tl { left: 0; }
-  /* Язычок у левого края для открытия свайпом */
+  /* Подсказки-ручки: только визуальные, свайп ловится по всему экрану. */
   .aside-edge { display: flex; position: fixed; left: 0; top: 50%; transform: translateY(-50%);
-    width: 18px; height: 120px; z-index: 25; align-items: center; touch-action: none; }
-  .aside-edge::before { content: ""; width: 5px; height: 64px; margin-left: 1px; border-radius: 0 4px 4px 0;
-    background: color-mix(in srgb, var(--text-mute) 55%, transparent); }
-  /* Ручка на стыке панели и сетки — свайп влево или тап закрывает */
+    width: 8px; height: 92px; z-index: 25; align-items: center; pointer-events: none; }
+  .aside-edge::before { content: ""; width: 4px; height: 72px; border-radius: 0 4px 4px 0;
+    background: color-mix(in srgb, var(--text-mute) 50%, transparent); }
   .aside-grab { display: flex; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    width: 24px; height: 120px; z-index: 31; align-items: center; justify-content: flex-end; touch-action: none; }
-  .aside-grab::before { content: ""; width: 5px; height: 64px; margin-right: 4px; border-radius: 4px;
+    width: 10px; height: 92px; z-index: 31; align-items: center; justify-content: flex-end; pointer-events: none; }
+  .aside-grab::before { content: ""; width: 4px; height: 72px; margin-right: 2px; border-radius: 4px;
     background: color-mix(in srgb, var(--text-mute) 45%, transparent); }
   .planner-head { gap: 8px; padding: 0 4px; }
   .planner-week { padding: 0 4px; }

@@ -72,6 +72,8 @@ function Planner() {
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
   const lastTap = useRef({ key: null, t: 0 });
+  const asideOpenRef = useRef(false);
+  const interactingRef = useRef(false);
 
   useEffect(() => {
     if (!projOpen) { setSwipeId(null); return; }
@@ -113,6 +115,45 @@ function Planner() {
   // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
   useEffect(() => { setSelected(new Set()); setSelRange(null); }, [date, view, filter]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
+  useEffect(() => { asideOpenRef.current = asideOpen; }, [asideOpen]);
+  useEffect(() => { interactingRef.current = !!(drag || dnd); }, [drag, dnd]);
+
+  // Открыть/закрыть выдвижную панель проектов горизонтальным свайпом (мобильный).
+  // Открытие — свайп вправо от левого края. Закрытие — свайп влево из любого
+  // места правой части (сетки), но не внутри самой панели (там свайп строк —
+  // это меню проекта). Распознаём по всему экрану, чтобы не нужно было целиться.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 860px)");
+    let sx = 0, sy = 0, decided = false, active = false, inAside = false;
+    const onDown = (e) => {
+      if (!mq.matches) { active = false; return; }
+      sx = e.clientX; sy = e.clientY; decided = false; active = true;
+      inAside = !!(e.target.closest && e.target.closest(".planner-aside"));
+    };
+    const onMove = (e) => {
+      if (!active) return;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (!decided) {
+        if (Math.abs(dx) < 10 && Math.abs(dy) < 10) return;
+        decided = true;
+        if (Math.abs(dx) <= Math.abs(dy) * 1.2) { active = false; return; }
+      }
+      if (interactingRef.current) { active = false; return; }
+      if (!asideOpenRef.current) { if (dx > 26 && sx < 40) { setAsideOpen(true); active = false; } }
+      else if (dx < -26 && !inAside) { setAsideOpen(false); active = false; }
+    };
+    const onUp = () => { active = false; };
+    window.addEventListener("pointerdown", onDown, true);
+    window.addEventListener("pointermove", onMove, true);
+    window.addEventListener("pointerup", onUp, true);
+    window.addEventListener("pointercancel", onUp, true);
+    return () => {
+      window.removeEventListener("pointerdown", onDown, true);
+      window.removeEventListener("pointermove", onMove, true);
+      window.removeEventListener("pointerup", onUp, true);
+      window.removeEventListener("pointercancel", onUp, true);
+    };
+  }, []);
 
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
   // оставить это же время дня под курсором (как в Apple Календаре).
@@ -679,7 +720,7 @@ function Planner() {
   return html`
     <div class="app">
       <div class=${"planner" + (asideOpen ? " aside-open" : "")}>
-        ${!asideOpen && html`<div class="aside-edge" onPointerDown=${e => asideSwipe(e, { close: false })}></div>`}
+        ${!asideOpen && html`<div class="aside-edge"></div>`}
         <aside class="planner-aside">
           <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
             <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
@@ -737,7 +778,7 @@ function Planner() {
               onClick=${() => setCreating({ list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
               ${Icon.plus()} Добавить задачу</button>
           </div>
-          <div class="aside-grab" onPointerDown=${e => asideSwipe(e, { close: true })}></div>
+          <div class="aside-grab"></div>
         </aside>
 
         <div class="planner-content">
