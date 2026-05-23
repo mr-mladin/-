@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Демо: поведение дня при зуме (одноразовый макет)</title>
+<title>Демо: пропорциональное сжатие пилюль (стиль Apple Calendar)</title>
 <style>
   :root{
     --radius-sm:8px;--radius:12px;--radius-lg:18px;
@@ -17,161 +17,155 @@
   body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
   header{padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border-strong);position:sticky;top:0;z-index:10}
   h1{font-size:17px;margin:0 0 4px}
-  .sub{font-size:13px;color:var(--text-soft);margin:0}
+  .sub{font-size:13px;color:var(--text-soft);margin:0;max-width:900px}
   .controls{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
   .controls label{font-size:13px;color:var(--text-soft)}
-  input[type=range]{width:260px}
-  .pxval{font-size:13px;color:var(--text-mute);font-variant-numeric:tabular-nums;min-width:120px}
+  input[type=range]{width:300px}
+  .pxval{font-size:13px;color:var(--text-mute);font-variant-numeric:tabular-nums;min-width:90px}
+  .hint{font-size:12px;color:var(--text-mute)}
   .cols{display:flex;gap:14px;padding:18px;align-items:flex-start;overflow-x:auto}
-  .col{flex:0 0 250px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);overflow:hidden}
+  .col{flex:0 0 280px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);overflow:hidden}
   .col-head{padding:10px 12px;border-bottom:1px solid var(--border)}
   .col-head .t{font-size:14px;font-weight:600}
   .col-head .d{font-size:11px;color:var(--text-mute);margin-top:2px;line-height:1.35}
   .col.bad .t{color:var(--danger)}
   .col.best{outline:2px solid var(--accent);outline-offset:-2px}
-  .scroll{height:560px;overflow-y:auto;position:relative}
-  /* ось времени */
-  .tl{position:relative;margin:10px 0;min-height:100%}
-  .hour{position:absolute;left:46px;right:8px;height:0;border-top:1px solid color-mix(in srgb,var(--border) 60%,transparent)}
+  .scroll{height:600px;overflow-y:auto;position:relative}
+  .tl{position:relative;margin:10px 0}
+  .hour{position:absolute;left:42px;right:8px;height:0;border-top:1px solid color-mix(in srgb,var(--border) 60%,transparent)}
   .hour span{position:absolute;right:calc(100% + 6px);top:-6px;font-size:10px;color:var(--text-mute);font-variant-numeric:tabular-nums}
-  /* блок-событие на оси */
-  .ev{position:absolute;left:46px;right:8px;box-sizing:border-box;transition:top .12s,height .12s}
-  .pill{position:absolute;left:0;width:30px;top:0;bottom:0;border-radius:999px;background:var(--c);display:flex;justify-content:center}
-  .pill .ic{width:22px;height:22px;margin-top:4px;border-radius:50%;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
-  .body{position:absolute;left:40px;right:6px;top:0;bottom:0;display:flex;align-items:flex-start;padding-top:3px;overflow:hidden}
-  .ttl{font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .meta{font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
-  .txtwrap{min-width:0}
-  /* подпись сжатого промежутка */
-  .gap{position:absolute;left:46px;right:8px;text-align:center;font-size:10px;color:var(--text-mute)}
-  /* V3 точки-иконки */
-  .dot{position:absolute;left:46px;width:24px;height:24px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.2)}
-  .dot .lbl{position:absolute;left:30px;white-space:nowrap;background:var(--text);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;display:none}
-  .dot.open .lbl{display:block}
-  /* V2 список */
-  .agenda{padding:8px}
-  .agenda .row{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:var(--radius);border:1px solid var(--border)}
-  .agenda .row + .row{margin-top:6px}
-  .agenda .ic{width:26px;height:26px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:14px;flex:none}
-  .agenda .ttl{flex:1}
-  .agenda .time{font-size:12px;color:var(--text-mute);font-variant-numeric:tabular-nums}
-  .agenda .ah{font-size:12px;color:var(--text-mute);padding:2px 8px 8px}
-  .mode{font-size:10px;color:var(--accent);padding:6px 10px 0;font-weight:600}
+
+  /* ── Apple-стиль: блоки, заливка-тинт, цветная полоса слева ── */
+  .ab{position:absolute;border-radius:7px;overflow:hidden;
+      background:color-mix(in srgb,var(--c) 16%,var(--surface));
+      box-shadow:inset 3.5px 0 0 var(--c);
+      transition:top .16s ease,height .16s ease,left .16s ease,width .16s ease;cursor:default}
+  .ab:hover{filter:brightness(.98);z-index:5}
+  .ab-in{height:100%;display:flex;flex-direction:column;gap:1px;padding:4px 8px 4px 11px;overflow:hidden}
+  .ab-t{font-size:13px;font-weight:600;line-height:1.15;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ab-m{font-size:11px;color:var(--text-soft);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
+  .ab.med .ab-in{padding:2px 8px 2px 11px}.ab.med .ab-t{font-size:12px}.ab.med .ab-m{display:none}
+  .ab.sm .ab-in{padding:1px 7px 1px 10px;justify-content:center}.ab.sm .ab-t{font-size:11px}.ab.sm .ab-m{display:none}
+  .ab.xs .ab-in{padding:0 7px 0 10px;justify-content:center}.ab.xs .ab-t{font-size:10px;opacity:.9}.ab.xs .ab-m{display:none}
+  .ab.bar{background:color-mix(in srgb,var(--c) 55%,var(--surface));box-shadow:none}
+  .ab.bar .ab-t,.ab.bar .ab-m{display:none}
+
+  /* ── Текущий стиль (капсула + текст сбоку), но пропорциональный ── */
+  .cap{position:absolute;transition:top .16s ease,height .16s ease}
+  .cap-pill{position:absolute;left:0;width:26px;top:0;bottom:0;border-radius:999px;background:var(--c);display:flex;justify-content:center}
+  .cap-pill .ic{width:20px;height:20px;margin-top:3px;border-radius:50%;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:12px;flex:none}
+  .cap-body{position:absolute;left:34px;right:6px;top:0;bottom:0;display:flex;align-items:center;overflow:hidden}
+  .cap-t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cap-m{font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+  .cap.sm .cap-pill .ic{opacity:0}.cap.sm .cap-m{display:none}.cap.sm .cap-t{font-size:11px}
+
+  /* ── «Сейчас»: капсула с min-height 38, наезжает ── */
+  .cur-ev{position:absolute;left:42px;right:8px}
+  .cur-pill{position:absolute;left:0;width:30px;top:0;bottom:0;border-radius:999px;background:var(--c)}
+  .cur-body{position:absolute;left:38px;right:0;top:2px}
+  .cur-t{font-size:13px;font-weight:600;white-space:nowrap}
+  .cur-m{font-size:11px;color:var(--text-mute)}
 </style>
 </head>
 <body>
 <header>
-  <h1>Демо поведения дня при сжатии (zoom-out) — одноразовый макет</h1>
-  <p class="sub">Один и тот же день в четырёх вариантах. Двигайте ползунок влево — это «отдаляем» сетку, как пальцами на тачпаде. Слева — как сейчас (наезжает), справа — три предлагаемых решения.</p>
+  <h1>Демо: пропорциональное сжатие задач в стиле Apple Calendar (одноразовый макет)</h1>
+  <p class="sub">Высота задачи = её длительность, без искусственного минимума. Двигайте ползунок влево — день «сжимается», короткие задачи честно уменьшаются, но остаются точно на своём времени. Пересечения по времени раскладываются в колонки рядом. Слева — как сейчас (наезжает из-за минимума 38px).</p>
   <div class="controls">
     <label>Масштаб (px на час):</label>
-    <input id="zoom" type="range" min="18" max="120" value="36">
+    <input id="zoom" type="range" min="14" max="130" value="40">
     <span class="pxval" id="pxval"></span>
+    <span class="hint">наведите/нажмите на блок — подсветка</span>
   </div>
 </header>
 
 <div class="cols">
-  <div class="col bad"><div class="col-head"><div class="t">Сейчас</div><div class="d">Строго по времени, мин. высота пилюли 38px. При сжатии пилюли и подписи наезжают друг на друга.</div></div><div class="scroll"><div class="tl" id="cur"></div></div></div>
+  <div class="col bad"><div class="col-head"><div class="t">Сейчас</div><div class="d">Мин. высота 38px. При сжатии короткие задачи перестают помещаться в свой интервал и наезжают на соседние.</div></div><div class="scroll"><div class="tl" id="cur"></div></div></div>
 
-  <div class="col best"><div class="col-head"><div class="t">Вариант 1 · раздвижка + сжатие</div><div class="d">Один вид. Гарантированный зазор: пилюли не наезжают. Большие пустые промежутки сжимаются. Время — у каждой пилюли. (рекомендую)</div></div><div class="scroll"><div class="tl" id="v1"></div></div></div>
+  <div class="col best"><div class="col-head"><div class="t">Apple-стиль · блоки</div><div class="d">Заливка-тинт цвета задачи, цветная полоса слева. Высота строго по длительности, плавно сжимается; текст аккуратно убавляется по ступеням, потом остаётся тонкая цветная полоска. Пересечения — колонками.</div></div><div class="scroll"><div class="tl" id="ab"></div></div></div>
 
-  <div class="col"><div class="col-head"><div class="t">Вариант 2 · переключение на список</div><div class="d">Крупно — обычная сетка. Ниже порога масштаба резко переключается в чистый список-повестку без линейки.</div></div><div class="scroll"><div id="v2"></div></div></div>
-
-  <div class="col"><div class="col-head"><div class="t">Вариант 3 · сворачивание текста</div><div class="d">Строго по времени всегда. У тесных пилюль прячется подпись — остаются иконки. Клик по иконке показывает название.</div></div><div class="scroll"><div class="tl" id="v3"></div></div></div>
+  <div class="col"><div class="col-head"><div class="t">Текущий стиль · но сжимается</div><div class="d">Сохраняем нынешние капсулы с текстом сбоку, но убираем минимум высоты — капсула честно уменьшается. Тот же принцип, привычный вид.</div></div><div class="scroll"><div class="tl" id="cap"></div></div></div>
 </div>
 
 <script>
-const DAY_START=8*60, DAY_END=21*60; // показываем 08:00–21:00
+const DAY_START=8*60, DAY_END=21*60;
 const tasks=[
-  {s:9*60,    d:30, t:"Вайбкодинг", ic:"⌨️", c:"#0ea5e9"},
-  {s:9*60+30, d:25, t:"Семья",      ic:"❤️", c:"#ec4899"},
-  {s:11*60,   d:20, t:"Созвон",     ic:"📞", c:"#8b5cf6"},
-  {s:13*60,   d:60, t:"Обед",       ic:"🍽", c:"#22c55e"},
-  {s:15*60+25,d:50, t:"Отчёт",      ic:"📝", c:"#f59e0b"},
-  {s:19*60,   d:60, t:"Зал",        ic:"🏋", c:"#14b8a6"},
+  {s:9*60,    d:30, t:"Вайбкодинг",  ic:"⌨️", c:"#0ea5e9"},
+  {s:9*60+30, d:25, t:"Семья",       ic:"❤️", c:"#ec4899"},
+  {s:11*60,   d:20, t:"Созвон",      ic:"📞", c:"#8b5cf6"},
+  {s:11*60+10,d:25, t:"Звонок маме", ic:"📱", c:"#f43f5e"}, // намеренно пересекается с Созвоном
+  {s:13*60,   d:60, t:"Обед",        ic:"🍽", c:"#22c55e"},
+  {s:15*60+25,d:50, t:"Отчёт",       ic:"📝", c:"#f59e0b"},
+  {s:19*60,   d:60, t:"Зал",         ic:"🏋", c:"#14b8a6"},
 ];
 const hhmm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 const range=t=>hhmm(t.s)+"–"+hhmm(t.s+t.d);
-const MINH=38, GAP=8, MAXGAP=30, THRESHOLD=44;
 
-function evHtml(t,extra=""){
-  return `<div class="ev" style="${extra}--c:${t.c}">
-    <div class="pill"><div class="ic">${t.ic}</div></div>
-    <div class="body"><div class="txtwrap">
-      <div class="ttl">${t.t}</div><div class="meta">${range(t)}</div>
-    </div></div></div>`;
+// Раскладка пересекающихся задач по колонкам (как в Apple)
+function layout(items){
+  const evs=items.map((t,i)=>({...t,e:t.s+t.d})).sort((a,b)=>a.s-b.s||a.e-b.e);
+  const clusters=[]; let cur=null;
+  for(const ev of evs){
+    if(cur && ev.s < cur.maxEnd){ cur.items.push(ev); cur.maxEnd=Math.max(cur.maxEnd,ev.e); }
+    else { cur={items:[ev],maxEnd:ev.e}; clusters.push(cur); }
+  }
+  for(const cl of clusters){
+    const colEnds=[];
+    for(const ev of cl.items){
+      let placed=false;
+      for(let c=0;c<colEnds.length;c++){ if(colEnds[c]<=ev.s){ ev.col=c; colEnds[c]=ev.e; placed=true; break; } }
+      if(!placed){ ev.col=colEnds.length; colEnds.push(ev.e); }
+    }
+    const n=colEnds.length; cl.items.forEach(ev=>ev.cols=n);
+  }
+  return evs;
 }
+const tierOf=h=> h>=42?"big": h>=28?"med": h>=20?"sm": h>=11?"xs":"bar";
+
+function hoursHtml(hourPx){let h="";for(let hr=8;hr<=21;hr++){const y=(hr*60-DAY_START)/60*hourPx;h+=`<div class="hour" style="top:${y}px"><span>${String(hr).padStart(2,"0")}:00</span></div>`;}return h;}
 
 function render(hourPx){
   const totalH=(DAY_END-DAY_START)/60*hourPx;
-  const hoursHtml=()=>{let h="";for(let hr=8;hr<=21;hr++){const y=(hr*60-DAY_START)/60*hourPx;h+=`<div class="hour" style="top:${y}px"><span>${String(hr).padStart(2,"0")}:00</span></div>`;}return h;};
+  const laid=layout(tasks);
 
-  // ── Сейчас (проблема): строго по времени, min-height, ничего не разводим
-  let cur=hoursHtml();
+  // ── Сейчас: floor 38, без колонок ──
+  let cur=hoursHtml(hourPx);
+  for(const t of tasks){
+    const top=(t.s-DAY_START)/60*hourPx, h=Math.max(38,t.d/60*hourPx);
+    cur+=`<div class="cur-ev" style="top:${top}px;height:${h}px;--c:${t.c}">
+      <div class="cur-pill"></div><div class="cur-body"><div class="cur-t">${t.ic} ${t.t}</div><div class="cur-m">${range(t)}</div></div></div>`;
+  }
+  const ce=document.getElementById("cur"); ce.innerHTML=cur; ce.style.height=totalH+"px";
+
+  // ── Apple-стиль блоки ──
+  let ab=hoursHtml(hourPx);
+  for(const ev of laid){
+    const top=(ev.s-DAY_START)/60*hourPx;
+    const h=Math.max(3,ev.d/60*hourPx);
+    const tier=tierOf(h);
+    const left=`calc(42px + (100% - 50px) * ${ev.col/ev.cols})`;
+    const width=`calc((100% - 50px) / ${ev.cols} - 3px)`;
+    ab+=`<div class="ab ${tier}" style="top:${top}px;height:${h}px;left:${left};width:${width};--c:${ev.c}">
+      <div class="ab-in"><div class="ab-t">${ev.ic} ${ev.t}</div><div class="ab-m">${range(ev)}</div></div></div>`;
+  }
+  const ae=document.getElementById("ab"); ae.innerHTML=ab; ae.style.height=totalH+"px";
+
+  // ── Текущий стиль капсула, но пропорционально (без колонок для простоты) ──
+  let cap=hoursHtml(hourPx);
   for(const t of tasks){
     const top=(t.s-DAY_START)/60*hourPx;
-    const h=Math.max(MINH,t.d/60*hourPx);
-    cur+=evHtml(t,`top:${top}px;height:${h}px;`);
+    const h=Math.max(8,t.d/60*hourPx);
+    const small=h<34?" sm":"";
+    cap+=`<div class="cap${small}" style="position:absolute;left:42px;right:8px;top:${top}px;height:${h}px;--c:${t.c}">
+      <div class="cap-pill"><div class="ic">${t.ic}</div></div>
+      <div class="cap-body"><div><div class="cap-t">${t.t}</div><div class="cap-m">${range(t)}</div></div></div></div>`;
   }
-  document.getElementById("cur").innerHTML=cur;
-  document.getElementById("cur").style.height=totalH+"px";
-
-  // ── Вариант 1: раздвижка (min-gap) + сжатие больших промежутков
-  let v1="", y=0, prevEnd=null;
-  for(const t of tasks){
-    const h=Math.max(MINH,t.d/60*hourPx);
-    if(prevEnd===null){ y=0; }
-    else{
-      const realGap=(t.s-prevEnd)/60*hourPx;
-      y=y+Math.max(GAP,Math.min(MAXGAP,realGap));
-      if(realGap>MAXGAP+2) v1+=`<div class="gap" style="top:${y-MAXGAP/2-6}px">· · · свободно ${Math.round((t.s-prevEnd)/60*10)/10} ч · · ·</div>`;
-    }
-    v1+=evHtml(t,`top:${y}px;height:${h}px;`);
-    y+=h; prevEnd=t.s+t.d;
-  }
-  const el1=document.getElementById("v1");
-  el1.innerHTML=v1; el1.style.height=Math.max(y+10,200)+"px";
-  el1.querySelectorAll(".hour").forEach(n=>n.remove());
-
-  // ── Вариант 2: крупно — сетка, мелко — список
-  const v2=document.getElementById("v2");
-  if(hourPx>=64){
-    let g=hoursHtml();
-    for(const t of tasks){
-      const top=(t.s-DAY_START)/60*hourPx;
-      const h=Math.max(MINH,t.d/60*hourPx);
-      g+=evHtml(t,`top:${top}px;height:${h}px;`);
-    }
-    v2.innerHTML=`<div class="mode">режим: сетка</div><div class="tl" style="height:${totalH}px">${g}</div>`;
-  }else{
-    let rows=`<div class="mode">режим: список</div><div class="agenda"><div class="ah">Сегодня · 23 мая</div>`;
-    for(const t of tasks){
-      rows+=`<div class="row" style="--c:${t.c}"><div class="ic">${t.ic}</div><div class="ttl">${t.t}</div><div class="time">${range(t)}</div></div>`;
-    }
-    v2.innerHTML=rows+"</div>";
-  }
-
-  // ── Вариант 3: строго по времени, тесные → иконка-точка
-  let v3=hoursHtml();
-  for(let i=0;i<tasks.length;i++){
-    const t=tasks[i];
-    const top=(t.s-DAY_START)/60*hourPx;
-    const slot=t.d/60*hourPx;
-    if(slot<THRESHOLD){
-      v3+=`<div class="dot" style="top:${top}px;--c:${t.c}" onclick="this.classList.toggle('open')">${t.ic}<span class="lbl">${t.t} · ${range(t)}</span></div>`;
-    }else{
-      v3+=evHtml(t,`top:${top}px;height:${slot}px;`);
-    }
-  }
-  document.getElementById("v3").innerHTML=v3;
-  document.getElementById("v3").style.height=totalH+"px";
+  const cpe=document.getElementById("cap"); cpe.innerHTML=cap; cpe.style.height=totalH+"px";
 }
 
-const zoom=document.getElementById("zoom");
-const pxval=document.getElementById("pxval");
-function upd(){const v=+zoom.value;pxval.textContent=v+" px/час"+(v<36?" (за пределом текущего min)":"");render(v);}
-zoom.addEventListener("input",upd);
-upd();
+const zoom=document.getElementById("zoom"), pxval=document.getElementById("pxval");
+function upd(){const v=+zoom.value;pxval.textContent=v+" px/час";render(v);}
+zoom.addEventListener("input",upd); upd();
 </script>
 </body>
 </html>
