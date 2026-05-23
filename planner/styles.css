@@ -155,8 +155,8 @@ textarea.input { resize: vertical; }
 .planner { display: flex; gap: 0; flex: 1; min-height: 0; padding: 0; }
 .planner-aside { width: 400px; flex: none; display: flex; flex-direction: column;
   padding: 16px 16px 16px 18px; }
-/* Ручки выдвижной панели — только на мобильном (включаются в @media ниже) */
-.aside-edge, .aside-grab { display: none; }
+/* Нижняя панель навигации — только на мобильном (включается в @media ниже) */
+.mobile-bar { display: none; }
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
 .proj-current { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
@@ -493,27 +493,18 @@ textarea.input { resize: vertical; }
 .month-more { font-size: 10px; color: var(--text-mute); padding: 0 5px; }
 
 @media (max-width: 860px) {
-  .planner { flex-direction: column; padding: 10px 10px 0; gap: 10px; position: relative; overflow: hidden; }
-  /* Панель проектов скрыта за левым краем, выезжает на половину экрана. */
-  .planner-aside { position: absolute; top: 0; bottom: 0; left: 0; z-index: 30;
-    width: 50%; flex: none; padding: 10px 8px;
-    background: var(--bg); box-shadow: 6px 0 24px rgba(15, 23, 42, 0.18);
-    transform: translateX(-100%); transition: transform .26s cubic-bezier(.2,.7,.3,1); }
+  .planner { flex-direction: column; padding: 10px 10px 0; gap: 10px; }
+  /* Панель проектов: полноэкранная шторка, выезжает снизу по кнопке «Проекты». */
+  .planner-aside { position: fixed; inset: 0; z-index: 40; width: 100%;
+    flex: none; padding: 14px 12px calc(94px + env(safe-area-inset-bottom)); margin: 0;
+    background: var(--bg); overflow-y: auto;
+    transform: translateY(100%); transition: transform .28s cubic-bezier(.2,.7,.3,1); }
   .planner.aside-open .planner-aside { transform: none; }
-  .planner-content { transition: margin-left .26s cubic-bezier(.2,.7,.3,1); }
-  .planner.aside-open .planner-content { margin-left: 50%; }
   .proj-tasks { max-height: none; }
-  .planner-grid-scroll { border: none; border-radius: 18px 18px 0 0; margin-right: 0; box-shadow: none; }
+  .planner-grid-scroll { border: none; border-radius: 18px 18px 0 0; margin-right: 0; box-shadow: none;
+    padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
   .tl { left: 0; }
-  /* Подсказки-ручки: только визуальные, свайп ловится по всему экрану. */
-  .aside-edge { display: flex; position: fixed; left: 0; top: 50%; transform: translateY(-50%);
-    width: 8px; height: 92px; z-index: 25; align-items: center; pointer-events: none; }
-  .aside-edge::before { content: ""; width: 4px; height: 72px; border-radius: 0 4px 4px 0;
-    background: color-mix(in srgb, var(--text-mute) 50%, transparent); }
-  .aside-grab { display: flex; position: absolute; right: 0; top: 50%; transform: translateY(-50%);
-    width: 10px; height: 92px; z-index: 31; align-items: center; justify-content: flex-end; pointer-events: none; }
-  .aside-grab::before { content: ""; width: 4px; height: 72px; margin-right: 2px; border-radius: 4px;
-    background: color-mix(in srgb, var(--text-mute) 45%, transparent); }
+  .head-add { display: none; }
   .planner-head { gap: 8px; padding: 0 4px; }
   .planner-week { padding: 0 4px; }
   .seg { order: 3; width: 100%; }
@@ -522,6 +513,32 @@ textarea.input { resize: vertical; }
   .month-cell { padding: 2px; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
   .month-chip-title { font-size: 10px; }
+
+  /* Нижняя навигация: «жидкое стекло»-пилюля слева + круглая «+» справа. */
+  .mobile-bar { display: flex; position: fixed; left: 0; right: 0; z-index: 45;
+    bottom: calc(10px + env(safe-area-inset-bottom)); padding: 0 14px;
+    align-items: center; gap: 12px; pointer-events: none; }
+  .mobile-pill, .mobile-fab { pointer-events: auto; }
+  .mobile-pill { display: flex; gap: 2px; padding: 5px;
+    background: color-mix(in srgb, var(--surface) 55%, transparent);
+    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
+    border-radius: 999px; box-shadow: 0 10px 34px rgba(15, 23, 42, 0.20); }
+  .mb-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 60px;
+    border: 0; background: transparent; color: var(--text-soft); font-family: inherit;
+    font-size: 11px; font-weight: 600; padding: 7px 12px; border-radius: 999px; cursor: pointer;
+    transition: color .15s, background .15s; }
+  .mb-btn .ico { width: 21px; height: 21px; }
+  .mb-btn.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .mobile-fab { margin-left: auto; flex: none; width: 58px; height: 58px; border-radius: 50%;
+    border: 0; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; animation: fabPulse 2.6s ease-in-out infinite; }
+  .mobile-fab .ico { width: 27px; height: 27px; }
+  @keyframes fabPulse {
+    0%   { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent); }
+    70%  { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent); }
+    100% { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+  }
 }
 
 /* Настройки */
