@@ -778,8 +778,8 @@ function Planner() {
                       <div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
                       <span class="tl-pill-icon">${icon || ""}</span>
                       <div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
-                      ${sel ? html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
-                        <div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>` : ""}
+                      ${sel && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
+                      ${sel && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>
                     <div class="tl-body" onPointerDown=${e => onBlockPointerDown(e, i)}>
                       <div class="tl-text">
