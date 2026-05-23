@@ -264,23 +264,35 @@ function Planner() {
     if (e.button !== 0 && e.pointerType !== "touch") return;
     if (e.shiftKey) { startRangeSelect(e); return; }
     const touch = e.pointerType === "touch";
+    const el = e.currentTarget, pid = e.pointerId;
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
-    let cur = anchor, active = false, hold = null;
-    const begin = () => {
+    let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - 60);
+    const beginTouch = () => {
+      active = true;
+      setSelected(new Set());
+      try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
+      setDrag({ type: "create", start: start0, dur: 60 });
+      if (navigator.vibrate) navigator.vibrate(12);
+    };
+    const beginMouse = () => {
       active = true;
       setSelected(new Set());
       setDrag({ type: "create", start: anchor, dur: 0 });
-      if (touch && navigator.vibrate) navigator.vibrate(10);
     };
     const move = ev => {
       if (!active) {
-        const far = Math.abs(ev.clientY - e.clientY) > 6 || Math.abs(ev.clientX - e.clientX) > 6;
-        if (touch) { if (far) finish(false); return; }
-        if (far) begin(); else return;
+        const far = Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY);
+        if (touch) { if (far > 14) finish(false); return; } // движение до долгого нажатия = прокрутка
+        if (far > 6) beginMouse(); else return;
       }
       ev.preventDefault();
-      cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
-      setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
+      if (touch) {
+        start0 = clamp(snap(yToMin(ev.clientY)), 0, 1440 - 60);
+        setDrag({ type: "create", start: start0, dur: 60 });
+      } else {
+        cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
+        setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
+      }
     };
     const finish = (commit) => {
       clearTimeout(hold);
@@ -290,8 +302,9 @@ function Planner() {
       setDrag(null);
       if (!active) { if (commit) setSelected(new Set()); return; }
       if (!commit) return;
-      const start = Math.min(anchor, cur); let dur = Math.abs(cur - anchor);
-      if (dur < MIN_DUR) dur = 60;
+      let start, dur;
+      if (touch) { start = start0; dur = 60; }
+      else { start = Math.min(anchor, cur); dur = Math.abs(cur - anchor); if (dur < MIN_DUR) dur = 60; }
       store.actions.tasks.create({ title: "", date, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
         list_id: filter !== "all" && filter !== "inbox" ? filter : null })
         .then(row => { if (row) openPreview(rowToItem(row)); }).catch(showErr);
@@ -301,7 +314,7 @@ function Planner() {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", cancel);
-    if (touch) hold = setTimeout(begin, HOLD_MS);
+    if (touch) hold = setTimeout(beginTouch, HOLD_MS);
   }
 
   // В какой зоне находится точка: над сеткой дня или над боковой панелью.
@@ -679,7 +692,7 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef}>
-              <div class="tl" ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
+              <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
                 <div class="tl-spine"></div>
@@ -713,6 +726,8 @@ function Planner() {
                       <div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
                       <span class="tl-pill-icon">${icon || ""}</span>
                       <div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
+                      ${sel ? html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
+                        <div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>` : ""}
                     </div>
                     <div class="tl-body" onPointerDown=${e => onBlockPointerDown(e, i)}>
                       <div class="tl-text">

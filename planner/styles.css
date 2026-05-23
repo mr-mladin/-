@@ -304,8 +304,15 @@ textarea.input { resize: vertical; }
 .tl-handle { position: absolute; left: 0; right: 0; height: 11px; cursor: ns-resize; touch-action: none; z-index: 2; }
 .tl-handle.top { top: 0; }
 .tl-handle.bottom { bottom: 0; }
+/* Точки-ручки на выделенной пилюле (как у события в Apple Календаре) */
+.tl-dot { position: absolute; left: 50%; transform: translateX(-50%); width: 14px; height: 14px; border-radius: 50%;
+  background: var(--surface); border: 2.5px solid var(--c); cursor: ns-resize; touch-action: none; z-index: 4;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25); }
+.tl-dot.top { top: -8px; }
+.tl-dot.bottom { bottom: -8px; }
+.tl.busy { touch-action: none; }
 .tl-body { position: absolute; left: 108px; right: 16px; top: 0; bottom: 0; display: flex; align-items: center;
-  cursor: default; }
+  cursor: default; touch-action: none; }
 .tl-text { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .tl-titlerow { display: flex; align-items: center; gap: 20px; min-width: 0; }
 .tl-body .task-check { flex: none; cursor: default; border-color: var(--c); }
@@ -323,7 +330,8 @@ textarea.input { resize: vertical; }
 .tl-ghost { position: absolute; left: 0; right: 0; pointer-events: none; z-index: 5; --c: var(--accent); }
 .tl-ghost-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   box-sizing: border-box; background: color-mix(in srgb, var(--c) 22%, var(--surface));
-  border: 1px dashed var(--c); }
+  border: 1px dashed var(--c); animation: ghostPop .18s cubic-bezier(.2,.8,.3,1.2); }
+@keyframes ghostPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .tl-ghost-label { position: absolute; left: 108px; top: 2px; font-size: 12px; color: var(--text-mute);
   font-variant-numeric: tabular-nums; }
 
