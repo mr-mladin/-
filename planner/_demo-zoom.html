@@ -2,90 +2,77 @@
 <html lang="ru" data-theme="light">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Демо: пропорциональное сжатие пилюль (стиль Apple Calendar)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Демо: сжатие задач (для телефона)</title>
 <style>
   :root{
-    --radius-sm:8px;--radius:12px;--radius-lg:18px;
-    --bg:#f6f7f9;--surface:#ffffff;--bg-soft:#f1f3f7;
+    --radius:12px;--radius-lg:18px;
+    --bg:#f6f7f9;--surface:#ffffff;
     --text:#0b1220;--text-soft:#475569;--text-mute:#9aa3b2;
-    --border:rgba(15,23,42,.07);--border-strong:rgba(15,23,42,.14);
+    --border:rgba(15,23,42,.08);--border-strong:rgba(15,23,42,.14);
     --accent:#0ea5e9;--danger:#ef4444;
     --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
   }
-  *{box-sizing:border-box}
-  body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
-  header{padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border-strong);position:sticky;top:0;z-index:10}
-  h1{font-size:17px;margin:0 0 4px}
-  .sub{font-size:13px;color:var(--text-soft);margin:0;max-width:900px}
-  .controls{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
-  .controls label{font-size:13px;color:var(--text-soft)}
-  input[type=range]{width:300px}
-  .pxval{font-size:13px;color:var(--text-mute);font-variant-numeric:tabular-nums;min-width:90px}
-  .hint{font-size:12px;color:var(--text-mute)}
-  .cols{display:flex;gap:14px;padding:18px;align-items:flex-start;overflow-x:auto}
-  .col{flex:0 0 280px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);overflow:hidden}
-  .col-head{padding:10px 12px;border-bottom:1px solid var(--border)}
-  .col-head .t{font-size:14px;font-weight:600}
-  .col-head .d{font-size:11px;color:var(--text-mute);margin-top:2px;line-height:1.35}
-  .col.bad .t{color:var(--danger)}
-  .col.best{outline:2px solid var(--accent);outline-offset:-2px}
-  .scroll{height:600px;overflow-y:auto;position:relative}
-  .tl{position:relative;margin:10px 0}
-  .hour{position:absolute;left:42px;right:8px;height:0;border-top:1px solid color-mix(in srgb,var(--border) 60%,transparent)}
-  .hour span{position:absolute;right:calc(100% + 6px);top:-6px;font-size:10px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased;display:flex;flex-direction:column;height:100dvh}
+  header{padding:12px 14px;background:var(--surface);border-bottom:1px solid var(--border-strong);flex:none}
+  h1{font-size:15px;margin:0 0 8px}
+  .seg{display:flex;gap:6px;background:var(--bg);border-radius:12px;padding:4px}
+  .seg button{flex:1;border:0;background:transparent;color:var(--text-soft);font-size:12px;font-weight:600;padding:8px 4px;border-radius:9px;font-family:inherit}
+  .seg button.on{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.12)}
+  .seg button.on.best{color:var(--accent)}
+  .zoomrow{display:flex;align-items:center;gap:10px;margin-top:10px}
+  .zoomrow label{font-size:12px;color:var(--text-soft);flex:none}
+  input[type=range]{flex:1;height:28px}
+  .pxval{font-size:12px;color:var(--text-mute);font-variant-numeric:tabular-nums;flex:none;width:56px;text-align:right}
+  .desc{font-size:12px;color:var(--text-mute);margin-top:8px;line-height:1.4;min-height:32px}
+  .desc.bad{color:var(--danger)}
+  .scroll{flex:1;overflow-y:auto;position:relative;background:var(--surface)}
+  .tl{position:relative;margin:12px 0}
+  .hour{position:absolute;left:46px;right:12px;height:0;border-top:1px solid color-mix(in srgb,var(--border) 65%,transparent)}
+  .hour span{position:absolute;right:calc(100% + 7px);top:-6px;font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
 
-  /* ── Apple-стиль: блоки, заливка-тинт, цветная полоса слева ── */
-  .ab{position:absolute;border-radius:7px;overflow:hidden;
-      background:color-mix(in srgb,var(--c) 16%,var(--surface));
-      box-shadow:inset 3.5px 0 0 var(--c);
-      transition:top .16s ease,height .16s ease,left .16s ease,width .16s ease;cursor:default}
-  .ab:hover{filter:brightness(.98);z-index:5}
-  .ab-in{height:100%;display:flex;flex-direction:column;gap:1px;padding:4px 8px 4px 11px;overflow:hidden}
-  .ab-t{font-size:13px;font-weight:600;line-height:1.15;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .ab-m{font-size:11px;color:var(--text-soft);font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden}
-  .ab.med .ab-in{padding:2px 8px 2px 11px}.ab.med .ab-t{font-size:12px}.ab.med .ab-m{display:none}
-  .ab.sm .ab-in{padding:1px 7px 1px 10px;justify-content:center}.ab.sm .ab-t{font-size:11px}.ab.sm .ab-m{display:none}
-  .ab.xs .ab-in{padding:0 7px 0 10px;justify-content:center}.ab.xs .ab-t{font-size:10px;opacity:.9}.ab.xs .ab-m{display:none}
-  .ab.bar{background:color-mix(in srgb,var(--c) 55%,var(--surface));box-shadow:none}
-  .ab.bar .ab-t,.ab.bar .ab-m{display:none}
+  .ab{position:absolute;border-radius:8px;overflow:hidden;background:color-mix(in srgb,var(--c) 16%,var(--surface));box-shadow:inset 4px 0 0 var(--c);transition:top .16s ease,height .16s ease,left .16s ease,width .16s ease}
+  .ab-in{height:100%;display:flex;flex-direction:column;gap:1px;padding:5px 9px 5px 13px;overflow:hidden}
+  .ab-t{font-size:14px;font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ab-m{font-size:12px;color:var(--text-soft);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .ab.med .ab-in{padding:3px 9px 3px 13px}.ab.med .ab-t{font-size:13px}.ab.med .ab-m{display:none}
+  .ab.sm .ab-in{padding:1px 8px 1px 12px;justify-content:center}.ab.sm .ab-t{font-size:12px}.ab.sm .ab-m{display:none}
+  .ab.xs .ab-in{padding:0 8px 0 12px;justify-content:center}.ab.xs .ab-t{font-size:11px;opacity:.9}.ab.xs .ab-m{display:none}
+  .ab.bar{background:color-mix(in srgb,var(--c) 55%,var(--surface));box-shadow:none}.ab.bar .ab-t,.ab.bar .ab-m{display:none}
 
-  /* ── Текущий стиль (капсула + текст сбоку), но пропорциональный ── */
-  .cap{position:absolute;transition:top .16s ease,height .16s ease}
-  .cap-pill{position:absolute;left:0;width:26px;top:0;bottom:0;border-radius:999px;background:var(--c);display:flex;justify-content:center}
-  .cap-pill .ic{width:20px;height:20px;margin-top:3px;border-radius:50%;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:12px;flex:none}
-  .cap-body{position:absolute;left:34px;right:6px;top:0;bottom:0;display:flex;align-items:center;overflow:hidden}
-  .cap-t{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .cap-m{font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
-  .cap.sm .cap-pill .ic{opacity:0}.cap.sm .cap-m{display:none}.cap.sm .cap-t{font-size:11px}
+  .cap{position:absolute;left:46px;right:12px;transition:top .16s ease,height .16s ease}
+  .cap-pill{position:absolute;left:0;width:30px;top:0;bottom:0;border-radius:999px;background:var(--c);display:flex;justify-content:center}
+  .cap-pill .ic{width:22px;height:22px;margin-top:4px;border-radius:50%;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:13px}
+  .cap-body{position:absolute;left:40px;right:6px;top:0;bottom:0;display:flex;align-items:center;overflow:hidden}
+  .cap-t{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .cap-m{font-size:12px;color:var(--text-mute)}
+  .cap.sm .cap-pill .ic{opacity:0}.cap.sm .cap-m{display:none}.cap.sm .cap-t{font-size:12px}
 
-  /* ── «Сейчас»: капсула с min-height 38, наезжает ── */
-  .cur-ev{position:absolute;left:42px;right:8px}
+  .cur{position:absolute;left:46px;right:12px}
   .cur-pill{position:absolute;left:0;width:30px;top:0;bottom:0;border-radius:999px;background:var(--c)}
   .cur-body{position:absolute;left:38px;right:0;top:2px}
-  .cur-t{font-size:13px;font-weight:600;white-space:nowrap}
-  .cur-m{font-size:11px;color:var(--text-mute)}
+  .cur-t{font-size:14px;font-weight:600;white-space:nowrap}
+  .cur-m{font-size:12px;color:var(--text-mute)}
 </style>
 </head>
 <body>
 <header>
-  <h1>Демо: пропорциональное сжатие задач в стиле Apple Calendar (одноразовый макет)</h1>
-  <p class="sub">Высота задачи = её длительность, без искусственного минимума. Двигайте ползунок влево — день «сжимается», короткие задачи честно уменьшаются, но остаются точно на своём времени. Пересечения по времени раскладываются в колонки рядом. Слева — как сейчас (наезжает из-за минимума 38px).</p>
-  <div class="controls">
-    <label>Масштаб (px на час):</label>
+  <h1>Демо сжатия задач · подвигайте ползунок</h1>
+  <div class="seg" id="seg">
+    <button data-v="cur" class="bad">Сейчас</button>
+    <button data-v="ab" class="on best">Apple-блоки</button>
+    <button data-v="cap">Капсулы</button>
+  </div>
+  <div class="zoomrow">
+    <label>Масштаб</label>
     <input id="zoom" type="range" min="14" max="130" value="40">
     <span class="pxval" id="pxval"></span>
-    <span class="hint">наведите/нажмите на блок — подсветка</span>
   </div>
+  <div class="desc" id="desc"></div>
 </header>
-
-<div class="cols">
-  <div class="col bad"><div class="col-head"><div class="t">Сейчас</div><div class="d">Мин. высота 38px. При сжатии короткие задачи перестают помещаться в свой интервал и наезжают на соседние.</div></div><div class="scroll"><div class="tl" id="cur"></div></div></div>
-
-  <div class="col best"><div class="col-head"><div class="t">Apple-стиль · блоки</div><div class="d">Заливка-тинт цвета задачи, цветная полоса слева. Высота строго по длительности, плавно сжимается; текст аккуратно убавляется по ступеням, потом остаётся тонкая цветная полоска. Пересечения — колонками.</div></div><div class="scroll"><div class="tl" id="ab"></div></div></div>
-
-  <div class="col"><div class="col-head"><div class="t">Текущий стиль · но сжимается</div><div class="d">Сохраняем нынешние капсулы с текстом сбоку, но убираем минимум высоты — капсула честно уменьшается. Тот же принцип, привычный вид.</div></div><div class="scroll"><div class="tl" id="cap"></div></div></div>
-</div>
+<div class="scroll"><div class="tl" id="tl"></div></div>
 
 <script>
 const DAY_START=8*60, DAY_END=21*60;
@@ -93,79 +80,53 @@ const tasks=[
   {s:9*60,    d:30, t:"Вайбкодинг",  ic:"⌨️", c:"#0ea5e9"},
   {s:9*60+30, d:25, t:"Семья",       ic:"❤️", c:"#ec4899"},
   {s:11*60,   d:20, t:"Созвон",      ic:"📞", c:"#8b5cf6"},
-  {s:11*60+10,d:25, t:"Звонок маме", ic:"📱", c:"#f43f5e"}, // намеренно пересекается с Созвоном
+  {s:11*60+10,d:25, t:"Звонок маме", ic:"📱", c:"#f43f5e"},
   {s:13*60,   d:60, t:"Обед",        ic:"🍽", c:"#22c55e"},
   {s:15*60+25,d:50, t:"Отчёт",       ic:"📝", c:"#f59e0b"},
   {s:19*60,   d:60, t:"Зал",         ic:"🏋", c:"#14b8a6"},
 ];
+const DESC={
+  cur:["Как сейчас: минимальная высота 38px. На мелком масштабе задачи перестают помещаться в свой интервал и наезжают.",true],
+  ab:["Apple-стиль: высота строго по длительности, текст убавляется ступенями, потом — тонкая цветная полоска. Пересечения встают колонками.",false],
+  cap:["Текущий вид (капсула + текст), но без минимума высоты — капсула честно сжимается.",false],
+};
 const hhmm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 const range=t=>hhmm(t.s)+"–"+hhmm(t.s+t.d);
-
-// Раскладка пересекающихся задач по колонкам (как в Apple)
 function layout(items){
-  const evs=items.map((t,i)=>({...t,e:t.s+t.d})).sort((a,b)=>a.s-b.s||a.e-b.e);
-  const clusters=[]; let cur=null;
-  for(const ev of evs){
-    if(cur && ev.s < cur.maxEnd){ cur.items.push(ev); cur.maxEnd=Math.max(cur.maxEnd,ev.e); }
-    else { cur={items:[ev],maxEnd:ev.e}; clusters.push(cur); }
-  }
-  for(const cl of clusters){
-    const colEnds=[];
-    for(const ev of cl.items){
-      let placed=false;
-      for(let c=0;c<colEnds.length;c++){ if(colEnds[c]<=ev.s){ ev.col=c; colEnds[c]=ev.e; placed=true; break; } }
-      if(!placed){ ev.col=colEnds.length; colEnds.push(ev.e); }
-    }
-    const n=colEnds.length; cl.items.forEach(ev=>ev.cols=n);
-  }
+  const evs=items.map(t=>({...t,e:t.s+t.d})).sort((a,b)=>a.s-b.s||a.e-b.e);
+  const cl=[];let cur=null;
+  for(const ev of evs){if(cur&&ev.s<cur.maxEnd){cur.items.push(ev);cur.maxEnd=Math.max(cur.maxEnd,ev.e);}else{cur={items:[ev],maxEnd:ev.e};cl.push(cur);}}
+  for(const c of cl){const ends=[];for(const ev of c.items){let p=false;for(let i=0;i<ends.length;i++){if(ends[i]<=ev.s){ev.col=i;ends[i]=ev.e;p=true;break;}}if(!p){ev.col=ends.length;ends.push(ev.e);}}c.items.forEach(ev=>ev.cols=ends.length);}
   return evs;
 }
-const tierOf=h=> h>=42?"big": h>=28?"med": h>=20?"sm": h>=11?"xs":"bar";
+const tierOf=h=>h>=42?"big":h>=28?"med":h>=20?"sm":h>=11?"xs":"bar";
+function hours(hp){let h="";for(let hr=8;hr<=21;hr++){h+=`<div class="hour" style="top:${(hr*60-DAY_START)/60*hp}px"><span>${String(hr).padStart(2,"0")}:00</span></div>`;}return h;}
 
-function hoursHtml(hourPx){let h="";for(let hr=8;hr<=21;hr++){const y=(hr*60-DAY_START)/60*hourPx;h+=`<div class="hour" style="top:${y}px"><span>${String(hr).padStart(2,"0")}:00</span></div>`;}return h;}
-
-function render(hourPx){
-  const totalH=(DAY_END-DAY_START)/60*hourPx;
-  const laid=layout(tasks);
-
-  // ── Сейчас: floor 38, без колонок ──
-  let cur=hoursHtml(hourPx);
-  for(const t of tasks){
-    const top=(t.s-DAY_START)/60*hourPx, h=Math.max(38,t.d/60*hourPx);
-    cur+=`<div class="cur-ev" style="top:${top}px;height:${h}px;--c:${t.c}">
-      <div class="cur-pill"></div><div class="cur-body"><div class="cur-t">${t.ic} ${t.t}</div><div class="cur-m">${range(t)}</div></div></div>`;
+let view="ab";
+function render(){
+  const hp=+zoom.value, totalH=(DAY_END-DAY_START)/60*hp;
+  let html=hours(hp);
+  if(view==="cur"){
+    for(const t of tasks){const top=(t.s-DAY_START)/60*hp,h=Math.max(38,t.d/60*hp);
+      html+=`<div class="cur" style="top:${top}px;height:${h}px;--c:${t.c}"><div class="cur-pill"></div><div class="cur-body"><div class="cur-t">${t.ic} ${t.t}</div><div class="cur-m">${range(t)}</div></div></div>`;}
+  } else if(view==="ab"){
+    for(const ev of layout(tasks)){const top=(ev.s-DAY_START)/60*hp,h=Math.max(3,ev.d/60*hp);
+      const left=`calc(46px + (100% - 58px) * ${ev.col/ev.cols})`,width=`calc((100% - 58px) / ${ev.cols} - 4px)`;
+      html+=`<div class="ab ${tierOf(h)}" style="top:${top}px;height:${h}px;left:${left};width:${width};--c:${ev.c}"><div class="ab-in"><div class="ab-t">${ev.ic} ${ev.t}</div><div class="ab-m">${range(ev)}</div></div></div>`;}
+  } else {
+    for(const t of tasks){const top=(t.s-DAY_START)/60*hp,h=Math.max(8,t.d/60*hp),sm=h<34?" sm":"";
+      html+=`<div class="cap${sm}" style="top:${top}px;height:${h}px;--c:${t.c}"><div class="cap-pill"><div class="ic">${t.ic}</div></div><div class="cap-body"><div><div class="cap-t">${t.t}</div><div class="cap-m">${range(t)}</div></div></div></div>`;}
   }
-  const ce=document.getElementById("cur"); ce.innerHTML=cur; ce.style.height=totalH+"px";
-
-  // ── Apple-стиль блоки ──
-  let ab=hoursHtml(hourPx);
-  for(const ev of laid){
-    const top=(ev.s-DAY_START)/60*hourPx;
-    const h=Math.max(3,ev.d/60*hourPx);
-    const tier=tierOf(h);
-    const left=`calc(42px + (100% - 50px) * ${ev.col/ev.cols})`;
-    const width=`calc((100% - 50px) / ${ev.cols} - 3px)`;
-    ab+=`<div class="ab ${tier}" style="top:${top}px;height:${h}px;left:${left};width:${width};--c:${ev.c}">
-      <div class="ab-in"><div class="ab-t">${ev.ic} ${ev.t}</div><div class="ab-m">${range(ev)}</div></div></div>`;
-  }
-  const ae=document.getElementById("ab"); ae.innerHTML=ab; ae.style.height=totalH+"px";
-
-  // ── Текущий стиль капсула, но пропорционально (без колонок для простоты) ──
-  let cap=hoursHtml(hourPx);
-  for(const t of tasks){
-    const top=(t.s-DAY_START)/60*hourPx;
-    const h=Math.max(8,t.d/60*hourPx);
-    const small=h<34?" sm":"";
-    cap+=`<div class="cap${small}" style="position:absolute;left:42px;right:8px;top:${top}px;height:${h}px;--c:${t.c}">
-      <div class="cap-pill"><div class="ic">${t.ic}</div></div>
-      <div class="cap-body"><div><div class="cap-t">${t.t}</div><div class="cap-m">${range(t)}</div></div></div></div>`;
-  }
-  const cpe=document.getElementById("cap"); cpe.innerHTML=cap; cpe.style.height=totalH+"px";
+  const tl=document.getElementById("tl");tl.innerHTML=html;tl.style.height=totalH+"px";
+  pxval.textContent=hp+" px/ч";
+  const d=DESC[view];const de=document.getElementById("desc");de.textContent=d[0];de.classList.toggle("bad",d[1]);
 }
-
-const zoom=document.getElementById("zoom"), pxval=document.getElementById("pxval");
-function upd(){const v=+zoom.value;pxval.textContent=v+" px/час";render(v);}
-zoom.addEventListener("input",upd); upd();
+const zoom=document.getElementById("zoom"),pxval=document.getElementById("pxval");
+zoom.addEventListener("input",render);
+document.getElementById("seg").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;
+  view=b.dataset.v;[...e.currentTarget.children].forEach(x=>x.classList.toggle("on",x===b));
+  e.currentTarget.querySelector(".best").classList.toggle("best",true);render();});
+render();
 </script>
 </body>
 </html>
