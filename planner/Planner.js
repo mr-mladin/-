@@ -153,7 +153,10 @@ function Planner() {
     const onGChange = (e) => {
       e.preventDefault();
       markZooming();
-      zoomAnchorAt(e.clientY);
+      // На тач координаты жеста ненадёжны — масштабируем относительно центра
+      // видимой области, чтобы сетка росла симметрично, без сдвига.
+      const r = el.getBoundingClientRect();
+      zoomAnchorAt(r.top + el.clientHeight / 2);
       setHourPx(clamp(Math.round(base * e.scale), HOUR_MIN, HOUR_MAX));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
@@ -366,9 +369,53 @@ function Planner() {
       list_id: it.list_id || null, date, start_min: startMin, duration_min: it.duration_min || 60 };
   }
 
+  // Мобильное перемещение пилюли: только после долгого нажатия (режим
+  // перемещения с пульсацией). До этого касание по пилюле = обычный скролл/тап.
+  function onBlockTouch(e, item) {
+    const sx = e.clientX, sy = e.clientY;
+    const grab = yToMin(e.clientY) - item.start_min;
+    const dur = item.duration_min || 0;
+    let armed = false, moved = false, hold = null, newStart = item.start_min;
+    const onTouchMove = ev => { if (armed) ev.preventDefault(); };
+    const arm = () => {
+      armed = true;
+      setSelected(new Set([item.key]));
+      setDrag({ type: "move", key: item.key, start: item.start_min, dur, armed: true });
+      if (navigator.vibrate) navigator.vibrate(14);
+    };
+    const move = ev => {
+      const far = Math.hypot(ev.clientX - sx, ev.clientY - sy);
+      if (!armed) { if (far > 12) cleanup(); return; } // двинул до активации — это скролл
+      if (far > 3) moved = true;
+      ev.preventDefault();
+      newStart = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
+      setDrag({ type: "move", key: item.key, start: newStart, dur, armed: true });
+    };
+    const up = () => {
+      const wasArmed = armed;
+      cleanup();
+      setDrag(null);
+      if (!wasArmed) { handleTap(item, false); return; }
+      if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
+    };
+    const cleanup = () => {
+      clearTimeout(hold);
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", up);
+      document.removeEventListener("touchmove", onTouchMove, { passive: false });
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    hold = setTimeout(arm, 280);
+  }
+
   function onBlockPointerDown(e, item) {
     e.stopPropagation();
     if (e.button === 2) return; // правый клик — контекстное меню (карточка)
+    if (e.pointerType === "touch") { onBlockTouch(e, item); return; }
     if (e.button !== 0) return;
     e.preventDefault();
     const startClientY = e.clientY, startClientX = e.clientX;
@@ -724,7 +771,7 @@ function Planner() {
                   const { emoji, text } = splitEmoji(i.title);
                   const icon = i.icon || emoji;
                   const ttl = i.icon ? i.title : (text || i.title);
-                  return html`<div class=${"tl-event" + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "")} key=${i.key}
+                  return html`<div class=${"tl-event" + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${e => onBlockPointerDown(e, i)}>
