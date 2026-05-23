@@ -634,10 +634,10 @@ function Planner() {
   }
 
   const d = fromISO(date);
-  const rel = relLabel(date);
-  const dayLabel = (rel ? rel + " · " : "") + `${d.getDate()} ${monthGen(d)}`;
   const monthLabel = `${monthNom(d)[0].toUpperCase()}${monthNom(d).slice(1)} ${d.getFullYear()}`;
-  const headLabel = view === "month" ? monthLabel : view === "week" ? weekRangeLabel(date) : dayLabel;
+  // Подпись в шапке нужна только для недели/месяца — в режиме «День» дату
+  // показывает полоса недели снизу, поэтому текст там не выводим.
+  const headLabel = view === "week" ? weekRangeLabel(date) : monthLabel;
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
   const dayTl = useMemo(() => [...timed].sort((a, b) => (a.start_min - b.start_min) || ((a.duration_min || 0) - (b.duration_min || 0))), [timed]);
@@ -716,12 +716,14 @@ function Planner() {
         <div class="planner-content">
           <div class="planner-head">
             <div class="planner-nav">
-              <button class="btn-mini" onClick=${() => shift(-1)} title="Назад">${Icon.left()}</button>
-              <button class="planner-date" onClick=${() => { const el = dateInputRef.current; el?.showPicker ? el.showPicker() : el?.focus(); }}>
-                <span class="planner-date-main">${headLabel}</span>
+              <button class="icon-btn cal-btn" title="Выбрать дату"
+                onClick=${() => { const el = dateInputRef.current; el?.showPicker ? el.showPicker() : el?.focus(); }}>
+                ${Icon.calendar()}
                 <input class="planner-date-input" type="date" ref=${dateInputRef} value=${date}
                   onInput=${e => e.target.value && setDate(e.target.value)} />
               </button>
+              <button class="btn-mini" onClick=${() => shift(-1)} title="Назад">${Icon.left()}</button>
+              ${view !== "day" ? html`<span class="planner-date-main">${headLabel}</span>` : ""}
               <button class="btn-mini" onClick=${() => shift(1)} title="Вперёд">${Icon.right()}</button>
             </div>
             <div class="seg">
@@ -729,7 +731,7 @@ function Planner() {
                 class=${"seg-btn" + (view === v ? " on" : "")} onClick=${() => setView(v)}>${label}</button>`)}
             </div>
             <div class="planner-head-actions">
-              <button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>
+              ${!isToday ? html`<button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>` : ""}
               <button class="btn primary sm head-add" onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
                 ${Icon.plus()} Задача</button>
               <button class="icon-btn" title="Поиск" onClick=${() => setSearchOpen(true)}>${Icon.search()}</button>
