@@ -247,23 +247,31 @@ export function StoreProvider({ children }) {
   // Создаём «исключение» повторяющейся задачи. Оптимистично: сразу кладём
   // временную строку в state (UI реагирует мгновенно), затем заменяем её
   // настоящей из БД; при ошибке временную убираем.
-  function materializeOverride(item, patch) {
+  function materializeOverride(item, patch, label) {
     const tmpl = state.tasks.find(t => t.id === item.templateId);
-    if (!tmpl) return Promise.resolve();
+    if (!tmpl) return Promise.resolve(null);
     const row = {
       list_id: tmpl.list_id || null, title: tmpl.title, notes: tmpl.notes || null,
-      color: tmpl.color || null, date: item.occDate,
+      color: tmpl.color || null, icon: tmpl.icon || null, date: item.occDate,
       start_min: tmpl.start_min, duration_min: tmpl.duration_min,
       done: false, recurrence: null, recurrence_parent: tmpl.id,
       occ_date: item.occDate, skipped: false, ...patch,
     };
     const tempId = "tmp-" + Math.random().toString(36).slice(2);
     dispatch({ type: "upsertOne", key: "tasks", item: { ...row, id: tempId, user_id: state.user?.id } });
+    const ref = { id: tempId, alive: true };
+    // История пишется СИНХРОННО (до ответа сервера) — строгий порядок отмены.
+    if (label) record(label,
+      () => { ref.alive = false; return deleteRow("tasks", ref.id, "tasks"); },
+      () => { ref.alive = true; return supabase.from("tasks").insert(withUser(row)).select().single()
+        .then(({ data }) => { if (data) { dispatch({ type: "upsertOne", key: "tasks", item: data }); ref.id = data.id; } }); });
     return supabase.from("tasks").insert(withUser(row)).select().single()
       .then(({ data, error }) => {
         dispatch({ type: "removeOne", key: "tasks", id: tempId });
         if (error) throw error;
+        if (!ref.alive) { supabase.from("tasks").delete().eq("id", data.id); return null; }
         dispatch({ type: "upsertOne", key: "tasks", item: data });
+        ref.id = data.id;
         return data;
       });
   }
@@ -283,23 +291,27 @@ export function StoreProvider({ children }) {
 
   const tasks = {
     create: (payload) => {
-      // Оптимистично: задача появляется сразу, форма закрывается мгновенно.
-      // Запись в базу идёт в фоне; при ошибке — откат и тост. Это защищает от
-      // редких «зависаний» сетевого запроса (форма не застревает на «Сохранение…»).
+      // Оптимистично: задача появляется сразу. В историю пишем СИНХРОННО (до
+      // ответа сервера), иначе быстрый Cmd+Z отменил бы предыдущее действие.
       const tempId = "tmp-" + Math.random().toString(36).slice(2);
       const optimistic = {
         done: false, recurrence_parent: null, occ_date: null, skipped: false,
         ...payload, id: tempId, user_id: state.user?.id,
       };
       dispatch({ type: "upsertOne", key: "tasks", item: optimistic });
+      const ref = { id: tempId, alive: true };
+      record("новая задача",
+        () => { ref.alive = false; return deleteRow("tasks", ref.id, "tasks"); },
+        () => { ref.alive = true; return supabase.from("tasks").insert(withUser(payload)).select().single()
+          .then(({ data }) => { if (data) { dispatch({ type: "upsertOne", key: "tasks", item: data }); ref.id = data.id; } }); });
       return supabase.from("tasks").insert(withUser(payload)).select().single()
         .then(({ data, error }) => {
           dispatch({ type: "removeOne", key: "tasks", id: tempId });
           if (error || !data) { pushToast("Не удалось сохранить задачу", "error"); return null; }
+          // Создание уже отменили, пока шёл запрос — удаляем вставленную строку.
+          if (!ref.alive) { supabase.from("tasks").delete().eq("id", data.id); return null; }
           dispatch({ type: "upsertOne", key: "tasks", item: data });
-          record("новая задача",
-            () => deleteRow("tasks", data.id, "tasks"),
-            () => reinsertRow("tasks", data, "tasks"));
+          ref.id = data.id;
           return data;
         })
         .catch(() => { dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); return null; });
@@ -326,12 +338,7 @@ export function StoreProvider({ children }) {
       const next = !item.done;
       const patch = { done: next, done_at: next ? new Date().toISOString() : null };
       if (!(item.kind === "concrete" || item.id)) {
-        return materializeOverride(item, patch).then(data => {
-          if (data) record("отметку",
-            () => deleteRow("tasks", data.id, "tasks"),
-            () => reinsertRow("tasks", data, "tasks"));
-          return data;
-        });
+        return materializeOverride(item, patch, "отметку");
       }
       const prev = state.tasks.find(t => t.id === item.id);
       if (prev) {
@@ -349,21 +356,11 @@ export function StoreProvider({ children }) {
     },
     reschedule: (item, patch) => {
       if (item.kind === "concrete" || item.id) return tasks.update(item.id, patch);
-      return materializeOverride(item, patch).then(data => {
-        if (data) record("перенос",
-          () => deleteRow("tasks", data.id, "tasks"),
-          () => reinsertRow("tasks", data, "tasks"));
-        return data;
-      });
+      return materializeOverride(item, patch, "перенос");
     },
     removeOccurrence: (item) => {
       if (item.id) return tasks.update(item.id, { skipped: true });
-      return materializeOverride(item, { skipped: true }).then(data => {
-        if (data) record("удаление повторения",
-          () => deleteRow("tasks", data.id, "tasks"),
-          () => reinsertRow("tasks", data, "tasks"));
-        return data;
-      });
+      return materializeOverride(item, { skipped: true }, "удаление повторения");
     },
     removeSeries: async (templateId) => {
       const removed = state.tasks.filter(t => t.id === templateId || t.recurrence_parent === templateId);
