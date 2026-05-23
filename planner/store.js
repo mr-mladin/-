@@ -53,9 +53,14 @@ export function StoreProvider({ children }) {
       const { data } = await supabase.auth.getSession();
       if (!active) return;
       const user = data.session?.user || null;
-      dispatch({ type: "set", payload: { user } });
-      if (user) await loadAll();
-      else dispatch({ type: "set", payload: { loading: false, ready: true } });
+      if (user) {
+        // Показываем интерфейс сразу после проверки входа, а задачи догружаем
+        // фоном — чтобы не держать пользователя на белом экране, пока идёт сеть.
+        dispatch({ type: "set", payload: { user, ready: true, loading: true } });
+        loadAll();
+      } else {
+        dispatch({ type: "set", payload: { user, loading: false, ready: true } });
+      }
     })();
     const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
       const user = session?.user || null;
