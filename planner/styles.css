@@ -468,17 +468,15 @@ textarea.input { resize: vertical; }
 .month-more { font-size: 10px; color: var(--text-mute); padding: 0 5px; }
 
 @media (max-width: 860px) {
-  .app { height: auto; min-height: 100dvh; overflow: visible; }
-  .planner { flex-direction: column; padding: 12px; gap: 12px; }
-  .planner-aside { width: 100%; }
-  .proj-tasks { max-height: 30vh; }
-  .planner-body { flex-direction: column; }
-  .planner-grid-scroll { height: 68vh; border: none; border-radius: 16px; margin-right: 0; box-shadow: none; }
-  .planner-head { gap: 8px; }
+  .planner { flex-direction: column; padding: 10px 10px 0; gap: 10px; }
+  .planner-aside { width: 100%; flex: none; padding: 0; }
+  .proj-tasks { max-height: 24vh; }
+  .planner-grid-scroll { border: none; border-radius: 18px 18px 0 0; margin-right: 0; box-shadow: none; }
+  .tl { left: 0; }
+  .planner-head { gap: 8px; padding: 0 4px; }
+  .planner-week { padding: 0 4px; }
   .seg { order: 3; width: 100%; }
   .seg-btn { flex: 1; text-align: center; }
-  .week-scroll { height: 70vh; }
-  .month { height: 72vh; }
   .week-day-num { font-size: 14px; }
   .month-cell { padding: 2px; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
