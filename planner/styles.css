@@ -229,14 +229,15 @@ textarea.input { resize: vertical; }
 
 /* Недельная полоса дней */
 .planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 16px 0 4px; }
-.wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 7px 0 9px;
+.wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 8px;
   border: none; background: transparent; cursor: pointer; border-radius: var(--radius); font-family: inherit; color: var(--text); }
 .wday:hover { background: var(--bg-soft); }
 .wday-name { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.03em; }
-.wday-num { font-size: 18px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.wday-num { font-size: 16px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
 .wday.today .wday-num { color: var(--accent); }
-.wday.active { background: var(--accent); }
-.wday.active .wday-num, .wday.active .wday-name { color: #fff; }
+.wday.active .wday-num { background: var(--accent); color: #fff; }
+.wday.active .wday-name { color: var(--accent); }
 
 .planner-body { flex: 1; display: flex; gap: 16px; min-height: 0; }
 .planner-tray { width: 240px; flex: none; display: flex; flex-direction: column;
