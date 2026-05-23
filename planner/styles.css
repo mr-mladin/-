@@ -514,10 +514,11 @@ textarea.input { resize: vertical; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
   .month-chip-title { font-size: 10px; }
 
-  /* Нижняя навигация: «жидкое стекло»-пилюля слева + круглая «+» справа. */
+  /* Нижняя навигация: «жидкое стекло»-пилюля слева + круглая «+» справа.
+     Равный отступ по бокам и снизу; выровнены по нижнему краю. */
   .mobile-bar { display: flex; position: fixed; left: 0; right: 0; z-index: 45;
-    bottom: calc(10px + env(safe-area-inset-bottom)); padding: 0 14px;
-    align-items: center; gap: 12px; pointer-events: none; }
+    bottom: 16px; padding: 0 16px;
+    align-items: flex-end; gap: 12px; pointer-events: none; }
   .mobile-pill, .mobile-fab { pointer-events: auto; }
   .mobile-pill { display: flex; gap: 2px; padding: 5px;
     background: color-mix(in srgb, var(--surface) 55%, transparent);

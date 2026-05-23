@@ -888,8 +888,6 @@ function Planner() {
               ${Icon.inbox()}<span>Проекты</span></button>
             <button class=${"mb-btn" + (!asideOpen && !settingsOpen ? " on" : "")} onClick=${() => { setAsideOpen(false); setView("day"); }}>
               ${Icon.calendar()}<span>Таймлайн</span></button>
-            <button class=${"mb-btn" + (settingsOpen ? " on" : "")} onClick=${() => setSettingsOpen(true)}>
-              ${Icon.gear()}<span>Настройки</span></button>
           </div>
           <button class="mobile-fab" title="Новая задача"
             onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
