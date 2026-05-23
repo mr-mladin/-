@@ -329,6 +329,24 @@ textarea.input { resize: vertical; }
 .tl-title { min-width: 0; font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.3; letter-spacing: -0.01em;
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .tl-event.done .tl-pill { opacity: 0.5; }
+/* Сжатие сетки: чем короче задача на экране, тем компактнее её карточка.
+   compact — низкая капсула без времени; mini — капсула становится кружком,
+   название уменьшается шрифтом, но остаётся видимым. Высота всегда строго по
+   длительности (час × масштаб), поэтому задачи держат точную привязку к времени. */
+.tl-pill, .tl-pill-icon { transition: width .16s, height .16s, top .16s, margin-top .16s, border-radius .16s, transform .16s; }
+.zooming .tl-pill, .zooming .tl-pill-icon { transition: none; }
+.tl-event.compact .tl-pill { justify-content: center; }
+.tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
+.tl-event.compact .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
+.tl-event.compact .tl-meta { display: none; }
+.tl-event.compact .tl-title { -webkit-line-clamp: 1; font-size: 14px; }
+.tl-event.mini .tl-pill { left: 70px; width: 14px; height: 14px; top: 50%; bottom: auto; transform: translateY(-50%);
+  justify-content: center; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18); }
+.tl-event.mini .tl-pill-icon { display: none; }
+.tl-event.mini .tl-body { left: 92px; top: 0; bottom: 0; padding-top: 0; align-items: center; }
+.tl-event.mini .tl-meta { display: none; }
+.tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 11px; }
+.tl-event.mini .task-check { display: none; }
 .tl-event.done .tl-title { text-decoration: line-through; color: var(--text-mute); }
 .tl-gap { position: absolute; left: 108px; right: 36px; transform: translateY(-50%);
   font-size: 12px; font-style: italic; color: var(--text-mute); }

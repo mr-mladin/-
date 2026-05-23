@@ -22,6 +22,7 @@ const GUTTER = 56;
 const SNAP = 5;
 const MIN_DUR = 15;
 const HOLD_MS = 350;
+const MIN_EVENT_PX = 14;
 const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
@@ -767,11 +768,12 @@ function Planner() {
                   const dragging = inGroupMove || isKeyMove;
                   const sel = selected.has(i.key);
                   const top = (start / 60) * hourPx;
-                  const height = Math.max(38, (dur / 60) * hourPx);
+                  const height = Math.max(MIN_EVENT_PX, (dur / 60) * hourPx);
+                  const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
                   const { emoji, text } = splitEmoji(i.title);
                   const icon = i.icon || emoji;
                   const ttl = i.icon ? i.title : (text || i.title);
-                  return html`<div class=${"tl-event" + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "")} key=${i.key}
+                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${e => onBlockPointerDown(e, i)}>
@@ -795,7 +797,7 @@ function Planner() {
                 })}
                 ${drag && drag.type === "copy" && (() => {
                   const src = dayTl.find(x => x.key === drag.key);
-                  return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(38, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
+                  return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
                     <div class="tl-ghost-pill"></div>
                     <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
                 })()}
@@ -803,15 +805,15 @@ function Planner() {
                   const it = dayTl.find(x => x.key === k);
                   if (!it) return null;
                   const ns = clamp(it.start_min + drag.delta, 0, 1440 - (it.duration_min || 0));
-                  return html`<div class="tl-ghost" key=${"cg" + k} style=${`top:${(ns / 60) * hourPx}px;height:${Math.max(38, ((it.duration_min || 0) / 60) * hourPx)}px;--c:${colorOf(it)};`}>
+                  return html`<div class="tl-ghost" key=${"cg" + k} style=${`top:${(ns / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, ((it.duration_min || 0) / 60) * hourPx)}px;--c:${colorOf(it)};`}>
                     <div class="tl-ghost-pill"></div></div>`;
                 })}
                 ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost"
-                  style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(38, (drag.dur / 60) * hourPx)}px;`}>
+                  style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
                 ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-ghost"
-                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${Math.max(38, (dnd.dur / 60) * hourPx)}px;--c:${dnd.color};`}>
+                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx)}px;--c:${dnd.color};`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
