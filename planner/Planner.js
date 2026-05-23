@@ -294,11 +294,15 @@ function Planner() {
         setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
       }
     };
+    // Непассивный touchmove с preventDefault реально останавливает прокрутку
+    // после долгого нажатия (touch-action, выставленный по ходу, не помогает).
+    const onTouchMove = ev => { if (active) ev.preventDefault(); };
     const finish = (commit) => {
       clearTimeout(hold);
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", cancel);
+      document.removeEventListener("touchmove", onTouchMove, { passive: false });
       setDrag(null);
       if (!active) { if (commit) setSelected(new Set()); return; }
       if (!commit) return;
@@ -314,6 +318,7 @@ function Planner() {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", cancel);
+    if (touch) document.addEventListener("touchmove", onTouchMove, { passive: false });
     if (touch) hold = setTimeout(beginTouch, HOLD_MS);
   }
 
