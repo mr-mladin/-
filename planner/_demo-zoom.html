@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ru" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Демо: поведение дня при зуме (одноразовый макет)</title>
+<style>
+  :root{
+    --radius-sm:8px;--radius:12px;--radius-lg:18px;
+    --bg:#f6f7f9;--surface:#ffffff;--bg-soft:#f1f3f7;
+    --text:#0b1220;--text-soft:#475569;--text-mute:#9aa3b2;
+    --border:rgba(15,23,42,.07);--border-strong:rgba(15,23,42,.14);
+    --accent:#0ea5e9;--danger:#ef4444;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);-webkit-font-smoothing:antialiased}
+  header{padding:16px 20px;background:var(--surface);border-bottom:1px solid var(--border-strong);position:sticky;top:0;z-index:10}
+  h1{font-size:17px;margin:0 0 4px}
+  .sub{font-size:13px;color:var(--text-soft);margin:0}
+  .controls{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}
+  .controls label{font-size:13px;color:var(--text-soft)}
+  input[type=range]{width:260px}
+  .pxval{font-size:13px;color:var(--text-mute);font-variant-numeric:tabular-nums;min-width:120px}
+  .cols{display:flex;gap:14px;padding:18px;align-items:flex-start;overflow-x:auto}
+  .col{flex:0 0 250px;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-lg);overflow:hidden}
+  .col-head{padding:10px 12px;border-bottom:1px solid var(--border)}
+  .col-head .t{font-size:14px;font-weight:600}
+  .col-head .d{font-size:11px;color:var(--text-mute);margin-top:2px;line-height:1.35}
+  .col.bad .t{color:var(--danger)}
+  .col.best{outline:2px solid var(--accent);outline-offset:-2px}
+  .scroll{height:560px;overflow-y:auto;position:relative}
+  /* ось времени */
+  .tl{position:relative;margin:10px 0;min-height:100%}
+  .hour{position:absolute;left:46px;right:8px;height:0;border-top:1px solid color-mix(in srgb,var(--border) 60%,transparent)}
+  .hour span{position:absolute;right:calc(100% + 6px);top:-6px;font-size:10px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+  /* блок-событие на оси */
+  .ev{position:absolute;left:46px;right:8px;box-sizing:border-box;transition:top .12s,height .12s}
+  .pill{position:absolute;left:0;width:30px;top:0;bottom:0;border-radius:999px;background:var(--c);display:flex;justify-content:center}
+  .pill .ic{width:22px;height:22px;margin-top:4px;border-radius:50%;background:rgba(255,255,255,.85);display:flex;align-items:center;justify-content:center;font-size:13px;flex:none}
+  .body{position:absolute;left:40px;right:6px;top:0;bottom:0;display:flex;align-items:flex-start;padding-top:3px;overflow:hidden}
+  .ttl{font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .meta{font-size:11px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+  .txtwrap{min-width:0}
+  /* подпись сжатого промежутка */
+  .gap{position:absolute;left:46px;right:8px;text-align:center;font-size:10px;color:var(--text-mute)}
+  /* V3 точки-иконки */
+  .dot{position:absolute;left:46px;width:24px;height:24px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.2)}
+  .dot .lbl{position:absolute;left:30px;white-space:nowrap;background:var(--text);color:#fff;font-size:11px;padding:2px 7px;border-radius:6px;display:none}
+  .dot.open .lbl{display:block}
+  /* V2 список */
+  .agenda{padding:8px}
+  .agenda .row{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:var(--radius);border:1px solid var(--border)}
+  .agenda .row + .row{margin-top:6px}
+  .agenda .ic{width:26px;height:26px;border-radius:50%;background:var(--c);display:flex;align-items:center;justify-content:center;font-size:14px;flex:none}
+  .agenda .ttl{flex:1}
+  .agenda .time{font-size:12px;color:var(--text-mute);font-variant-numeric:tabular-nums}
+  .agenda .ah{font-size:12px;color:var(--text-mute);padding:2px 8px 8px}
+  .mode{font-size:10px;color:var(--accent);padding:6px 10px 0;font-weight:600}
+</style>
+</head>
+<body>
+<header>
+  <h1>Демо поведения дня при сжатии (zoom-out) — одноразовый макет</h1>
+  <p class="sub">Один и тот же день в четырёх вариантах. Двигайте ползунок влево — это «отдаляем» сетку, как пальцами на тачпаде. Слева — как сейчас (наезжает), справа — три предлагаемых решения.</p>
+  <div class="controls">
+    <label>Масштаб (px на час):</label>
+    <input id="zoom" type="range" min="18" max="120" value="36">
+    <span class="pxval" id="pxval"></span>
+  </div>
+</header>
+
+<div class="cols">
+  <div class="col bad"><div class="col-head"><div class="t">Сейчас</div><div class="d">Строго по времени, мин. высота пилюли 38px. При сжатии пилюли и подписи наезжают друг на друга.</div></div><div class="scroll"><div class="tl" id="cur"></div></div></div>
+
+  <div class="col best"><div class="col-head"><div class="t">Вариант 1 · раздвижка + сжатие</div><div class="d">Один вид. Гарантированный зазор: пилюли не наезжают. Большие пустые промежутки сжимаются. Время — у каждой пилюли. (рекомендую)</div></div><div class="scroll"><div class="tl" id="v1"></div></div></div>
+
+  <div class="col"><div class="col-head"><div class="t">Вариант 2 · переключение на список</div><div class="d">Крупно — обычная сетка. Ниже порога масштаба резко переключается в чистый список-повестку без линейки.</div></div><div class="scroll"><div id="v2"></div></div></div>
+
+  <div class="col"><div class="col-head"><div class="t">Вариант 3 · сворачивание текста</div><div class="d">Строго по времени всегда. У тесных пилюль прячется подпись — остаются иконки. Клик по иконке показывает название.</div></div><div class="scroll"><div class="tl" id="v3"></div></div></div>
+</div>
+
+<script>
+const DAY_START=8*60, DAY_END=21*60; // показываем 08:00–21:00
+const tasks=[
+  {s:9*60,    d:30, t:"Вайбкодинг", ic:"⌨️", c:"#0ea5e9"},
+  {s:9*60+30, d:25, t:"Семья",      ic:"❤️", c:"#ec4899"},
+  {s:11*60,   d:20, t:"Созвон",     ic:"📞", c:"#8b5cf6"},
+  {s:13*60,   d:60, t:"Обед",       ic:"🍽", c:"#22c55e"},
+  {s:15*60+25,d:50, t:"Отчёт",      ic:"📝", c:"#f59e0b"},
+  {s:19*60,   d:60, t:"Зал",        ic:"🏋", c:"#14b8a6"},
+];
+const hhmm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const range=t=>hhmm(t.s)+"–"+hhmm(t.s+t.d);
+const MINH=38, GAP=8, MAXGAP=30, THRESHOLD=44;
+
+function evHtml(t,extra=""){
+  return `<div class="ev" style="${extra}--c:${t.c}">
+    <div class="pill"><div class="ic">${t.ic}</div></div>
+    <div class="body"><div class="txtwrap">
+      <div class="ttl">${t.t}</div><div class="meta">${range(t)}</div>
+    </div></div></div>`;
+}
+
+function render(hourPx){
+  const totalH=(DAY_END-DAY_START)/60*hourPx;
+  const hoursHtml=()=>{let h="";for(let hr=8;hr<=21;hr++){const y=(hr*60-DAY_START)/60*hourPx;h+=`<div class="hour" style="top:${y}px"><span>${String(hr).padStart(2,"0")}:00</span></div>`;}return h;};
+
+  // ── Сейчас (проблема): строго по времени, min-height, ничего не разводим
+  let cur=hoursHtml();
+  for(const t of tasks){
+    const top=(t.s-DAY_START)/60*hourPx;
+    const h=Math.max(MINH,t.d/60*hourPx);
+    cur+=evHtml(t,`top:${top}px;height:${h}px;`);
+  }
+  document.getElementById("cur").innerHTML=cur;
+  document.getElementById("cur").style.height=totalH+"px";
+
+  // ── Вариант 1: раздвижка (min-gap) + сжатие больших промежутков
+  let v1="", y=0, prevEnd=null;
+  for(const t of tasks){
+    const h=Math.max(MINH,t.d/60*hourPx);
+    if(prevEnd===null){ y=0; }
+    else{
+      const realGap=(t.s-prevEnd)/60*hourPx;
+      y=y+Math.max(GAP,Math.min(MAXGAP,realGap));
+      if(realGap>MAXGAP+2) v1+=`<div class="gap" style="top:${y-MAXGAP/2-6}px">· · · свободно ${Math.round((t.s-prevEnd)/60*10)/10} ч · · ·</div>`;
+    }
+    v1+=evHtml(t,`top:${y}px;height:${h}px;`);
+    y+=h; prevEnd=t.s+t.d;
+  }
+  const el1=document.getElementById("v1");
+  el1.innerHTML=v1; el1.style.height=Math.max(y+10,200)+"px";
+  el1.querySelectorAll(".hour").forEach(n=>n.remove());
+
+  // ── Вариант 2: крупно — сетка, мелко — список
+  const v2=document.getElementById("v2");
+  if(hourPx>=64){
+    let g=hoursHtml();
+    for(const t of tasks){
+      const top=(t.s-DAY_START)/60*hourPx;
+      const h=Math.max(MINH,t.d/60*hourPx);
+      g+=evHtml(t,`top:${top}px;height:${h}px;`);
+    }
+    v2.innerHTML=`<div class="mode">режим: сетка</div><div class="tl" style="height:${totalH}px">${g}</div>`;
+  }else{
+    let rows=`<div class="mode">режим: список</div><div class="agenda"><div class="ah">Сегодня · 23 мая</div>`;
+    for(const t of tasks){
+      rows+=`<div class="row" style="--c:${t.c}"><div class="ic">${t.ic}</div><div class="ttl">${t.t}</div><div class="time">${range(t)}</div></div>`;
+    }
+    v2.innerHTML=rows+"</div>";
+  }
+
+  // ── Вариант 3: строго по времени, тесные → иконка-точка
+  let v3=hoursHtml();
+  for(let i=0;i<tasks.length;i++){
+    const t=tasks[i];
+    const top=(t.s-DAY_START)/60*hourPx;
+    const slot=t.d/60*hourPx;
+    if(slot<THRESHOLD){
+      v3+=`<div class="dot" style="top:${top}px;--c:${t.c}" onclick="this.classList.toggle('open')">${t.ic}<span class="lbl">${t.t} · ${range(t)}</span></div>`;
+    }else{
+      v3+=evHtml(t,`top:${top}px;height:${slot}px;`);
+    }
+  }
+  document.getElementById("v3").innerHTML=v3;
+  document.getElementById("v3").style.height=totalH+"px";
+}
+
+const zoom=document.getElementById("zoom");
+const pxval=document.getElementById("pxval");
+function upd(){const v=+zoom.value;pxval.textContent=v+" px/час"+(v<36?" (за пределом текущего min)":"");render(v);}
+zoom.addEventListener("input",upd);
+upd();
+</script>
+</body>
+</html>
