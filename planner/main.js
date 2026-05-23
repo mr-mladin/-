@@ -4,6 +4,7 @@ import { StoreProvider } from "./store.js";
 import { App } from "./Planner.js";
 
 render(html`<${StoreProvider}><${App} /><//>`, document.getElementById("app"));
+window.__appBooted = true;
 
 // Полоса прокрутки видна только во время прокрутки: ставим .is-scrolling на
 // <html>, пока пользователь скроллит, и снимаем через 700мс после остановки.
