@@ -658,6 +658,31 @@ function Planner() {
     setDate(toISO(d));
   }
   function openDay(iso) { setDate(iso); setView("day"); }
+  // Выдвижная панель проектов на мобильном: свайп от левого язычка открывает,
+  // свайп от ручки-стыка влево (или тап по ней) закрывает.
+  function asideSwipe(e, { close }) {
+    e.stopPropagation();
+    const sx = e.clientX, sy = e.clientY;
+    let decided = false, acted = false;
+    const move = (ev) => {
+      const dx = ev.clientX - sx, dy = ev.clientY - sy;
+      if (!decided) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        decided = true;
+        if (Math.abs(dx) <= Math.abs(dy)) { cleanup(); return; }
+      }
+      if (!acted && (close ? dx < -36 : dx > 36)) { acted = true; setAsideOpen(!close); cleanup(); }
+    };
+    const up = () => { if (close && !decided) setAsideOpen(false); cleanup(); };
+    const cleanup = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", up);
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", up);
+  }
   function rowToItem(row) {
     return {
       key: row.id, kind: "concrete", id: row.id, templateId: null,
