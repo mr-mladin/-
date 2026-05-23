@@ -69,6 +69,26 @@ export function StoreProvider({ children }) {
     return () => { active = false; sub?.subscription?.unsubscribe(); };
   }, []);
 
+  // Тихая дозагрузка при возврате в приложение/вкладку — чтобы видеть изменения
+  // с других устройств (живой realtime-синхронизации нет). loadAll не показывает
+  // «загрузку», просто подменяет данные свежими из базы.
+  useEffect(() => {
+    let last = 0;
+    const refetch = () => {
+      if (document.visibilityState !== "visible" || !state.user) return;
+      const now = Date.now();
+      if (now - last < 1500) return; // не дёргаем по дублю focus+visibility
+      last = now;
+      loadAll();
+    };
+    window.addEventListener("focus", refetch);
+    document.addEventListener("visibilitychange", refetch);
+    return () => {
+      window.removeEventListener("focus", refetch);
+      document.removeEventListener("visibilitychange", refetch);
+    };
+  }, [state.user]);
+
   async function loadAll() {
     const myEpoch = ++loadEpoch.current;
     try {
