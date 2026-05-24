@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  splitEmoji, gapCaption, durHuman,
+  splitEmoji, gapCaption, durHuman, doneFeedback,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
 
@@ -557,7 +557,10 @@ function Planner() {
     const row = item.kind === "concrete" ? tasks.find(t => t.id === item.id) : tasks.find(t => t.id === item.templateId);
     if (row) setEditing({ task: row, occ: item.kind === "occurrence" ? item : null });
   }
-  const toggleDone = (item) => store.actions.tasks.toggleDone(item).catch(showErr);
+  const toggleDone = (item) => {
+    if (!item.done) doneFeedback();
+    return store.actions.tasks.toggleDone(item).catch(showErr);
+  };
   function taskMeta(t) {
     if (!t.date) return "без времени";
     const dd = fromISO(t.date);
@@ -698,7 +701,7 @@ function Planner() {
                   <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
                     style=${t.done ? `background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};` : ""}
                     onPointerDown=${e => e.stopPropagation()}
-                    onClick=${() => store.actions.tasks.toggleDone({ kind: "concrete", id: t.id, done: t.done }).catch(showErr)}>${Icon.check()}</button>
+                    onClick=${() => toggleDone({ kind: "concrete", id: t.id, done: t.done })}>${Icon.check()}</button>
                   <button class="tray-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
                     <span class="tray-task-title">${t.title}</span>
                     <span class="tray-task-meta">

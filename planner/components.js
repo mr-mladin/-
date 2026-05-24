@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, fromISO, monthGen, RECUR_OPTIONS } from "./lib.js";
-import { minToHHMM, hhmmToMin } from "./lib.js";
+import { minToHHMM, hhmmToMin, doneFeedback } from "./lib.js";
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
 const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
@@ -157,7 +157,7 @@ export function EventCard({ item, onClose, onDelete }) {
     ? `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · весь день`
     : `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · ${start} — ${minToHHMM(endMin)}`;
 
-  function toggleDone() { const next = !done; setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
+  function toggleDone() { const next = !done; if (next) doneFeedback(); setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
 
   return html`
     <div class="modal-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>

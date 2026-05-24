@@ -229,6 +229,52 @@ export function applyTheme(mode) {
   try { localStorage.setItem("planner.theme", mode); } catch (e) {}
 }
 
+// ---------- Тактильный отклик и звук ----------
+// Вибрация (хаптик) на iPhone через стандартный navigator.vibrate не работает.
+// Трюк: системный «свитч»-чекбокс при переключении даёт лёгкий хаптик-«тук».
+// Работает на свежих iOS, если в настройках включены «системные хаптики».
+let hapticEl = null;
+export function haptic() {
+  try {
+    if (!hapticEl) {
+      const label = document.createElement("label");
+      label.setAttribute("aria-hidden", "true");
+      label.style.cssText = "position:fixed;left:-9999px;width:0;height:0;overflow:hidden;";
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.setAttribute("switch", "");
+      label.appendChild(cb);
+      document.body.appendChild(label);
+      hapticEl = label;
+    }
+    hapticEl.click();
+  } catch (e) {}
+}
+
+// Короткий звук-«щелчок» через Web Audio — без файлов. Контекст создаём лениво
+// и возобновляем внутри касания, иначе iOS блокирует звук.
+let audioCtx = null;
+export function clickSound() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const t = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = "triangle";
+    osc.frequency.setValueAtTime(880, t);
+    osc.frequency.exponentialRampToValueAtTime(1320, t + 0.06);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start(t);
+    osc.stop(t + 0.16);
+  } catch (e) {}
+}
+
+export function doneFeedback() { haptic(); clickSound(); }
+
 // ---------- Иконки ----------
 const wrap = (path) => html`
   <svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor"
