@@ -110,6 +110,7 @@ textarea.input { resize: vertical; }
 /* Модалка */
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sheetIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
+@keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 .modal-back { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.5);
   display: grid; place-items: center; padding: 16px; z-index: 50; animation: overlayIn .16s ease; }
 .modal { width: 100%; max-width: 460px; background: var(--surface);
@@ -369,15 +370,18 @@ textarea.input { resize: vertical; }
 .seg-btn.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(15,23,42,0.10); }
 
 /* Компактная карточка задачи (в стиле инспектора календаря) */
-.evc { width: 100%; max-width: 360px; background: var(--surface); border-radius: 16px;
-  border: 1px solid var(--border); padding: 12px; display: flex; flex-direction: column; gap: 8px;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.3); animation: sheetIn .2s cubic-bezier(.2,.7,.3,1); }
+.evc { width: 100%; max-width: 360px; border-radius: 24px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  -webkit-backdrop-filter: blur(30px) saturate(180%); backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  padding: 16px; display: flex; flex-direction: column; gap: 10px;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.32); animation: cardIn .24s cubic-bezier(.2,.7,.3,1); }
 .evc-head { display: flex; align-items: center; gap: 8px; }
 .evc-emoji { position: relative; flex: none; }
 .evc-emoji-btn { width: 30px; height: 30px; border-radius: 50%; border: none; cursor: pointer;
   display: flex; align-items: center; justify-content: center; font-size: 16px; line-height: 1;
   background: var(--bg-soft); }
-.evc-emoji-btn:not(.set) { background: var(--bg-soft); color: var(--text-mute); }
+.evc-emoji-btn:not(.set) { background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text-mute); }
 .evc-emoji-btn:not(.set) .ico { width: 16px; height: 16px; }
 .evc-emoji-btn.set { background: color-mix(in srgb, var(--c) 18%, var(--surface)); }
 .evc-emoji-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 6; width: 232px;
@@ -414,18 +418,18 @@ textarea.input { resize: vertical; }
 .evc-del:hover { background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .evc-del .ico { width: 26px; height: 26px; }
 .evc-summary { display: flex; align-items: center; gap: 8px; width: 100%; padding: 11px 12px; border: none;
-  background: var(--bg-soft); border-radius: 10px; cursor: pointer; font-family: inherit; font-size: 14px;
+  background: color-mix(in srgb, var(--text) 5%, transparent); border-radius: 12px; cursor: pointer; font-family: inherit; font-size: 14px;
   color: var(--text); text-align: left; }
-.evc-summary:hover { background: var(--border); }
+.evc-summary:hover { background: color-mix(in srgb, var(--text) 9%, transparent); }
 .evc-summary .ico { width: 16px; height: 16px; flex: none; color: var(--text-mute); }
-.evc-group { display: flex; flex-direction: column; background: var(--bg-soft); border-radius: 10px; padding: 4px 12px; }
+.evc-group { display: flex; flex-direction: column; background: color-mix(in srgb, var(--text) 5%, transparent); border-radius: 12px; padding: 4px 12px; }
 .evc-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 0;
   font-size: 14px; color: var(--text); border-top: 1px solid var(--border); }
 .evc-line:first-child { border-top: none; }
 .evc-line-r { display: flex; align-items: center; gap: 6px; }
 .evc-inp { border: 1px solid var(--border); background: var(--surface); border-radius: 7px; padding: 4px 7px;
   font-family: inherit; font-size: 13px; color: var(--text); color-scheme: light dark; }
-.evc-notes { border: none; background: var(--bg-soft); border-radius: 10px; padding: 10px 12px; resize: vertical;
+.evc-notes { border: none; background: color-mix(in srgb, var(--text) 5%, transparent); border-radius: 12px; padding: 10px 12px; resize: vertical;
   font-family: inherit; font-size: 14px; color: var(--text); min-height: 40px; }
 .evc-notes:focus { outline: none; }
 .evc-notes::placeholder { color: var(--text-mute); }
