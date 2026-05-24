@@ -751,8 +751,8 @@ function Planner() {
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef}>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
-                ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
-                  <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
+                ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
+                  <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
                 <div class="tl-spine"></div>
                 ${dayGaps.map(g => {
                   const gh = (g.mins / 60) * hourPx;

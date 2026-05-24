@@ -496,7 +496,8 @@ textarea.input { resize: vertical; }
   /* Учитываем безопасные зоны iPhone (чёлка/Dynamic Island) сверху и по бокам,
      иначе шапка уходит под статус-бар. */
   .planner { flex-direction: column; gap: 10px;
-    padding: calc(10px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left)); }
+    padding: calc(2px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left)); }
+  .planner-content { padding-top: 0; }
   /* Панель проектов: полноэкранная шторка, выезжает снизу по кнопке «Проекты». */
   .planner-aside { position: fixed; inset: 0; z-index: 40; width: 100%;
     flex: none; margin: 0; background: var(--bg); overflow-y: auto;
@@ -504,9 +505,19 @@ textarea.input { resize: vertical; }
     transform: translateY(100%); transition: transform .28s cubic-bezier(.2,.7,.3,1); }
   .planner.aside-open .planner-aside { transform: none; }
   .proj-tasks { max-height: none; }
-  .planner-grid-scroll { border: none; border-radius: 18px 18px 0 0; margin-right: 0; box-shadow: none;
-    padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
+  /* Сетка дня — во всю ширину экрана, без рамки/тени/скруглений: выглядит как
+     часть страницы, а не отдельная карточка. Боковые отрицательные поля гасят
+     боковые отступы .planner, чтобы дойти до краёв экрана. */
+  .planner-grid-scroll { border: none; border-radius: 0; box-shadow: none;
+    margin-left: calc(-10px - env(safe-area-inset-left));
+    margin-right: calc(-10px - env(safe-area-inset-right));
+    padding-bottom: env(safe-area-inset-bottom); }
   .tl { left: 0; }
+  /* Метку текущего времени прижимаем к левому краю, чтобы её не обрезало
+     краем сетки (раньше она вылезала левее и срезалась). Только в сетке дня —
+     в «Неделе» точка времени нужна как есть. */
+  .planner-grid-scroll .grid-now-time { left: -40px; right: auto; margin-right: 0; }
+  .planner-grid-scroll .grid-now-dot { display: none; }
   .head-add { display: none; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
   .planner-week { padding: 0 4px; margin-bottom: 8px; }
