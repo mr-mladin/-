@@ -296,7 +296,7 @@ textarea.input { resize: vertical; }
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1); }
 .zooming .tl-event { transition: none; }
 .tl-event.dragging { z-index: 6; transition: none; }
-.tl-event.armed .tl-pill { animation: armPulse .9s ease-in-out infinite; }
+.tl-event.armed .tl-pill, .tl-event.sel .tl-pill { animation: armPulse .9s ease-in-out infinite; }
 @keyframes armPulse {
   0%, 100% { transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 32%, transparent); }
   50% { transform: scale(1.13); box-shadow: 0 0 0 7px color-mix(in srgb, var(--c) 16%, transparent); }

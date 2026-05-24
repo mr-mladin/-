@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  splitEmoji, gapCaption, durHuman, doneFeedback,
+  splitEmoji, gapCaption, durHuman, doneFeedback, haptic,
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
 
@@ -383,7 +383,7 @@ function Planner() {
       armed = true;
       setSelected(new Set([item.key]));
       setDrag({ type: "move", key: item.key, start: item.start_min, dur, armed: true });
-      if (navigator.vibrate) navigator.vibrate(14);
+      haptic();
     };
     const move = ev => {
       const far = Math.hypot(ev.clientX - sx, ev.clientY - sy);
@@ -397,7 +397,7 @@ function Planner() {
       const wasArmed = armed;
       cleanup();
       setDrag(null);
-      if (!wasArmed) { handleTap(item, false); return; }
+      if (!wasArmed) { openPreview(item); return; }
       if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
     };
     const cleanup = () => {
@@ -558,7 +558,7 @@ function Planner() {
     if (row) setEditing({ task: row, occ: item.kind === "occurrence" ? item : null });
   }
   const toggleDone = (item) => {
-    if (!item.done) doneFeedback();
+    doneFeedback();
     return store.actions.tasks.toggleDone(item).catch(showErr);
   };
   function taskMeta(t) {

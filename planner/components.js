@@ -157,7 +157,7 @@ export function EventCard({ item, onClose, onDelete }) {
     ? `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · весь день`
     : `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · ${start} — ${minToHHMM(endMin)}`;
 
-  function toggleDone() { const next = !done; if (next) doneFeedback(); setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
+  function toggleDone() { const next = !done; doneFeedback(); setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
 
   return html`
     <div class="modal-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
