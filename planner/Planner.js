@@ -377,13 +377,14 @@ function Planner() {
     const sx = e.clientX, sy = e.clientY;
     const grab = yToMin(e.clientY) - item.start_min;
     const dur = item.duration_min || 0;
+    // Уже выделенную пилюлю можно двигать сразу, без повторного удержания.
+    const already = selected.has(item.key);
     let armed = false, moved = false, hold = null, newStart = item.start_min;
     const onTouchMove = ev => { if (armed) ev.preventDefault(); };
-    const arm = () => {
+    const arm = (select) => {
       armed = true;
-      setSelected(new Set([item.key]));
+      if (select) { setSelected(new Set([item.key])); haptic(); }
       setDrag({ type: "move", key: item.key, start: item.start_min, dur, armed: true });
-      haptic();
     };
     const move = ev => {
       const far = Math.hypot(ev.clientX - sx, ev.clientY - sy);
@@ -411,7 +412,8 @@ function Planner() {
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
     document.addEventListener("touchmove", onTouchMove, { passive: false });
-    hold = setTimeout(arm, 280);
+    if (already) arm(false);                       // уже выделена → двигаем сразу
+    else hold = setTimeout(() => arm(true), 280);  // не выделена → выделяем удержанием
   }
 
   function onBlockPointerDown(e, item) {
