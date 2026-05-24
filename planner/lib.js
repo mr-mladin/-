@@ -251,29 +251,7 @@ export function haptic() {
   } catch (e) {}
 }
 
-// Короткий звук-«щелчок» через Web Audio — без файлов. Контекст создаём лениво
-// и возобновляем внутри касания, иначе iOS блокирует звук.
-let audioCtx = null;
-export function clickSound() {
-  try {
-    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    const t = audioCtx.currentTime;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = "triangle";
-    osc.frequency.setValueAtTime(880, t);
-    osc.frequency.exponentialRampToValueAtTime(1320, t + 0.06);
-    gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.exponentialRampToValueAtTime(0.16, t + 0.012);
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start(t);
-    osc.stop(t + 0.16);
-  } catch (e) {}
-}
-
-export function doneFeedback() { haptic(); clickSound(); }
+export function doneFeedback() { haptic(); }
 
 // ---------- Иконки ----------
 const wrap = (path) => html`

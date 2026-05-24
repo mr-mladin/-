@@ -224,6 +224,7 @@ textarea.input { resize: vertical; }
 .planner-date-main { font-weight: 600; font-size: 18px; letter-spacing: -0.01em; margin: 0 4px; }
 .planner-date-input { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .planner-head-actions { display: flex; align-items: center; gap: 8px; }
+.view-cycle { min-width: 72px; justify-content: center; }
 
 /* Недельная полоса дней */
 .planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 16px 0 4px; }
@@ -509,8 +510,9 @@ textarea.input { resize: vertical; }
   .head-add { display: none; }
   .planner-head { gap: 8px; padding: 0 4px; }
   .planner-week { padding: 0 4px; }
-  .seg { order: 3; width: 100%; }
-  .seg-btn { flex: 1; text-align: center; }
+  /* Стрелки листания дней на мобильном убраны: день меняем тапом по полосе
+     недели, дату — иконкой календаря. */
+  .planner-nav .btn-mini { display: none; }
   .week-day-num { font-size: 14px; }
   .month-cell { padding: 2px; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }

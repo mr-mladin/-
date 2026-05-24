@@ -9,7 +9,7 @@ import {
 } from "./lib.js";
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
 
-const VIEWS = [["month", "Месяц"], ["week", "Неделя"], ["day", "День"]];
+const VIEWS = [["day", "День"], ["week", "Неделя"], ["month", "Месяц"]];
 function readView() {
   try { const v = localStorage.getItem("planner.view"); return VIEWS.some(x => x[0] === v) ? v : "day"; }
   catch (e) { return "day"; }
@@ -729,14 +729,13 @@ function Planner() {
               ${view !== "day" ? html`<span class="planner-date-main">${headLabel}</span>` : ""}
               <button class="btn-mini" onClick=${() => shift(1)} title="Вперёд">${Icon.right()}</button>
             </div>
-            <div class="seg">
-              ${VIEWS.map(([v, label]) => html`<button key=${v}
-                class=${"seg-btn" + (view === v ? " on" : "")} onClick=${() => setView(v)}>${label}</button>`)}
-            </div>
             <div class="planner-head-actions">
               ${!isToday ? html`<button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>` : ""}
               <button class="btn primary sm head-add" onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
                 ${Icon.plus()} Задача</button>
+              <button class="btn sm ghost view-cycle" title="Сменить режим"
+                onClick=${() => { const i = VIEWS.findIndex(([v]) => v === view); setView(VIEWS[(i + 1) % VIEWS.length][0]); }}>
+                ${(VIEWS.find(([v]) => v === view) || VIEWS[0])[1]}</button>
               <button class="icon-btn" title="Поиск" onClick=${() => setSearchOpen(true)}>${Icon.search()}</button>
               <button class="icon-btn" title="Настройки" onClick=${() => setSettingsOpen(true)}>${Icon.gear()}</button>
             </div>
