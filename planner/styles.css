@@ -513,11 +513,6 @@ textarea.input { resize: vertical; }
     margin-right: calc(-10px - env(safe-area-inset-right));
     padding-bottom: env(safe-area-inset-bottom); }
   .tl { left: 0; }
-  /* Метку текущего времени прижимаем к левому краю, чтобы её не обрезало
-     краем сетки (раньше она вылезала левее и срезалась). Только в сетке дня —
-     в «Неделе» точка времени нужна как есть. */
-  .planner-grid-scroll .grid-now-time { left: -40px; right: auto; margin-right: 0; }
-  .planner-grid-scroll .grid-now-dot { display: none; }
   .head-add { display: none; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
   .planner-week { padding: 0 4px; margin-bottom: 8px; }
@@ -527,14 +522,6 @@ textarea.input { resize: vertical; }
   /* Полоса недели плотнее — больше места под сетку дня. */
   .wday { padding: 4px 0 5px; gap: 2px; }
   .wday-num { width: 28px; height: 28px; font-size: 15px; }
-  /* Сетку дня немного сдвигаем влево: меньше левый отступ под часы — больше
-     ширины под названия справа. Сдвиг согласован (часы, хребет, пилюли, текст). */
-  .grid-hour, .grid-now { left: 42px; }
-  .tl-spine { left: 63px; }
-  .tl-pill, .tl-ghost-pill { left: 44px; }
-  .tl-body, .tl-gap, .tl-ghost-label { left: 94px; }
-  .tl-event.mini .tl-pill { left: 56px; }
-  .tl-event.mini .tl-body { left: 78px; }
   .week-day-num { font-size: 14px; }
   .month-cell { padding: 2px; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
