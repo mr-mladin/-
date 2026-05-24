@@ -166,15 +166,13 @@ export function EventCard({ item, onClose, onDelete }) {
           <button class=${"task-check sm" + (done ? " on" : "")} title="Готово" onClick=${toggleDone}>${Icon.check()}</button>
           <div class="evc-emoji" ref=${emojiRef}>
             <button class=${"evc-emoji-btn" + (icon ? " set" : "")} style=${`--c:${dotColor};`}
-              title="Иконка" onClick=${() => setEmojiOpen(o => !o)}>${icon || "🙂"}</button>
+              title="Иконка" onClick=${() => setEmojiOpen(o => !o)}>${icon || Icon.plus()}</button>
             ${emojiOpen && html`<div class="evc-emoji-menu">
               ${TASK_EMOJIS.map(em => html`<button class=${"evc-emoji-cell" + (icon === em ? " on" : "")} key=${em}
                 onClick=${() => { setIcon(em); save({ icon: em }); setEmojiOpen(false); }}>${em}</button>`)}
               <button class="evc-emoji-clear" onClick=${() => { setIcon(""); save({ icon: null }); setEmojiOpen(false); }}>Без иконки</button>
             </div>`}
           </div>
-          <input class=${"evc-title" + (done ? " done" : "")} value=${title} placeholder="Без названия"
-            onInput=${e => setTitle(e.target.value)} onBlur=${() => save({ title: title.trim() || "Без названия" })} />
           <div class="evc-proj" ref=${projRef}>
             <button class="evc-dot" title="Проект" onClick=${() => setProjOpen(o => !o)}>
               <span class="evc-dot-c" style=${`background:${dotColor};`}></span>${Icon.right()}</button>
@@ -188,9 +186,10 @@ export function EventCard({ item, onClose, onDelete }) {
                 <span class="evc-pdot" style=${`background:${l.color};`}></span>${l.name}</button>`)}
             </div>`}
           </div>
-          <button class="evc-icon-btn" title="Удалить" onClick=${onDelete}>${Icon.trash()}</button>
-          <button class="evc-icon-btn" title="Закрыть" onClick=${onClose}>${Icon.close()}</button>
+          <button class="evc-del" title="Удалить" onClick=${onDelete}>${Icon.close()}</button>
         </div>
+        <input class=${"evc-title" + (done ? " done" : "")} value=${title} placeholder="Название задачи"
+          onInput=${e => setTitle(e.target.value)} onBlur=${() => save({ title: title.trim() || "Без названия" })} />
 
         <button class="evc-summary" onClick=${() => setExpand(e => !e)}>
           ${Icon.clock()}<span>${summary}</span></button>
