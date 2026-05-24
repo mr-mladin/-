@@ -508,11 +508,14 @@ textarea.input { resize: vertical; }
     padding-bottom: calc(86px + env(safe-area-inset-bottom)); }
   .tl { left: 0; }
   .head-add { display: none; }
-  .planner-head { gap: 8px; padding: 0 4px; }
-  .planner-week { padding: 0 4px; }
+  .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
+  .planner-week { padding: 0 4px; margin-bottom: 8px; }
   /* Стрелки листания дней на мобильном убраны: день меняем тапом по полосе
      недели, дату — иконкой календаря. */
   .planner-nav .btn-mini { display: none; }
+  /* Полоса недели плотнее — больше места под сетку дня. */
+  .wday { padding: 4px 0 5px; gap: 2px; }
+  .wday-num { width: 28px; height: 28px; font-size: 15px; }
   .week-day-num { font-size: 14px; }
   .month-cell { padding: 2px; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
