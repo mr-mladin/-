@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Планер — варианты места под сетку дня</title>
+<style>
+  :root{
+    --accent:#0ea5e9; --text:#0f172a; --text-soft:#475569; --text-mute:#94a3b8;
+    --border:#e2e8f0; --surface:#fff; --bg:#f1f5f9; --bg-soft:#f1f5f9;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:#e2e8f0;color:var(--text);
+    font:15px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:18px;}
+  h1{font-size:18px;margin:0 0 4px;}
+  .sub{color:var(--text-soft);font-size:13px;margin:0 0 18px;}
+  .row{display:flex;gap:18px;flex-wrap:wrap;}
+  .col{flex:1;min-width:240px;max-width:300px;}
+  .cap{font-weight:600;font-size:14px;margin:0 0 2px;}
+  .cap small{font-weight:400;color:var(--text-soft);}
+  .gain{display:inline-block;font-size:12px;font-weight:600;color:#047857;
+    background:#d1fae5;border-radius:999px;padding:2px 9px;margin:4px 0 8px;}
+  .gain.zero{color:#64748b;background:#e2e8f0;}
+
+  /* «телефон» — одинаковая высота у всех, чтобы видеть, у кого сетка выше */
+  .phone{height:560px;border:1px solid #cbd5e1;border-radius:26px;background:var(--bg);
+    overflow:hidden;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(15,23,42,.12);}
+  .pad{padding:12px 10px 0;display:flex;flex-direction:column;height:100%;}
+
+  /* шапка */
+  .head{display:flex;align-items:center;gap:8px;margin-bottom:12px;}
+  .ico-btn{width:38px;height:38px;flex:none;border-radius:50%;border:1px solid var(--border);
+    background:var(--surface);display:flex;align-items:center;justify-content:center;color:var(--text-soft);}
+  .ico-btn svg{width:19px;height:19px;}
+  .spacer{flex:1;}
+  .pill{border:1px solid var(--border);background:var(--surface);border-radius:10px;
+    padding:7px 12px;font-size:13px;font-weight:500;color:var(--text);}
+
+  /* полоса недели — текущая (столбиком) */
+  .week{display:flex;gap:4px;margin-bottom:12px;}
+  .wd{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 0 8px;}
+  .wd-name{font-size:11px;color:var(--text-mute);text-transform:uppercase;letter-spacing:.03em;}
+  .wd-num{font-size:16px;font-weight:600;line-height:1;width:32px;height:32px;display:flex;
+    align-items:center;justify-content:center;border-radius:50%;}
+  .wd.today .wd-num{color:var(--accent);}
+  .wd.active .wd-num{background:var(--accent);color:#fff;}
+  .wd.active .wd-name{color:var(--accent);}
+
+  /* полоса недели — компактная (в одну строку) */
+  .week.compact{gap:3px;margin-bottom:6px;}
+  .week.compact .wd{flex-direction:row;justify-content:center;gap:5px;padding:4px 0;}
+  .week.compact .wd-name{font-size:10px;}
+  .week.compact .wd-num{font-size:13px;width:24px;height:24px;}
+
+  /* полоса недели — слегка ужатая */
+  .week.tight{margin-bottom:8px;}
+  .week.tight .wd{padding:4px 0 5px;gap:2px;}
+  .week.tight .wd-num{width:28px;height:28px;font-size:15px;}
+
+  /* сетка дня — занимает остаток высоты; чем выше, тем лучше */
+  .grid{flex:1;background:var(--surface);border:1px solid var(--border);
+    border-radius:18px 18px 0 0;position:relative;overflow:hidden;}
+  .grid .label{position:absolute;left:8px;font-size:11px;color:var(--text-mute);
+    font-variant-numeric:tabular-nums;}
+  .grid .line{position:absolute;left:44px;right:0;border-top:1px solid var(--border);}
+  .grid .ev{position:absolute;left:50px;right:10px;border-radius:8px;padding:5px 8px;
+    font-size:11px;font-weight:600;color:#fff;}
+  .legend{margin-top:14px;font-size:12px;color:var(--text-soft);}
+  .note{margin-top:16px;font-size:13px;color:var(--text-soft);background:#fff;border:1px solid var(--border);
+    border-radius:12px;padding:12px 14px;max-width:680px;}
+</style>
+</head>
+<body>
+  <h1>Место под сетку дня — варианты</h1>
+  <p class="sub">У всех «телефонов» одинаковая высота экрана. Чем выше синяя зона снизу — тем больше места у сетки дня.</p>
+
+  <div class="row" id="root"></div>
+
+  <div class="note">
+    Это только макет для сравнения, на работу приложения он не влияет. Выбери вариант — и я применю его в самом планере (только на мобильном; на компьютере места хватает).
+  </div>
+
+<script>
+  // иконки
+  var CAL='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/></svg>';
+  var SEARCH='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>';
+  var GEAR='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>';
+
+  var DAYS=[['Пн',19],['Вт',20],['Ср',21],['Чт',22],['Пт',23],['Сб',24],['Вс',25]];
+  var ACTIVE=5; // Сб 24
+
+  function head(){
+    return '<div class="head">'
+      +'<div class="ico-btn">'+CAL+'</div>'
+      +'<div class="spacer"></div>'
+      +'<div class="pill">День</div>'
+      +'<div class="ico-btn">'+SEARCH+'</div>'
+      +'<div class="ico-btn">'+GEAR+'</div>'
+      +'</div>';
+  }
+  function week(cls){
+    var h='<div class="week '+(cls||'')+'">';
+    for(var i=0;i<DAYS.length;i++){
+      var c='wd'+(i===ACTIVE?' active':'')+(i===ACTIVE?' today':'');
+      h+='<div class="'+c+'"><span class="wd-num">'+DAYS[i][1]+'</span><span class="wd-name">'+DAYS[i][0]+'</span></div>';
+    }
+    return h+'</div>';
+  }
+  function grid(){
+    var h='<div class="grid">';
+    var hours=['08:00','09:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00'];
+    for(var i=0;i<hours.length;i++){
+      var top=10+i*40;
+      h+='<span class="label" style="top:'+(top-6)+'px">'+hours[i]+'</span>';
+      h+='<div class="line" style="top:'+top+'px"></div>';
+    }
+    h+='<div class="ev" style="top:50px;height:54px;background:#0ea5e9;">Созвон по проекту<br>09:00–10:30</div>';
+    h+='<div class="ev" style="top:170px;height:34px;background:#10b981;">Обед</div>';
+    h+='<div class="ev" style="top:250px;height:74px;background:#f59e0b;">Глубокая работа<br>14:00–16:00</div>';
+    return h+'</div>';
+  }
+
+  var variants=[
+    {cap:'Сейчас', sub:'как в проде', gain:null, week:''},
+    {cap:'1. Компактная неделя', sub:'число+день в строку', gain:'+~40px сетке', week:'compact'},
+    {cap:'2. Только ужать', sub:'отступы и кружки', gain:'+~15px сетке', week:'tight'},
+    {cap:'3. Без полосы недели', sub:'день — через календарь', gain:'+~75px сетке', week:'none'},
+  ];
+
+  var root=document.getElementById('root');
+  variants.forEach(function(v){
+    var col=document.createElement('div');
+    col.className='col';
+    var g=v.gain?('<span class="gain">'+v.gain+'</span>'):'<span class="gain zero">базовый вид</span>';
+    var wk=v.week==='none'?'':week(v.week);
+    col.innerHTML='<div class="cap">'+v.cap+' <small>'+v.sub+'</small></div>'+g
+      +'<div class="phone"><div class="pad">'+head()+wk+grid()+'</div></div>';
+    root.appendChild(col);
+  });
+</script>
+</body>
+</html>
