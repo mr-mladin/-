@@ -17,7 +17,7 @@
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
-body { font-family: var(--font); background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
+body { font-family: var(--font); background: var(--surface); color: var(--text); -webkit-font-smoothing: antialiased; }
 #app { height: 100%; }
 
 /* Полоса прокрутки видна только во время прокрутки.
@@ -161,7 +161,7 @@ textarea.input { resize: vertical; }
 .planner-aside { width: 400px; flex: none; display: flex; flex-direction: column;
   padding: 16px 16px 16px 18px; }
 /* Нижняя панель навигации — только на мобильном (включается в @media ниже) */
-.mobile-bar { display: none; }
+.mobile-fab { display: none; }
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
 .proj-current { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
@@ -513,11 +513,11 @@ textarea.input { resize: vertical; }
   .planner { flex-direction: column; gap: 10px;
     padding: calc(2px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left)); }
   .planner-content { padding-top: 0; }
-  /* Панель проектов: полноэкранная шторка, выезжает снизу по кнопке «Проекты». */
+  /* Панель проектов: полноэкранная шторка, выезжает слева (свайп от края). */
   .planner-aside { position: fixed; inset: 0; z-index: 40; width: 100%;
     flex: none; margin: 0; background: var(--bg); overflow-y: auto;
-    padding: calc(14px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(94px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
-    transform: translateY(100%); transition: transform .28s cubic-bezier(.2,.7,.3,1); }
+    padding: calc(14px + env(safe-area-inset-top)) calc(12px + env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) calc(12px + env(safe-area-inset-left));
+    transform: translateX(-100%); transition: transform .28s cubic-bezier(.2,.7,.3,1); }
   .planner.aside-open .planner-aside { transform: none; }
   .proj-tasks { max-height: none; }
   /* Сетка дня — во всю ширину экрана, без рамки/тени/скруглений: выглядит как
@@ -526,8 +526,7 @@ textarea.input { resize: vertical; }
   .planner-grid-scroll { border: none; border-radius: 0; box-shadow: none;
     margin-left: calc(-10px - env(safe-area-inset-left));
     margin-right: calc(-10px - env(safe-area-inset-right));
-    /* Отступ снизу под плавающее меню — последние часы прокручиваются над ним. */
-    padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .tl { left: 0; }
   .head-add { display: none; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
@@ -543,27 +542,11 @@ textarea.input { resize: vertical; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
   .month-chip-title { font-size: 10px; }
 
-  /* Нижняя навигация: «жидкое стекло»-пилюля слева + круглая «+» справа.
-     Равный отступ по бокам и снизу; выровнены по нижнему краю. */
-  .mobile-bar { display: flex; position: fixed; left: 0; right: 0; z-index: 45;
-    bottom: 16px; padding: 0 calc(16px + env(safe-area-inset-right)) 0 calc(16px + env(safe-area-inset-left));
-    align-items: flex-end; justify-content: center; gap: 12px; pointer-events: none; }
-  .mobile-pill, .mobile-fab { pointer-events: auto; }
-  .mobile-pill { display: flex; gap: 2px; padding: 5px;
-    background: color-mix(in srgb, var(--surface) 55%, transparent);
-    -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
-    border: 1px solid color-mix(in srgb, var(--text) 9%, transparent);
-    border-radius: 999px; box-shadow: 0 10px 34px rgba(15, 23, 42, 0.20); }
-  .mb-btn { display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 60px;
-    border: 0; background: transparent; color: var(--text-soft); font-family: inherit;
-    font-size: 11px; font-weight: 600; padding: 7px 12px; border-radius: 999px; cursor: pointer;
-    transition: color .15s, background .15s; }
-  .mb-btn .ico { width: 21px; height: 21px; }
-  .mb-btn.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
-  /* «+» поднят над меню — в правый нижний угол сетки дня. */
-  .mobile-fab { position: fixed; right: calc(16px + env(safe-area-inset-right)); bottom: 90px;
-    margin: 0; flex: none; width: 58px; height: 58px; border-radius: 50%;
-    border: 0; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  /* Круглая «+» в правом нижнем углу сетки дня (нижнее меню убрано). */
+  .mobile-fab { display: flex; position: fixed; z-index: 45;
+    right: calc(16px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
+    flex: none; width: 58px; height: 58px; border-radius: 50%;
+    border: 0; background: var(--accent); color: #fff; align-items: center; justify-content: center;
     cursor: pointer; animation: fabPulse 2.6s ease-in-out infinite; }
   .mobile-fab .ico { width: 27px; height: 27px; }
   @keyframes fabPulse {

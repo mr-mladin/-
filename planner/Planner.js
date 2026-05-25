@@ -673,6 +673,32 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
+  // Шторка проектов: тянем от края экрана. От левого края вправо — открыть,
+  // от правого края влево (когда открыта) — закрыть.
+  function edgeSwipe(e, mode) {
+    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    const move = ev => {
+      const t = ev.touches[0]; if (!t) return;
+      const dx = t.clientX - sx, dy = t.clientY - sy;
+      if (Math.abs(dy) > Math.abs(dx) + 16) { cleanup(); return; } // вертикаль — не шторка
+      if (mode === "open" && dx > 44) { setAsideOpen(true); cleanup(); }
+      else if (mode === "close" && dx < -44) { setAsideOpen(false); cleanup(); }
+    };
+    const cleanup = () => {
+      document.removeEventListener("touchmove", move, { passive: true });
+      document.removeEventListener("touchend", cleanup);
+      document.removeEventListener("touchcancel", cleanup);
+    };
+    document.addEventListener("touchmove", move, { passive: true });
+    document.addEventListener("touchend", cleanup);
+    document.addEventListener("touchcancel", cleanup);
+  }
+  function onAsideSwipeStart(e) {
+    if (e.touches.length !== 1) return;
+    if (e.touches[0].clientX < window.innerWidth - 26) return; // только от правого края
+    edgeSwipe(e, "close");
+  }
+
   // Свайп по сетке дня — карусель «как в Apple»: лента из трёх дней (вчера/
   // сегодня/завтра) едет за пальцем с лёгким сопротивлением, соседний день виден
   // сразу. Переключение — по короткому свайпу или быстрому флику. Можно листать
@@ -685,6 +711,11 @@ function Planner() {
       return;
     }
     if (e.touches.length !== 1 || drag || zoomingRef.current) return;
+    // Свайп от левого края → выезжает шторка проектов (свайп в центре — дни).
+    if (!asideOpen && e.touches[0].clientX < 26) {
+      edgeSwipe(e, "open");
+      return;
+    }
     const track = trackRef.current;
     if (!track) return;
     // Идёт анимация прошлого перехода — мгновенно её завершаем (листание подряд).
@@ -839,7 +870,7 @@ function Planner() {
   return html`
     <div class="app">
       <div class=${"planner" + (asideOpen ? " aside-open" : "")}>
-        <aside class="planner-aside">
+        <aside class="planner-aside" onTouchStart=${onAsideSwipeStart}>
           <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
             <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
               <span class="proj-current-ico" style=${`color:${filter === "all" ? "var(--accent)" : filter === "inbox" ? "#64748b" : (listById[filter]?.color || "var(--accent)")};`}>
@@ -1074,17 +1105,9 @@ function Planner() {
           </div>`}
         </div>
 
-        <div class="mobile-bar">
-          <div class="mobile-pill">
-            <button class=${"mb-btn" + (asideOpen ? " on" : "")} onClick=${() => setAsideOpen(true)}>
-              ${Icon.inbox()}<span>Проекты</span></button>
-            <button class=${"mb-btn" + (!asideOpen && !settingsOpen ? " on" : "")} onClick=${() => { setAsideOpen(false); setView("day"); }}>
-              ${Icon.calendar()}<span>Таймлайн</span></button>
-          </div>
-          <button class="mobile-fab" title="Новая задача"
-            onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
-            ${Icon.plus()}</button>
-        </div>
+        <button class="mobile-fab" title="Новая задача"
+          onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
+          ${Icon.plus()}</button>
       </div>
     </div>
 
