@@ -675,7 +675,7 @@ function Planner() {
       if (!horiz) return;
       const commit = Math.abs(dx) > Math.min(70, W * 0.18) || Math.abs(vx) > 0.35;
       if (!commit) {
-        track.style.transition = "transform .2s cubic-bezier(.2,.7,.3,1)";
+        track.style.transition = "transform .45s cubic-bezier(.16,1,.3,1)";
         track.style.transform = "translateX(-100%)";
         const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; };
         track.addEventListener("transitionend", onBack);
@@ -683,7 +683,7 @@ function Planner() {
       }
       animatingRef.current = true;
       const dir = dx < 0 ? 1 : -1; // влево → следующий день
-      track.style.transition = "transform .42s cubic-bezier(.25,.8,.3,1)";
+      track.style.transition = "transform .6s cubic-bezier(.16,1,.3,1)";
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       const onDone = () => {
         track.removeEventListener("transitionend", onDone);
