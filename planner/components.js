@@ -129,9 +129,11 @@ export function EventCard({ item, onClose, onDelete }) {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const projRef = useRef(null);
   const emojiRef = useRef(null);
+  const stateRef = useRef({});
+  stateRef.current = { title, notes };
 
   useEffect(() => {
-    const onKey = e => { if (e.key === "Escape") onClose?.(); };
+    const onKey = e => { if (e.key === "Escape") flushAndClose(); };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
@@ -159,8 +161,20 @@ export function EventCard({ item, onClose, onDelete }) {
 
   function toggleDone() { const next = !done; doneFeedback(); setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
 
+  // Сохраняем название и заметку перед закрытием: при закрытии тапом по фону
+  // поле не успевает потерять фокус (onBlur), поэтому правки сохраняем здесь.
+  function flushAndClose() {
+    const t = stateRef.current.title.trim() || "Без названия";
+    const n = stateRef.current.notes.trim() || null;
+    const patch = {};
+    if (t !== (item.title || "")) patch.title = t;
+    if (n !== (item.notes || null)) patch.notes = n;
+    if (patch.title !== undefined || patch.notes !== undefined) save(patch);
+    onClose?.();
+  }
+
   return html`
-    <div class="modal-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
+    <div class="modal-back" onPointerDown=${e => { if (e.target === e.currentTarget) flushAndClose(); }}>
       <div class="evc" role="dialog" style=${`--c:${dotColor};`}>
         <div class="evc-head">
           <button class=${"task-check sm" + (done ? " on" : "")} title="Готово" onClick=${toggleDone}>${Icon.check()}</button>
