@@ -301,6 +301,9 @@ function Planner() {
       active = true;
       setSelected(new Set());
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
+      // Непассивный слушатель добавляем только после активации создания — чтобы
+      // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
       setDrag({ type: "create", start: start0, dur: 60 });
       if (navigator.vibrate) navigator.vibrate(12);
     };
@@ -348,7 +351,6 @@ function Planner() {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", cancel);
-    if (touch) document.addEventListener("touchmove", onTouchMove, { passive: false });
     if (touch) hold = setTimeout(beginTouch, HOLD_MS);
   }
 
@@ -408,6 +410,7 @@ function Planner() {
     const onTouchMove = ev => { if (armed) ev.preventDefault(); };
     const arm = (select) => {
       armed = true;
+      document.addEventListener("touchmove", onTouchMove, { passive: false });
       if (select) { setSelected(new Set([item.key])); haptic(); }
       setDrag({ type: "move", key: item.key, start: item.start_min, dur, armed: true });
     };
@@ -436,7 +439,6 @@ function Planner() {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
-    document.addEventListener("touchmove", onTouchMove, { passive: false });
     if (already) arm(false);                       // уже выделена → двигаем сразу
     else hold = setTimeout(() => arm(true), 280);  // не выделена → выделяем удержанием
   }
@@ -666,9 +668,11 @@ function Planner() {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) horiz = Math.abs(dx) > Math.abs(dy) * 0.8;
+      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy);
       if (!horiz) return;
-      ev.preventDefault();
+      // Не preventDefault: направление лочит touch-action: pan-y, поэтому
+      // вертикальная прокрутка остаётся быстрой, а по горизонтали браузер
+      // сам не прокручивает — мы только двигаем ленту.
       const now = performance.now();
       if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
       lastX = t.clientX; lastT = now;
@@ -676,7 +680,7 @@ function Planner() {
       track.style.transform = `translateX(calc(-100% + ${dx}px))`;
     };
     const finish = () => {
-      document.removeEventListener("touchmove", move, { passive: false });
+      document.removeEventListener("touchmove", move, { passive: true });
       document.removeEventListener("touchend", finish);
       document.removeEventListener("touchcancel", finish);
       if (!horiz) return;
@@ -709,7 +713,7 @@ function Planner() {
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
     };
-    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchmove", move, { passive: true });
     document.addEventListener("touchend", finish);
     document.addEventListener("touchcancel", finish);
   }
