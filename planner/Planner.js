@@ -58,6 +58,9 @@ function Planner() {
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
+  // Соседние дни карусели рисуем только во время горизонтального свайпа —
+  // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
+  const [peek, setPeek] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [ctx, setCtx] = useState(null);
   const [swipeId, setSwipeId] = useState(null);
@@ -263,6 +266,7 @@ function Planner() {
       track.style.transition = "";
       track.style.transform = "";
     }
+    setPeek(false); // переход завершён — соседние дни больше не нужны
   }, [date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
@@ -663,13 +667,14 @@ function Planner() {
     if (commitFinalizeRef.current) commitFinalizeRef.current();
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
     const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
-    let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0;
+    let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0, peeked = false;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
       if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy);
       if (!horiz) return;
+      if (!peeked) { peeked = true; setPeek(true); } // показать соседние дни
       // Не preventDefault: направление лочит touch-action: pan-y, поэтому
       // вертикальная прокрутка остаётся быстрой, а по горизонтали браузер
       // сам не прокручивает — мы только двигаем ленту.
@@ -689,7 +694,7 @@ function Planner() {
         track.style.transition = "transform .35s cubic-bezier(.16,1,.3,1)";
         void track.offsetWidth; // reflow — чтобы возврат анимировался, а не прыгал
         track.style.transform = "translateX(-100%)";
-        const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; };
+        const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; setPeek(false); };
         track.addEventListener("transitionend", onBack);
         return;
       }
@@ -885,7 +890,7 @@ function Planner() {
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class="tl-track" ref=${trackRef}>
-              <div class="tl-pane">${dayStaticPane(prevDate)}</div>
+              <div class="tl-pane">${peek ? dayStaticPane(prevDate) : null}</div>
               <div class="tl-pane">
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
@@ -960,7 +965,7 @@ function Planner() {
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
               </div>
-              <div class="tl-pane">${dayStaticPane(nextDate)}</div>
+              <div class="tl-pane">${peek ? dayStaticPane(nextDate) : null}</div>
               </div>
             </div>
           </div>`}
