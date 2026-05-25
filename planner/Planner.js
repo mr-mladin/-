@@ -76,6 +76,7 @@ function Planner() {
   const keepScrollRef = useRef(false);
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
+  const peekTimerRef = useRef(null);
   const weekScrollRef = useRef(null);
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
@@ -173,6 +174,7 @@ function Planner() {
       if (swipingRef.current) return; // идёт свайп — зум не начинаем
       zoomingRef.current = true;
       base = hourPxRef.current;
+      clearTimeout(peekTimerRef.current); setPeek(false); // зум — без соседних дней (легче)
     };
     const onGChange = (e) => {
       e.preventDefault();
@@ -285,7 +287,7 @@ function Planner() {
       track.style.transition = "";
       track.style.transform = "";
     }
-    setPeek(false); // переход завершён — соседние дни больше не нужны
+    schedulePeekOff(); // соседние дни прячем с задержкой (для листания подряд)
   }, [date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
@@ -727,6 +729,12 @@ function Planner() {
     if (e.touches[0].clientX < window.innerWidth - 26) return; // только от правого края
     edgeSwipe(e, "close");
   }
+  // Соседние дни оставляем смонтированными ещё немного после свайпа — чтобы при
+  // быстром листании подряд не перерисовывать их каждый раз (без рывков).
+  function schedulePeekOff() {
+    clearTimeout(peekTimerRef.current);
+    peekTimerRef.current = setTimeout(() => setPeek(false), 700);
+  }
 
   // Свайп по сетке дня — карусель «как в Apple»: лента из трёх дней (вчера/
   // сегодня/завтра) едет за пальцем с лёгким сопротивлением, соседний день виден
@@ -764,7 +772,7 @@ function Planner() {
       }
       if (!horiz) return;
       ev.preventDefault(); // жёстко гасим вертикальную прокрутку — никакой диагонали
-      if (!peeked) { peeked = true; setPeek(true); swipingRef.current = true; } // показать соседние дни
+      if (!peeked) { peeked = true; clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true; } // показать соседние дни
       const now = performance.now();
       if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
       lastX = t.clientX; lastT = now;
@@ -795,7 +803,7 @@ function Planner() {
         track.style.transition = "transform .25s cubic-bezier(.16,1,.3,1)";
         void track.offsetWidth; // reflow — чтобы возврат анимировался, а не прыгал
         track.style.transform = "translateX(-100%)";
-        const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; setPeek(false); };
+        const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; schedulePeekOff(); };
         track.addEventListener("transitionend", onBack);
         return;
       }
@@ -816,7 +824,7 @@ function Planner() {
       commitFinalizeRef.current = finalize;
       // Быстрый флик — короткая «снаппи» анимация (для быстрого листания подряд),
       // медленный осознанный свайп — плавнее.
-      const durMs = Math.abs(vx) > 0.4 ? 280 : 460;
+      const durMs = Math.abs(vx) > 0.3 ? 190 : 360;
       track.style.transition = `transform ${durMs}ms cubic-bezier(.16,1,.3,1)`;
       void track.offsetWidth; // reflow — иначе Safari прыгает мгновенно вместо анимации
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
