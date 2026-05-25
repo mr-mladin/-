@@ -64,6 +64,8 @@ function Planner() {
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
+  const paneRef = useRef(null);
+  const keepScrollRef = useRef(false);
   const weekScrollRef = useRef(null);
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
@@ -233,6 +235,7 @@ function Planner() {
   }, [view, date, tasks, filter]);
 
   useEffect(() => {
+    if (keepScrollRef.current) { keepScrollRef.current = false; return; } // свайп дня — оставляем позицию
     const el = view === "day" ? scrollRef.current : view === "week" ? weekScrollRef.current : null;
     if (!el) return;
     const now = new Date();
@@ -623,38 +626,65 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
-  // Свайп влево/вправо по сетке дня — листание дней (как в Календаре Apple).
-  // Решаем «горизонтальный жест?» по первым ~10px; вертикаль не трогаем (скролл).
-  const swipeRef = useRef(null);
+  // Свайп по сетке дня — листание дней «как в Apple»: лента едет за пальцем,
+  // при отпускании доезжает за край, а новый день въезжает с другой стороны.
+  // Двигаем внутреннюю панель (.tl-pane); фон сетки белый — щель просвечивает
+  // бесшовно и обрезается прокруткой по горизонтали.
+  const animatingRef = useRef(false);
   function onDaySwipeStart(e) {
-    if (e.touches.length !== 1 || drag) { swipeRef.current = null; return; }
-    const t = e.touches[0];
-    swipeRef.current = { x: t.clientX, y: t.clientY, horiz: null };
-  }
-  function onDaySwipeMove(e) {
-    const s = swipeRef.current;
-    if (!s) return;
-    if (e.touches.length !== 1) { swipeRef.current = null; return; }
-    const t = e.touches[0];
-    const dx = t.clientX - s.x, dy = t.clientY - s.y;
-    if (s.horiz === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
-      s.horiz = Math.abs(dx) > Math.abs(dy) * 1.3;
-    }
-  }
-  function onDaySwipeEnd(e) {
-    const s = swipeRef.current; swipeRef.current = null;
-    if (!s || !s.horiz) return;
-    const t = e.changedTouches && e.changedTouches[0];
-    if (!t || Math.abs(t.clientX - s.x) < 55) return;
-    const dir = t.clientX - s.x < 0 ? 1 : -1; // влево → следующий день
-    shift(dir);
-    haptic();
-    const el = scrollRef.current;
-    if (el) {
-      el.classList.remove("day-slide-next", "day-slide-prev");
-      void el.offsetWidth; // перезапуск анимации
-      el.classList.add(dir > 0 ? "day-slide-next" : "day-slide-prev");
-    }
+    if (e.touches.length !== 1 || drag || animatingRef.current) return;
+    const pane = paneRef.current;
+    if (!pane) return;
+    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    const W = pane.getBoundingClientRect().width || window.innerWidth;
+    let horiz = null, dx = 0;
+    const move = ev => {
+      const t = ev.touches[0]; if (!t) return;
+      dx = t.clientX - sx;
+      const dy = t.clientY - sy;
+      if (horiz === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) horiz = Math.abs(dx) > Math.abs(dy) * 1.2;
+      if (!horiz) return;
+      ev.preventDefault();
+      pane.style.transition = "none";
+      pane.style.transform = `translateX(${dx}px)`;
+    };
+    const finish = () => {
+      document.removeEventListener("touchmove", move, { passive: false });
+      document.removeEventListener("touchend", finish);
+      document.removeEventListener("touchcancel", finish);
+      if (!horiz) return;
+      const pass = Math.abs(dx) > Math.min(120, W * 0.25);
+      if (!pass) {
+        pane.style.transition = "transform .2s cubic-bezier(.2,.7,.3,1)";
+        pane.style.transform = "translateX(0)";
+        return;
+      }
+      animatingRef.current = true;
+      const dir = dx < 0 ? 1 : -1; // влево → следующий день
+      pane.style.transition = "transform .18s ease-out";
+      pane.style.transform = `translateX(${dir > 0 ? -W : W}px)`;
+      const onOut = () => {
+        pane.removeEventListener("transitionend", onOut);
+        keepScrollRef.current = true; // сохранить вертикальную позицию
+        shift(dir);
+        haptic();
+        pane.style.transition = "none";
+        pane.style.transform = `translateX(${dir > 0 ? W : -W}px)`;
+        void pane.offsetWidth;
+        pane.style.transition = "transform .24s cubic-bezier(.2,.7,.3,1)";
+        pane.style.transform = "translateX(0)";
+        const onIn = () => {
+          pane.removeEventListener("transitionend", onIn);
+          pane.style.transition = ""; pane.style.transform = "";
+          animatingRef.current = false;
+        };
+        pane.addEventListener("transitionend", onIn);
+      };
+      pane.addEventListener("transitionend", onOut);
+    };
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", finish);
+    document.addEventListener("touchcancel", finish);
   }
   function rowToItem(row) {
     return {
@@ -785,8 +815,8 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
-            <div class="planner-grid-scroll" ref=${scrollRef}
-              onTouchStart=${onDaySwipeStart} onTouchMove=${onDaySwipeMove} onTouchEnd=${onDaySwipeEnd}>
+            <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+              <div class="tl-pane" ref=${paneRef}>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
@@ -858,6 +888,7 @@ function Planner() {
                   style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx)}px;--c:${dnd.color};`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
+              </div>
               </div>
             </div>
           </div>`}
