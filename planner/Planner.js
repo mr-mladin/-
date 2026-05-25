@@ -84,6 +84,7 @@ function Planner() {
   const zoomingRef = useRef(false); // идёт изменение масштаба
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const projRef = useRef(null);
+  const asideRef = useRef(null);
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
   const lastTap = useRef({ key: null, t: 0 });
@@ -673,25 +674,46 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
-  // Шторка проектов: тянем от края экрана. От левого края вправо — открыть,
-  // от правого края влево (когда открыта) — закрыть.
+  // Шторка проектов: тянем за пальцем от края экрана. От левого края — открываем,
+  // от правого (когда открыта) — закрываем. Лента едет вместе с пальцем, после
+  // отпускания мягко доезжает (медленно).
   function edgeSwipe(e, mode) {
+    const el = asideRef.current;
+    if (!el) return;
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    const W = window.innerWidth;
+    const base = mode === "open" ? -W : 0;
+    let decided = null, cur = base;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
       const dx = t.clientX - sx, dy = t.clientY - sy;
-      if (Math.abs(dy) > Math.abs(dx) + 16) { cleanup(); return; } // вертикаль — не шторка
-      if (mode === "open" && dx > 44) { setAsideOpen(true); cleanup(); }
-      else if (mode === "close" && dx < -44) { setAsideOpen(false); cleanup(); }
+      if (decided === null) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        decided = Math.abs(dx) > Math.abs(dy);
+        if (!decided) { cleanup(); return; } // вертикаль — это прокрутка, не шторка
+      }
+      cur = Math.max(-W, Math.min(0, base + dx));
+      el.style.transition = "none";
+      el.style.transform = `translateX(${cur}px)`;
+    };
+    const end = () => {
+      cleanup();
+      if (decided !== true) return;
+      const open = cur > -W / 2;
+      el.style.transition = "transform .55s cubic-bezier(.22,1,.3,1)";
+      el.style.transform = `translateX(${open ? 0 : -W}px)`;
+      setAsideOpen(open);
+      const onEnd = () => { el.removeEventListener("transitionend", onEnd); el.style.transition = ""; el.style.transform = ""; };
+      el.addEventListener("transitionend", onEnd);
     };
     const cleanup = () => {
       document.removeEventListener("touchmove", move, { passive: true });
-      document.removeEventListener("touchend", cleanup);
-      document.removeEventListener("touchcancel", cleanup);
+      document.removeEventListener("touchend", end);
+      document.removeEventListener("touchcancel", end);
     };
     document.addEventListener("touchmove", move, { passive: true });
-    document.addEventListener("touchend", cleanup);
-    document.addEventListener("touchcancel", cleanup);
+    document.addEventListener("touchend", end);
+    document.addEventListener("touchcancel", end);
   }
   function onAsideSwipeStart(e) {
     if (e.touches.length !== 1) return;
@@ -870,7 +892,7 @@ function Planner() {
   return html`
     <div class="app">
       <div class=${"planner" + (asideOpen ? " aside-open" : "")}>
-        <aside class="planner-aside" onTouchStart=${onAsideSwipeStart}>
+        <aside class="planner-aside" ref=${asideRef} onTouchStart=${onAsideSwipeStart}>
           <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
             <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
               <span class="proj-current-ico" style=${`color:${filter === "all" ? "var(--accent)" : filter === "inbox" ? "#64748b" : (listById[filter]?.color || "var(--accent)")};`}>
