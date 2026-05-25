@@ -42,6 +42,11 @@ function Planner() {
   const { tasks, taskLists } = store;
 
   const [date, setDate] = useState(todayISO());
+  // Дата, выбранная свайпом, до завершения анимации переезда: полоса недели и
+  // вибрация реагируют на неё мгновенно, пока сетка ещё доезжает.
+  const [pendingDate, setPendingDate] = useState(null);
+  const dateRef = useRef(todayISO());
+  dateRef.current = date;
   const [view, setView] = useState(readView());
   const [filter, setFilter] = useState("all");
   const [creating, setCreating] = useState(null);
@@ -195,7 +200,7 @@ function Planner() {
   const trayTasks = projTasks.filter(t => !gridIds.has(t.id));
 
   const week = useMemo(() => {
-    const base = fromISO(date);
+    const base = fromISO(pendingDate || date);
     const off = (base.getDay() + 6) % 7;
     const mon = new Date(base); mon.setDate(base.getDate() - off);
     const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -203,7 +208,7 @@ function Planner() {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       return { iso: toISO(dd), day: dd.getDate(), short: WD[k] };
     });
-  }, [date]);
+  }, [date, pendingDate]);
 
   const monthWeeks = useMemo(() => view === "month" ? monthMatrix(date) : null, [view, date]);
   const monthItems = useMemo(() => {
@@ -258,7 +263,6 @@ function Planner() {
       track.style.transition = "";
       track.style.transform = "";
     }
-    animatingRef.current = false;
   }, [date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
@@ -636,11 +640,12 @@ function Planner() {
     setFilter(l.id); setProjOpen(false);
   }
   function shift(delta) {
-    const d = fromISO(date);
+    const d = fromISO(dateRef.current);
     if (view === "month") d.setMonth(d.getMonth() + delta);
     else if (view === "week") d.setDate(d.getDate() + delta * 7);
     else d.setDate(d.getDate() + delta);
-    setDate(toISO(d));
+    dateRef.current = toISO(d); // синхронно — чтобы листать дни подряд без потери шага
+    setDate(dateRef.current);
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
@@ -648,17 +653,14 @@ function Planner() {
   // сегодня/завтра) едет за пальцем с лёгким сопротивлением, соседний день виден
   // сразу. Переключение — по короткому свайпу или быстрому флику. Можно листать
   // дни подряд: новый свайп мгновенно завершает предыдущий переход.
-  const animatingRef = useRef(false);
   function onDaySwipeStart(e) {
     if (e.touches.length !== 1 || drag) return;
     const track = trackRef.current;
     if (!track) return;
     // Идёт анимация прошлого перехода — мгновенно её завершаем (листание подряд).
     if (commitFinalizeRef.current) commitFinalizeRef.current();
-    animatingRef.current = false;
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
     const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
-    const RESIST = 0.62;
     let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
@@ -671,7 +673,7 @@ function Planner() {
       if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
       lastX = t.clientX; lastT = now;
       track.style.transition = "none";
-      track.style.transform = `translateX(calc(-100% + ${dx * RESIST}px))`;
+      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
     };
     const finish = () => {
       document.removeEventListener("touchmove", move, { passive: false });
@@ -686,19 +688,22 @@ function Planner() {
         track.addEventListener("transitionend", onBack);
         return;
       }
-      animatingRef.current = true;
       const dir = dx < 0 ? 1 : -1; // влево → следующий день
+      // Подсветку дня вверху и вибрацию даём сразу — «попал в другой день».
+      const td = fromISO(dateRef.current); td.setDate(td.getDate() + dir);
+      setPendingDate(toISO(td));
+      haptic();
       const finalize = () => {
         if (commitFinalizeRef.current !== finalize) return;
         commitFinalizeRef.current = null;
         track.removeEventListener("transitionend", finalize);
         keepScrollRef.current = true;
         pendingRecenterRef.current = true;
-        haptic();
         shift(dir);
+        setPendingDate(null);
       };
       commitFinalizeRef.current = finalize;
-      track.style.transition = "transform .5s cubic-bezier(.16,1,.3,1)";
+      track.style.transition = "transform .7s cubic-bezier(.16,1,.3,1)";
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
     };
@@ -866,7 +871,7 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-week">
             ${week.map(w => html`<button key=${w.iso}
-              class=${"wday" + (w.iso === date ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
+              class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
               onClick=${() => setDate(w.iso)}>
               <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
           </div>`}
