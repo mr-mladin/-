@@ -10,6 +10,7 @@ import {
 import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
 
 const VIEWS = [["day", "День"], ["week", "Неделя"], ["month", "Месяц"]];
+const WD_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 function readView() {
   try { const v = localStorage.getItem("planner.view"); return VIEWS.some(x => x[0] === v) ? v : "day"; }
   catch (e) { return "day"; }
@@ -98,6 +99,7 @@ function Planner() {
   }, [projOpen]);
 
   useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
+  useEffect(() => () => clearTimeout(peekTimerRef.current), []); // не оставлять таймер при размонтировании
 
   // Отмена/возврат: Cmd/Ctrl+Z — отменить, Cmd/Ctrl+Shift+Z — повторить.
   // (кроме случаев ввода текста в полях).
@@ -192,6 +194,7 @@ function Planner() {
     el.addEventListener("gesturechange", onGChange);
     el.addEventListener("gestureend", onGEnd);
     return () => {
+      clearTimeout(clsTimer);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("gesturestart", onGStart);
       el.removeEventListener("gesturechange", onGChange);
@@ -222,7 +225,7 @@ function Planner() {
     const base = fromISO(pendingDate || date);
     const off = (base.getDay() + 6) % 7;
     const mon = new Date(base); mon.setDate(base.getDate() - off);
-    const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    const WD = WD_SHORT;
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       return { iso: toISO(dd), day: dd.getDate(), short: WD[k] };
@@ -246,7 +249,7 @@ function Planner() {
   const weekDays = useMemo(() => {
     if (view !== "week") return null;
     const mon = weekStart(date);
-    const WD = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+    const WD = WD_SHORT;
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       const iso = toISO(dd);
