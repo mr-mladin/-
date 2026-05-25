@@ -682,7 +682,8 @@ function Planner() {
       if (!horiz) return;
       const commit = Math.abs(dx) > Math.min(60, W * 0.16) || Math.abs(vx) > 0.3;
       if (!commit) {
-        track.style.transition = "transform .3s cubic-bezier(.16,1,.3,1)";
+        track.style.transition = "transform .35s cubic-bezier(.16,1,.3,1)";
+        void track.offsetWidth; // reflow — чтобы возврат анимировался, а не прыгал
         track.style.transform = "translateX(-100%)";
         const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; };
         track.addEventListener("transitionend", onBack);
@@ -704,6 +705,7 @@ function Planner() {
       };
       commitFinalizeRef.current = finalize;
       track.style.transition = "transform .7s cubic-bezier(.16,1,.3,1)";
+      void track.offsetWidth; // reflow — иначе Safari прыгает мгновенно вместо анимации
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
     };
