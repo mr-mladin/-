@@ -758,14 +758,13 @@ function Planner() {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy) * 0.7;
+      if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        horiz = Math.abs(dx) > Math.abs(dy) * 0.7;
+        if (!horiz) { cleanup(); return; } // вертикаль — отдаём прокрутке, снимаем слушатель
+      }
       if (!horiz) return;
-      // Жёстко блокируем вертикальную прокрутку на время свайпа — чтобы не было
-      // диагонального движения (touch-action: pan-y сам по себе вертикаль не лочит).
-      if (!peeked) { peeked = true; setPeek(true); swipingRef.current = true; if (scrollRef.current) scrollRef.current.style.overflowY = "hidden"; }
-      // Не preventDefault: направление лочит touch-action: pan-y, поэтому
-      // вертикальная прокрутка остаётся быстрой, а по горизонтали браузер
-      // сам не прокручивает — мы только двигаем ленту.
+      ev.preventDefault(); // жёстко гасим вертикальную прокрутку — никакой диагонали
+      if (!peeked) { peeked = true; setPeek(true); swipingRef.current = true; } // показать соседние дни
       const now = performance.now();
       if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
       lastX = t.clientX; lastT = now;
@@ -773,10 +772,9 @@ function Planner() {
       track.style.transform = `translateX(calc(-100% + ${dx}px))`;
     };
     const cleanup = () => {
-      document.removeEventListener("touchmove", move, { passive: true });
+      document.removeEventListener("touchmove", move, { passive: false });
       document.removeEventListener("touchend", finish);
       document.removeEventListener("touchcancel", finish);
-      if (scrollRef.current) scrollRef.current.style.overflowY = ""; // вернуть прокрутку
     };
     // Прервать свайп (начался зум/второй палец) — вернуть ленту в центр.
     const cancelBack = () => {
@@ -824,7 +822,7 @@ function Planner() {
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
     };
-    document.addEventListener("touchmove", move, { passive: true });
+    document.addEventListener("touchmove", move, { passive: false });
     document.addEventListener("touchend", finish);
     document.addEventListener("touchcancel", finish);
   }
