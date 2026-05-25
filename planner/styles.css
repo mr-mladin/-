@@ -111,8 +111,10 @@ textarea.input { resize: vertical; }
 @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes sheetIn { from { opacity: 0; transform: translateY(10px) scale(.98); } to { opacity: 1; transform: none; } }
 @keyframes cardIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-/* Панель дня — её двигаем при свайпе между днями. */
-.tl-pane { position: relative; will-change: transform; }
+/* Карусель дней: лента из трёх панелей (вчера/сегодня/завтра), двигаем её при
+   свайпе. По центру — текущий день, по бокам — соседние (для предпросмотра). */
+.tl-track { display: flex; transform: translateX(-100%); will-change: transform; }
+.tl-pane { flex: 0 0 100%; position: relative; }
 .modal-back { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.5);
   display: grid; place-items: center; padding: 16px; z-index: 50; animation: overlayIn .16s ease; }
 .modal { width: 100%; max-width: 460px; background: var(--surface);
@@ -276,7 +278,7 @@ textarea.input { resize: vertical; }
 .task-check.sm { width: 22px; height: 22px; }
 .task-check.sm .ico { width: 14px; height: 14px; }
 
-.planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
+.planner-grid-scroll { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; background: var(--surface);
   border: 1px solid var(--border); border-bottom: none; border-radius: 28px 28px 0 0; padding: 6px 0 0;
   margin-right: 16px; box-shadow: 0 14px 44px rgba(15, 23, 42, 0.08); }
 .grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent); }

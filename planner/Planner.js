@@ -64,8 +64,9 @@ function Planner() {
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
-  const paneRef = useRef(null);
+  const trackRef = useRef(null);
   const keepScrollRef = useRef(false);
+  const pendingRecenterRef = useRef(false);
   const weekScrollRef = useRef(null);
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
@@ -242,6 +243,22 @@ function Planner() {
     const target = view === "day" && date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
     el.scrollTop = Math.max(0, (target / 60) * hourPx - 120);
   }, [view, date]);
+
+  // После переключения дня свайпом лента уехала к соседней панели — мгновенно
+  // (до отрисовки) возвращаем её в центр, где уже отрисован новый текущий день.
+  useLayoutEffect(() => {
+    if (!pendingRecenterRef.current) return;
+    pendingRecenterRef.current = false;
+    const track = trackRef.current;
+    if (track) {
+      track.style.transition = "none";
+      track.style.transform = "translateX(-100%)";
+      void track.offsetWidth;
+      track.style.transition = "";
+      track.style.transform = "";
+    }
+    animatingRef.current = false;
+  }, [date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
@@ -626,18 +643,18 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
-  // Свайп по сетке дня — листание дней «как в Apple»: лента едет за пальцем,
-  // при отпускании доезжает за край, а новый день въезжает с другой стороны.
-  // Двигаем внутреннюю панель (.tl-pane); фон сетки белый — щель просвечивает
-  // бесшовно и обрезается прокруткой по горизонтали.
+  // Свайп по сетке дня — карусель «как в Apple»: лента из трёх дней (вчера/
+  // сегодня/завтра) едет за пальцем, соседний день виден сразу. Переключение —
+  // по короткому свайпу или быстрому флику. После смены дня лента мгновенно
+  // пере-центрируется в useLayoutEffect (до отрисовки — без мигания).
   const animatingRef = useRef(false);
   function onDaySwipeStart(e) {
     if (e.touches.length !== 1 || drag || animatingRef.current) return;
-    const pane = paneRef.current;
-    if (!pane) return;
+    const track = trackRef.current;
+    if (!track) return;
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
-    const W = pane.getBoundingClientRect().width || window.innerWidth;
-    let horiz = null, dx = 0;
+    const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
+    let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
@@ -645,42 +662,37 @@ function Planner() {
       if (horiz === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) horiz = Math.abs(dx) > Math.abs(dy) * 1.2;
       if (!horiz) return;
       ev.preventDefault();
-      pane.style.transition = "none";
-      pane.style.transform = `translateX(${dx}px)`;
+      const now = performance.now();
+      if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
+      lastX = t.clientX; lastT = now;
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
     };
     const finish = () => {
       document.removeEventListener("touchmove", move, { passive: false });
       document.removeEventListener("touchend", finish);
       document.removeEventListener("touchcancel", finish);
       if (!horiz) return;
-      const pass = Math.abs(dx) > Math.min(120, W * 0.25);
-      if (!pass) {
-        pane.style.transition = "transform .2s cubic-bezier(.2,.7,.3,1)";
-        pane.style.transform = "translateX(0)";
+      const commit = Math.abs(dx) > Math.min(70, W * 0.18) || Math.abs(vx) > 0.35;
+      if (!commit) {
+        track.style.transition = "transform .2s cubic-bezier(.2,.7,.3,1)";
+        track.style.transform = "translateX(-100%)";
+        const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; };
+        track.addEventListener("transitionend", onBack);
         return;
       }
       animatingRef.current = true;
       const dir = dx < 0 ? 1 : -1; // влево → следующий день
-      pane.style.transition = "transform .18s ease-out";
-      pane.style.transform = `translateX(${dir > 0 ? -W : W}px)`;
-      const onOut = () => {
-        pane.removeEventListener("transitionend", onOut);
-        keepScrollRef.current = true; // сохранить вертикальную позицию
-        shift(dir);
+      track.style.transition = "transform .24s cubic-bezier(.2,.7,.3,1)";
+      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
+      const onDone = () => {
+        track.removeEventListener("transitionend", onDone);
+        pendingRecenterRef.current = true;
+        keepScrollRef.current = true;
         haptic();
-        pane.style.transition = "none";
-        pane.style.transform = `translateX(${dir > 0 ? W : -W}px)`;
-        void pane.offsetWidth;
-        pane.style.transition = "transform .24s cubic-bezier(.2,.7,.3,1)";
-        pane.style.transform = "translateX(0)";
-        const onIn = () => {
-          pane.removeEventListener("transitionend", onIn);
-          pane.style.transition = ""; pane.style.transform = "";
-          animatingRef.current = false;
-        };
-        pane.addEventListener("transitionend", onIn);
+        shift(dir);
       };
-      pane.addEventListener("transitionend", onOut);
+      track.addEventListener("transitionend", onDone);
     };
     document.addEventListener("touchmove", move, { passive: false });
     document.addEventListener("touchend", finish);
@@ -719,6 +731,43 @@ function Planner() {
     }
     return gaps;
   }, [dayTl]);
+
+  const prevDate = (() => { const x = fromISO(date); x.setDate(x.getDate() - 1); return toISO(x); })();
+  const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();
+  // Статичная (без жестов) панель соседнего дня — для предпросмотра в карусели.
+  function dayStaticPane(pd) {
+    const items = itemsForDate(tasks, pd)
+      .filter(i => i.start_min !== null && i.start_min !== undefined)
+      .sort((a, b) => (a.start_min - b.start_min) || ((a.duration_min || 0) - (b.duration_min || 0)));
+    const td = pd === todayISO();
+    return html`<div class="tl tl-static" style=${`height:${24 * hourPx}px;`}>
+      ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
+        <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
+      <div class="tl-spine"></div>
+      ${td && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
+        <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
+      ${items.map(i => {
+        const start = i.start_min, dur = i.duration_min || 0;
+        const top = (start / 60) * hourPx;
+        const height = Math.max(MIN_EVENT_PX, (dur / 60) * hourPx);
+        const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
+        const { emoji, text } = splitEmoji(i.title);
+        const icon = i.icon || emoji;
+        const ttl = i.icon ? i.title : (text || i.title);
+        return html`<div class=${"tl-event" + density + (i.done ? " done" : "")} key=${i.key}
+          style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
+          <div class="tl-pill"><span class="tl-pill-icon">${icon || ""}</span></div>
+          <div class="tl-body"><div class="tl-text">
+            <div class="tl-titlerow">
+              <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+              <span class=${"task-check sm" + (i.done ? " on" : "")}>${Icon.check()}</span>
+            </div>
+            <div class="tl-meta">${minRangeLabel(start, dur)} (${durHuman(dur)})</div>
+          </div></div>
+        </div>`;
+      })}
+    </div>`;
+  }
 
   return html`
     <div class="app">
@@ -816,7 +865,9 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
-              <div class="tl-pane" ref=${paneRef}>
+              <div class="tl-track" ref=${trackRef}>
+              <div class="tl-pane">${dayStaticPane(prevDate)}</div>
+              <div class="tl-pane">
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
@@ -889,6 +940,8 @@ function Planner() {
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
+              </div>
+              <div class="tl-pane">${dayStaticPane(nextDate)}</div>
               </div>
             </div>
           </div>`}
