@@ -80,6 +80,9 @@ function Planner() {
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
   const zoomAnchor = useRef(null);
+  const zoomFocus = useRef(null);   // точка под пальцами при зуме (фиксируем её)
+  const zoomingRef = useRef(false); // идёт изменение масштаба
+  const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const projRef = useRef(null);
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
@@ -128,13 +131,14 @@ function Planner() {
 
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
   // оставить это же время дня под курсором (как в Apple Календаре).
-  function zoomAnchorAt(clientY) {
+  function computeAnchor(clientY) {
     const cont = scrollRef.current, grid = innerRef.current;
-    if (!cont || !grid) return;
+    if (!cont || !grid) return null;
     const yInContainer = clientY - cont.getBoundingClientRect().top;
     const timeMin = (clientY - grid.getBoundingClientRect().top) / hourPxRef.current * 60;
-    zoomAnchor.current = { timeMin, yInContainer };
+    return { timeMin, yInContainer };
   }
+  function zoomAnchorAt(clientY) { zoomAnchor.current = computeAnchor(clientY); }
   useLayoutEffect(() => {
     const a = zoomAnchor.current;
     const cont = scrollRef.current, grid = innerRef.current;
@@ -163,23 +167,32 @@ function Planner() {
       setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), HOUR_MIN, HOUR_MAX));
     };
     let base = hourPxRef.current;
-    const onGStart = (e) => { e.preventDefault(); base = hourPxRef.current; };
+    const onGStart = (e) => {
+      e.preventDefault();
+      if (swipingRef.current) return; // идёт свайп — зум не начинаем
+      zoomingRef.current = true;
+      base = hourPxRef.current;
+    };
     const onGChange = (e) => {
       e.preventDefault();
+      if (swipingRef.current || !zoomingRef.current) return;
       markZooming();
-      // На тач координаты жеста ненадёжны — масштабируем относительно центра
-      // видимой области, чтобы сетка росла симметрично, без сдвига.
+      // Фиксируем точку под пальцами (захвачена в touchstart на два пальца);
+      // если её нет — масштабируем относительно центра видимой области.
       const r = el.getBoundingClientRect();
-      zoomAnchorAt(r.top + el.clientHeight / 2);
+      zoomAnchor.current = zoomFocus.current || computeAnchor(r.top + el.clientHeight / 2);
       setHourPx(clamp(Math.round(base * e.scale), HOUR_MIN, HOUR_MAX));
     };
+    const onGEnd = () => { zoomingRef.current = false; zoomFocus.current = null; };
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("gesturestart", onGStart);
     el.addEventListener("gesturechange", onGChange);
+    el.addEventListener("gestureend", onGEnd);
     return () => {
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("gesturestart", onGStart);
       el.removeEventListener("gesturechange", onGChange);
+      el.removeEventListener("gestureend", onGEnd);
     };
   }, [view]);
 
@@ -660,7 +673,13 @@ function Planner() {
   // сразу. Переключение — по короткому свайпу или быстрому флику. Можно листать
   // дни подряд: новый свайп мгновенно завершает предыдущий переход.
   function onDaySwipeStart(e) {
-    if (e.touches.length !== 1 || drag) return;
+    // Два пальца — это зум: фиксируем точку под пальцами и не начинаем свайп.
+    if (e.touches.length === 2) {
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      zoomFocus.current = computeAnchor(midY);
+      return;
+    }
+    if (e.touches.length !== 1 || drag || zoomingRef.current) return;
     const track = trackRef.current;
     if (!track) return;
     // Идёт анимация прошлого перехода — мгновенно её завершаем (листание подряд).
@@ -669,12 +688,14 @@ function Planner() {
     const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
     let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0, peeked = false;
     const move = ev => {
+      // Появился второй палец или начался зум — прерываем свайп.
+      if (ev.touches.length > 1 || zoomingRef.current) { swipingRef.current = false; cancelBack(); return; }
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
       if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy);
       if (!horiz) return;
-      if (!peeked) { peeked = true; setPeek(true); } // показать соседние дни
+      if (!peeked) { peeked = true; setPeek(true); swipingRef.current = true; } // показать соседние дни
       // Не preventDefault: направление лочит touch-action: pan-y, поэтому
       // вертикальная прокрутка остаётся быстрой, а по горизонтали браузер
       // сам не прокручивает — мы только двигаем ленту.
@@ -684,10 +705,24 @@ function Planner() {
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dx}px))`;
     };
-    const finish = () => {
+    const cleanup = () => {
       document.removeEventListener("touchmove", move, { passive: true });
       document.removeEventListener("touchend", finish);
       document.removeEventListener("touchcancel", finish);
+    };
+    // Прервать свайп (начался зум/второй палец) — вернуть ленту в центр.
+    const cancelBack = () => {
+      cleanup();
+      setPeek(false);
+      track.style.transition = "transform .2s cubic-bezier(.16,1,.3,1)";
+      void track.offsetWidth;
+      track.style.transform = "translateX(-100%)";
+      const onB = () => { track.removeEventListener("transitionend", onB); track.style.transition = ""; track.style.transform = ""; };
+      track.addEventListener("transitionend", onB);
+    };
+    const finish = () => {
+      cleanup();
+      swipingRef.current = false;
       if (!horiz) return;
       const commit = Math.abs(dx) > Math.min(60, W * 0.16) || Math.abs(vx) > 0.3;
       if (!commit) {
