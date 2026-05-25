@@ -683,7 +683,8 @@ function Planner() {
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
     const W = window.innerWidth;
     const base = mode === "open" ? -W : 0;
-    let decided = null, cur = base;
+    const THRESH = Math.min(72, W * 0.16); // дотянул до разметки часов — уже хватит
+    let decided = null, cur = base, lastX = sx, lastT = performance.now(), vx = 0;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
       const dx = t.clientX - sx, dy = t.clientY - sy;
@@ -692,6 +693,9 @@ function Planner() {
         decided = Math.abs(dx) > Math.abs(dy);
         if (!decided) { cleanup(); return; } // вертикаль — это прокрутка, не шторка
       }
+      const now = performance.now();
+      if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
+      lastX = t.clientX; lastT = now;
       cur = Math.max(-W, Math.min(0, base + dx));
       el.style.transition = "none";
       el.style.transform = `translateX(${cur}px)`;
@@ -699,8 +703,12 @@ function Planner() {
     const end = () => {
       cleanup();
       if (decided !== true) return;
-      const open = cur > -W / 2;
-      el.style.transition = "transform .55s cubic-bezier(.22,1,.3,1)";
+      let open;
+      if (vx > 0.25) open = true;        // быстрый флик вправо — открыть
+      else if (vx < -0.25) open = false; // быстрый флик влево — закрыть
+      else if (mode === "open") open = (cur + W) > THRESH;  // приоткрыл дальше порога
+      else open = !((-cur) > THRESH);                       // прикрыл дальше порога
+      el.style.transition = "transform .5s cubic-bezier(.22,1,.3,1)";
       el.style.transform = `translateX(${open ? 0 : -W}px)`;
       setAsideOpen(open);
       const onEnd = () => { el.removeEventListener("transitionend", onEnd); el.style.transition = ""; el.style.transform = ""; };
