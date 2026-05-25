@@ -622,6 +622,40 @@ function Planner() {
     setDate(toISO(d));
   }
   function openDay(iso) { setDate(iso); setView("day"); }
+
+  // Свайп влево/вправо по сетке дня — листание дней (как в Календаре Apple).
+  // Решаем «горизонтальный жест?» по первым ~10px; вертикаль не трогаем (скролл).
+  const swipeRef = useRef(null);
+  function onDaySwipeStart(e) {
+    if (e.touches.length !== 1 || drag) { swipeRef.current = null; return; }
+    const t = e.touches[0];
+    swipeRef.current = { x: t.clientX, y: t.clientY, horiz: null };
+  }
+  function onDaySwipeMove(e) {
+    const s = swipeRef.current;
+    if (!s) return;
+    if (e.touches.length !== 1) { swipeRef.current = null; return; }
+    const t = e.touches[0];
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (s.horiz === null && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+      s.horiz = Math.abs(dx) > Math.abs(dy) * 1.3;
+    }
+  }
+  function onDaySwipeEnd(e) {
+    const s = swipeRef.current; swipeRef.current = null;
+    if (!s || !s.horiz) return;
+    const t = e.changedTouches && e.changedTouches[0];
+    if (!t || Math.abs(t.clientX - s.x) < 55) return;
+    const dir = t.clientX - s.x < 0 ? 1 : -1; // влево → следующий день
+    shift(dir);
+    haptic();
+    const el = scrollRef.current;
+    if (el) {
+      el.classList.remove("day-slide-next", "day-slide-prev");
+      void el.offsetWidth; // перезапуск анимации
+      el.classList.add(dir > 0 ? "day-slide-next" : "day-slide-prev");
+    }
+  }
   function rowToItem(row) {
     return {
       key: row.id, kind: "concrete", id: row.id, templateId: null,
@@ -751,7 +785,8 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
-            <div class="planner-grid-scroll" ref=${scrollRef}>
+            <div class="planner-grid-scroll" ref=${scrollRef}
+              onTouchStart=${onDaySwipeStart} onTouchMove=${onDaySwipeMove} onTouchEnd=${onDaySwipeEnd}>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
