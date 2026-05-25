@@ -67,6 +67,7 @@ function Planner() {
   const trackRef = useRef(null);
   const keepScrollRef = useRef(false);
   const pendingRecenterRef = useRef(false);
+  const commitFinalizeRef = useRef(null);
   const weekScrollRef = useRef(null);
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
@@ -644,38 +645,42 @@ function Planner() {
   function openDay(iso) { setDate(iso); setView("day"); }
 
   // Свайп по сетке дня — карусель «как в Apple»: лента из трёх дней (вчера/
-  // сегодня/завтра) едет за пальцем, соседний день виден сразу. Переключение —
-  // по короткому свайпу или быстрому флику. После смены дня лента мгновенно
-  // пере-центрируется в useLayoutEffect (до отрисовки — без мигания).
+  // сегодня/завтра) едет за пальцем с лёгким сопротивлением, соседний день виден
+  // сразу. Переключение — по короткому свайпу или быстрому флику. Можно листать
+  // дни подряд: новый свайп мгновенно завершает предыдущий переход.
   const animatingRef = useRef(false);
   function onDaySwipeStart(e) {
-    if (e.touches.length !== 1 || drag || animatingRef.current) return;
+    if (e.touches.length !== 1 || drag) return;
     const track = trackRef.current;
     if (!track) return;
+    // Идёт анимация прошлого перехода — мгновенно её завершаем (листание подряд).
+    if (commitFinalizeRef.current) commitFinalizeRef.current();
+    animatingRef.current = false;
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
     const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
+    const RESIST = 0.62;
     let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) horiz = Math.abs(dx) > Math.abs(dy) * 1.2;
+      if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) horiz = Math.abs(dx) > Math.abs(dy) * 0.8;
       if (!horiz) return;
       ev.preventDefault();
       const now = performance.now();
       if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
       lastX = t.clientX; lastT = now;
       track.style.transition = "none";
-      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
+      track.style.transform = `translateX(calc(-100% + ${dx * RESIST}px))`;
     };
     const finish = () => {
       document.removeEventListener("touchmove", move, { passive: false });
       document.removeEventListener("touchend", finish);
       document.removeEventListener("touchcancel", finish);
       if (!horiz) return;
-      const commit = Math.abs(dx) > Math.min(70, W * 0.18) || Math.abs(vx) > 0.35;
+      const commit = Math.abs(dx) > Math.min(60, W * 0.16) || Math.abs(vx) > 0.3;
       if (!commit) {
-        track.style.transition = "transform .45s cubic-bezier(.16,1,.3,1)";
+        track.style.transition = "transform .3s cubic-bezier(.16,1,.3,1)";
         track.style.transform = "translateX(-100%)";
         const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; };
         track.addEventListener("transitionend", onBack);
@@ -683,16 +688,19 @@ function Planner() {
       }
       animatingRef.current = true;
       const dir = dx < 0 ? 1 : -1; // влево → следующий день
-      track.style.transition = "transform .6s cubic-bezier(.16,1,.3,1)";
-      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
-      const onDone = () => {
-        track.removeEventListener("transitionend", onDone);
-        pendingRecenterRef.current = true;
+      const finalize = () => {
+        if (commitFinalizeRef.current !== finalize) return;
+        commitFinalizeRef.current = null;
+        track.removeEventListener("transitionend", finalize);
         keepScrollRef.current = true;
+        pendingRecenterRef.current = true;
         haptic();
         shift(dir);
       };
-      track.addEventListener("transitionend", onDone);
+      commitFinalizeRef.current = finalize;
+      track.style.transition = "transform .5s cubic-bezier(.16,1,.3,1)";
+      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
+      track.addEventListener("transitionend", finalize);
     };
     document.addEventListener("touchmove", move, { passive: false });
     document.addEventListener("touchend", finish);
