@@ -824,7 +824,7 @@ function Planner() {
       commitFinalizeRef.current = finalize;
       // Быстрый флик — короткая «снаппи» анимация (для быстрого листания подряд),
       // медленный осознанный свайп — плавнее.
-      const durMs = Math.abs(vx) > 0.3 ? 460 : 640;
+      const durMs = Math.abs(vx) > 0.3 ? 920 : 1280;
       track.style.transition = `transform ${durMs}ms cubic-bezier(.16,1,.3,1)`;
       void track.offsetWidth; // reflow — иначе Safari прыгает мгновенно вместо анимации
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
