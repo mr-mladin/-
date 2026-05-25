@@ -683,7 +683,6 @@ function Planner() {
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
     const W = window.innerWidth;
     const base = mode === "open" ? -W : 0;
-    const THRESH = Math.min(72, W * 0.16); // дотянул до разметки часов — уже хватит
     let decided = null, cur = base, lastX = sx, lastT = performance.now(), vx = 0;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
@@ -704,10 +703,10 @@ function Planner() {
       cleanup();
       if (decided !== true) return;
       let open;
-      if (vx > 0.25) open = true;        // быстрый флик вправо — открыть
-      else if (vx < -0.25) open = false; // быстрый флик влево — закрыть
-      else if (mode === "open") open = (cur + W) > THRESH;  // приоткрыл дальше порога
-      else open = !((-cur) > THRESH);                       // прикрыл дальше порога
+      if (vx > 0.2) open = true;        // флик вправо — открыть
+      else if (vx < -0.2) open = false; // флик влево — закрыть
+      else if (mode === "open") open = (cur + W) > 8;  // сдвинул хоть чуть-чуть — открываем
+      else open = !((-cur) > 8);                        // сдвинул хоть чуть-чуть — закрываем
       el.style.transition = "transform .5s cubic-bezier(.22,1,.3,1)";
       el.style.transform = `translateX(${open ? 0 : -W}px)`;
       setAsideOpen(open);
@@ -759,7 +758,7 @@ function Planner() {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy) * 1.2;
+      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy) * 0.7;
       if (!horiz) return;
       // Жёстко блокируем вертикальную прокрутку на время свайпа — чтобы не было
       // диагонального движения (touch-action: pan-y сам по себе вертикаль не лочит).
@@ -793,9 +792,9 @@ function Planner() {
       cleanup();
       swipingRef.current = false;
       if (!horiz) return;
-      const commit = Math.abs(dx) > Math.min(60, W * 0.16) || Math.abs(vx) > 0.3;
+      const commit = Math.abs(dx) > Math.min(42, W * 0.11) || Math.abs(vx) > 0.18;
       if (!commit) {
-        track.style.transition = "transform .35s cubic-bezier(.16,1,.3,1)";
+        track.style.transition = "transform .25s cubic-bezier(.16,1,.3,1)";
         void track.offsetWidth; // reflow — чтобы возврат анимировался, а не прыгал
         track.style.transform = "translateX(-100%)";
         const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; setPeek(false); };
@@ -817,7 +816,10 @@ function Planner() {
         setPendingDate(null);
       };
       commitFinalizeRef.current = finalize;
-      track.style.transition = "transform .7s cubic-bezier(.16,1,.3,1)";
+      // Быстрый флик — короткая «снаппи» анимация (для быстрого листания подряд),
+      // медленный осознанный свайп — плавнее.
+      const durMs = Math.abs(vx) > 0.4 ? 280 : 460;
+      track.style.transition = `transform ${durMs}ms cubic-bezier(.16,1,.3,1)`;
       void track.offsetWidth; // reflow — иначе Safari прыгает мгновенно вместо анимации
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
