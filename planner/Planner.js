@@ -683,7 +683,7 @@ function Planner() {
       }
       animatingRef.current = true;
       const dir = dx < 0 ? 1 : -1; // влево → следующий день
-      track.style.transition = "transform .24s cubic-bezier(.2,.7,.3,1)";
+      track.style.transition = "transform .42s cubic-bezier(.25,.8,.3,1)";
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       const onDone = () => {
         track.removeEventListener("transitionend", onDone);
