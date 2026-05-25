@@ -147,7 +147,7 @@ textarea.input { resize: vertical; }
 .auth-card .field { text-align: left; }
 
 /* Шапка */
-.app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.app { height: var(--app-h, 100dvh); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 
 /* Круглая кнопка-иконка (поиск, настройки) */
 .icon-btn { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid var(--border);
