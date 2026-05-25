@@ -263,7 +263,12 @@ function Planner() {
     if (!el) return;
     const now = new Date();
     const target = view === "day" && date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
-    el.scrollTop = Math.max(0, (target / 60) * hourPx - 120);
+    // Ставим позицию после раскладки (двойной rAF) — иначе на старте iOS высота
+    // ещё не финальная и прокрутка встаёт криво (пустые места сверху/снизу).
+    const apply = () => { el.scrollTop = Math.max(0, (target / 60) * hourPx - 120); };
+    apply();
+    const id = requestAnimationFrame(() => requestAnimationFrame(apply));
+    return () => cancelAnimationFrame(id);
   }, [view, date]);
 
   // После переключения дня свайпом лента уехала к соседней панели — мгновенно
@@ -693,9 +698,11 @@ function Planner() {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx;
       const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy);
+      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) horiz = Math.abs(dx) > Math.abs(dy) * 1.2;
       if (!horiz) return;
-      if (!peeked) { peeked = true; setPeek(true); swipingRef.current = true; } // показать соседние дни
+      // Жёстко блокируем вертикальную прокрутку на время свайпа — чтобы не было
+      // диагонального движения (touch-action: pan-y сам по себе вертикаль не лочит).
+      if (!peeked) { peeked = true; setPeek(true); swipingRef.current = true; if (scrollRef.current) scrollRef.current.style.overflowY = "hidden"; }
       // Не preventDefault: направление лочит touch-action: pan-y, поэтому
       // вертикальная прокрутка остаётся быстрой, а по горизонтали браузер
       // сам не прокручивает — мы только двигаем ленту.
@@ -709,6 +716,7 @@ function Planner() {
       document.removeEventListener("touchmove", move, { passive: true });
       document.removeEventListener("touchend", finish);
       document.removeEventListener("touchcancel", finish);
+      if (scrollRef.current) scrollRef.current.style.overflowY = ""; // вернуть прокрутку
     };
     // Прервать свайп (начался зум/второй палец) — вернуть ленту в центр.
     const cancelBack = () => {
