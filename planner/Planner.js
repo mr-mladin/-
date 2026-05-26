@@ -1081,7 +1081,7 @@ function Planner() {
                           <div class="tl-subs" onPointerDown=${e => e.stopPropagation()}>
                             <button class=${"tl-subs-chip" + (openSubs.has(i.key) ? " open" : "")} type="button"
                               onClick=${e => { e.stopPropagation(); toggleSubs(i.key); }}>
-                              <span class=${"tl-subs-box" + (i.subtasks.some(s => s.done) ? " on" : "")}>${Icon.check()}</span>
+                              <span class="tl-subs-box">${Icon.check()}</span>
                               <span class="tl-subs-count">${i.subtasks.filter(s => s.done).length}/${i.subtasks.length}</span>
                               <span class="tl-subs-chev">${Icon.right()}</span>
                             </button>
