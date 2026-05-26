@@ -284,7 +284,7 @@ textarea.input { resize: vertical; }
 .wday.active .wday-num::before { transform: scale(1); }
 .wday.active .wday-name { color: var(--accent); }
 
-.planner-body { flex: 1; display: flex; gap: 16px; min-height: 0; }
+.planner-body { flex: 1; display: flex; gap: 16px; min-height: 0; position: relative; }
 .planner-tray { width: 240px; flex: none; display: flex; flex-direction: column;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; overflow-y: auto; }
 .planner-tray-head { display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase;
@@ -769,3 +769,7 @@ textarea.input { resize: vertical; }
 .allday-item.done .allday-title { background-size: 100% 1.5px; color: var(--text-mute); }
 .allday-edit { min-width: 8ch; border: 0; background: none; outline: none; font-family: inherit;
   font-size: 15px; font-weight: 600; color: var(--text); padding: 0; user-select: text; -webkit-user-select: text; }
+
+/* Спиннер первой загрузки в сетке дня (когда кэша ещё нет). */
+.grid-loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 30;
+  pointer-events: none; background: var(--surface); }

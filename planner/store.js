@@ -11,13 +11,28 @@ const initialState = {
   loading: true,
   ready: false,
   user: null,
-  taskLists: [],
-  tasks: [],
+  taskLists: readCache().lists,
+  tasks: readCache().tasks,
   theme: readTheme(),
 };
 
 function readTheme() {
   try { return localStorage.getItem("planner.theme") || "auto"; } catch (e) { return "auto"; }
+}
+// Локальный кэш задач/проектов — чтобы при открытии (особенно на мобильной сети)
+// задачи показывались мгновенно из прошлой сессии, а не пустая сетка на 1–2 сек.
+function readCache() {
+  try {
+    const v = JSON.parse(localStorage.getItem("planner.cache") || "null");
+    if (v && Array.isArray(v.tasks) && Array.isArray(v.lists)) return v;
+  } catch (e) {}
+  return { tasks: [], lists: [] };
+}
+function writeCache(lists, tasks) {
+  try { localStorage.setItem("planner.cache", JSON.stringify({ lists, tasks })); } catch (e) {}
+}
+function clearCache() {
+  try { localStorage.removeItem("planner.cache"); } catch (e) {}
 }
 
 function reducer(state, action) {
@@ -82,6 +97,7 @@ export function StoreProvider({ children }) {
       if (user) setTimeout(loadAll, 0);
       else {
         loadEpoch.current++;
+        clearCache();
         dispatch({ type: "set", payload: { loading: false, ready: true, taskLists: [], tasks: [] } });
       }
     });
@@ -124,9 +140,11 @@ export function StoreProvider({ children }) {
         pushToast("Таблицы планера ещё не созданы в базе", "error");
         return;
       }
+      const lists = listsRes.data || [], rows = tasksRes.data || [];
+      writeCache(lists, rows);
       dispatch({
         type: "set",
-        payload: { loading: false, ready: true, taskLists: listsRes.data || [], tasks: tasksRes.data || [] },
+        payload: { loading: false, ready: true, taskLists: lists, tasks: rows },
       });
     } catch (e) {
       if (myEpoch !== loadEpoch.current) return;

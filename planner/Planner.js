@@ -1098,6 +1098,7 @@ function Planner() {
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">
+            ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")}>
                 ${allDay.map(i => html`
