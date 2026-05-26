@@ -133,6 +133,16 @@ function Planner() {
 
   // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
   useEffect(() => { setSelected(new Set()); setSelRange(null); }, [date, view, filter]);
+
+  // Снять выделение кликом в любое место вне капсулы (даже по названию, заметке,
+  // пустой области). Слушаем в фазе захвата, чтобы ловить и события, у которых
+  // дочерние обработчики останавливают всплытие (название, подзадачи).
+  useEffect(() => {
+    if (selected.size === 0) return;
+    const onDown = (e) => { const t = e.target; if (!(t && t.closest && t.closest(".tl-pill"))) setSelected(new Set()); };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
