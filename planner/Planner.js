@@ -679,7 +679,7 @@ function Planner() {
     return store.actions.tasks.toggleDone(item).catch(showErr);
   };
   // Конфетти при выполнении задачи — эмодзи-частицы.
-  const CONFETTI = ["✅", "🐝", "😎", "💸", "🤝", "🚀", "💬", "🙌🏻"];
+  const CONFETTI = ["✅", "😎", "💸", "🤝", "🚀", "💬", "🙌🏻", "👏"];
   function makeBits() {
     return Array.from({ length: 15 }, () => {
       const a = Math.random() * Math.PI * 2, dist = 22 + Math.random() * 34;

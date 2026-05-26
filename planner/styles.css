@@ -401,8 +401,9 @@ textarea.input { resize: vertical; }
   opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); animation: confettiPop .95s ease-out forwards; }
 @keyframes confettiPop {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); }
-  18%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .55), calc(-50% + var(--dy) * .55)) scale(1.1) rotate(calc(var(--rot) * .6deg)); }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 10px)) scale(.85) rotate(calc(var(--rot) * 1deg)); }
+  14%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .55), calc(-50% + var(--dy) * .55)) scale(1.1) rotate(calc(var(--rot) * .6deg)); }
+  78%  { opacity: 1; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 6px)) scale(.9) rotate(calc(var(--rot) * 1deg)); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 12px)) scale(.85) rotate(calc(var(--rot) * 1deg)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .tl-pill-check.falling { animation: none !important; }
