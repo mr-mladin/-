@@ -17,7 +17,7 @@ function readView() {
 }
 
 const HOUR_DEFAULT = 80;
-const HOUR_MIN = 36;
+const HOUR_MIN = 14;
 const HOUR_MAX = 220;
 const GUTTER = 56;
 const SNAP = 5;
@@ -145,6 +145,16 @@ function Planner() {
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
+  // Минимальный масштаб (предел сворачивания) — чтобы все 24 часа влезали в
+  // видимую высоту сетки без прокрутки.
+  function fitMinPx() {
+    const el = scrollRef.current;
+    if (!el) return HOUR_MIN;
+    const ad = el.querySelector(".allday");
+    const h = el.clientHeight - (ad ? ad.offsetHeight : 0) - 18; // минус зона «весь день» и отступ сетки
+    return h > 0 ? Math.max(HOUR_MIN, Math.floor(h / 24)) : HOUR_MIN;
+  }
+
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
   // оставить это же время дня под курсором (как в Apple Календаре).
   function computeAnchor(clientY) {
@@ -180,7 +190,7 @@ function Planner() {
       e.preventDefault();
       markZooming();
       zoomAnchorAt(e.clientY);
-      setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), HOUR_MIN, HOUR_MAX));
+      setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -198,7 +208,7 @@ function Planner() {
       // если её нет — масштабируем относительно центра видимой области.
       const r = el.getBoundingClientRect();
       zoomAnchor.current = zoomFocus.current || computeAnchor(r.top + el.clientHeight / 2);
-      setHourPx(clamp(Math.round(base * e.scale), HOUR_MIN, HOUR_MAX));
+      setHourPx(clamp(Math.round(base * e.scale), fitMinPx(), HOUR_MAX));
     };
     const onGEnd = () => { zoomingRef.current = false; zoomFocus.current = null; };
     el.addEventListener("wheel", onWheel, { passive: false });

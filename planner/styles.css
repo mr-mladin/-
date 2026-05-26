@@ -717,7 +717,7 @@ textarea.input { resize: vertical; }
   background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 .allday-check .ico { width: 13px; height: 13px; opacity: 0; transition: opacity .25s ease; }
 .allday-check.on .ico { opacity: 1; }
-.allday-title { font-size: 15px; font-weight: 600; color: var(--text); cursor: text;
+.allday-title { font-size: 15px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat;
   background-position: 0 58%; background-size: 0% 1.5px;
