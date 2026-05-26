@@ -3,7 +3,7 @@
 
 import { createContext, h } from "preact";
 import { useContext, useEffect, useReducer, useRef, useState } from "preact/hooks";
-import { supabase, applyTheme } from "./lib.js";
+import { supabase, applyTheme, todayISO } from "./lib.js";
 
 const StoreContext = createContext(null);
 
@@ -56,6 +56,7 @@ export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [toasts, setToasts] = useState([]);
   const loadEpoch = useRef(0);
+  const rolledFor = useRef(null); // дата, на которую уже перенесли просроченные задачи
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const batching = useRef(null);
@@ -127,6 +128,20 @@ export function StoreProvider({ children }) {
     };
   }, [state.user]);
 
+  // Наступила полночь, пока приложение открыто — переносим просроченные задачи
+  // на новый день (сбрасываем «уже переносили» и перечитываем).
+  useEffect(() => {
+    if (!state.user) return;
+    let timer;
+    const schedule = () => {
+      const now = new Date();
+      const next = new Date(now); next.setHours(24, 0, 5, 0);
+      timer = setTimeout(() => { rolledFor.current = null; loadAll(); schedule(); }, next - now);
+    };
+    schedule();
+    return () => clearTimeout(timer);
+  }, [state.user]);
+
   async function loadAll() {
     const myEpoch = ++loadEpoch.current;
     try {
@@ -146,11 +161,31 @@ export function StoreProvider({ children }) {
         type: "set",
         payload: { loading: false, ready: true, taskLists: lists, tasks: rows },
       });
+      rollOverdue(rows);
     } catch (e) {
       if (myEpoch !== loadEpoch.current) return;
       dispatch({ type: "set", payload: { loading: false, ready: true } });
       pushToast("Не удалось загрузить данные", "error");
     }
+  }
+
+  // Перенос: все невыполненные разовые задачи с прошедших дней переезжают на
+  // сегодня в раздел «весь день» (без времени). Повторяющиеся и их исключения
+  // не трогаем. Идемпотентно: за один день переносим один раз.
+  function rollOverdue(rows) {
+    const today = todayISO();
+    if (rolledFor.current === today) return;
+    rolledFor.current = today;
+    const overdue = (rows || []).filter(t =>
+      !t.recurrence && !t.recurrence_parent && !t.done && t.date && t.date < today);
+    if (!overdue.length) return;
+    writeAt.current = Date.now();
+    const patch = { start_min: null, duration_min: null };
+    overdue.forEach(t => {
+      dispatch({ type: "upsertOne", key: "tasks", item: { ...t, date: today, ...patch } });
+      supabase.from("tasks").update({ date: today, ...patch }).eq("id", t.id).select().single()
+        .then(({ data }) => { if (data) dispatch({ type: "upsertOne", key: "tasks", item: data }); });
+    });
   }
 
   function pushToast(text, type = "info") {
