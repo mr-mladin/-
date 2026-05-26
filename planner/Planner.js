@@ -302,7 +302,15 @@ function Planner() {
   const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
   // Фокус + каретка в конец при появлении поля встроенной правки.
   const focusEnd = (el) => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (e) {} } };
-  function startTitleEdit(i) { setSubEdit(null); setTitleEdit({ key: i.key, value: i.title || "" }); }
+  // Смещение каретки по точке клика (чтобы курсор встал туда, куда кликнули).
+  function caretOffsetFromClick(e) {
+    try {
+      if (document.caretRangeFromPoint) { const r = document.caretRangeFromPoint(e.clientX, e.clientY); return r ? r.startOffset : null; }
+      if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(e.clientX, e.clientY); return p ? p.offset : null; }
+    } catch (_) {}
+    return null;
+  }
+  function startTitleEdit(i, caret) { setSubEdit(null); setTitleEdit({ key: i.key, value: i.title || "", caret }); }
   function commitTitle(i) {
     const e = titleEdit; if (!e || e.key !== i.key) return;
     const v = e.value.trim(); setTitleEdit(null);
@@ -1071,12 +1079,13 @@ function Planner() {
                       <div class="tl-text">
                         <div class="tl-titlerow">
                           ${titleEdit && titleEdit.key === i.key
-                            ? html`<input class="tl-title-edit" ref=${focusEnd} value=${titleEdit.value}
+                            ? html`<input class="tl-title-edit" value=${titleEdit.value}
+                                ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
                                 style=${`width:${Math.max(titleEdit.value.length + 1, 4)}ch;`}
-                                onInput=${e => setTitleEdit({ key: i.key, value: e.target.value })}
+                                onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
                                 onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
                                 onBlur=${() => commitTitle(i)} />`
-                            : html`<div class="tl-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i); }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
+                            : html`<div class="tl-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
                         </div>
                         <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
