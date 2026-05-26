@@ -350,7 +350,7 @@ textarea.input { resize: vertical; }
   0%, 100% { transform: scale(1.04); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 32%, transparent); }
   50% { transform: scale(1.13); box-shadow: 0 0 0 7px color-mix(in srgb, var(--c) 16%, transparent); }
 }
-.tl-pill { position: absolute; left: 64px; width: 26px; top: 0; bottom: 0; border-radius: 999px;
+.tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   background: var(--c); cursor: default; touch-action: pan-y; display: flex; flex-direction: column;
   align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }
 /* Переходящая через полночь задача: плоский край там, где она продолжается. */
@@ -361,9 +361,9 @@ textarea.input { resize: vertical; }
   background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center;
   font-size: 14px; line-height: 1; }
 /* Чекбокс в круглом месте капсулы (на месте иконки). */
-.tl-pill-check { width: 16px; height: 16px; margin-top: 9px; border-radius: 50%; flex: none; border: 0; padding: 0;
+.tl-pill-check { width: 26px; height: 26px; margin-top: 6px; border-radius: 50%; flex: none; border: 0; padding: 0;
   background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 3; }
-.tl-pill-check .ico { width: 11px; height: 11px; color: var(--c); opacity: 0; transition: opacity .25s ease; }
+.tl-pill-check .ico { width: 16px; height: 16px; color: var(--c); opacity: 0; transition: opacity .25s ease; }
 .tl-pill-check.on .ico { opacity: 1; }
 .tl-handle { position: absolute; left: 0; right: 0; height: 11px; cursor: ns-resize; touch-action: pan-y; z-index: 2; }
 .tl-handle.top { top: 0; }
@@ -399,8 +399,8 @@ textarea.input { resize: vertical; }
 .zooming .tl-pill, .zooming .tl-pill-icon { transition: none; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
-.tl-event.compact .tl-pill-check { width: 15px; height: 15px; margin-top: 0; }
-.tl-event.compact .tl-pill-check .ico { width: 10px; height: 10px; }
+.tl-event.compact .tl-pill-check { width: 20px; height: 20px; margin-top: 0; }
+.tl-event.compact .tl-pill-check .ico { width: 13px; height: 13px; }
 .tl-event.compact .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
 .tl-event.compact .tl-meta { display: none; }
 .tl-event.compact .tl-title { -webkit-line-clamp: 1; font-size: 14px; }
