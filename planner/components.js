@@ -271,6 +271,30 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
   const lists = [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const listColor = lists.find(l => l.id === listId)?.color;
 
+  const sheetRef = useRef(null);
+  useEffect(() => {
+    const onKey = e => { if (e.key === "Escape") onClose?.(); };
+    document.addEventListener("keydown", onKey);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
+  }, [onClose]);
+  // Потянуть «ручку» вниз — закрыть форму (вместо кнопки «Отмена»). Шторка едет
+  // за пальцем, после порога — закрывается, иначе возвращается на место.
+  function onHandleDown(e) {
+    const el = sheetRef.current; if (!el) return;
+    const sy = e.clientY; let dy = 0;
+    const move = ev => { dy = Math.max(0, ev.clientY - sy); el.style.transition = "none"; el.style.transform = `translateY(${dy}px)`; };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      if (dy > 110) { el.style.transition = "transform .2s ease-in"; el.style.transform = "translateY(100%)"; setTimeout(() => onClose(), 170); }
+      else { el.style.transition = "transform .25s cubic-bezier(.2,.7,.3,1)"; el.style.transform = "translateY(0)"; }
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  }
+
   function payload() {
     const startMin = hasTime && date ? hhmmToMin(start) : null;
     const recur = date && recurrence ? recurrence : null;
@@ -299,11 +323,12 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
   }
 
   return html`
-    <${Modal} title=${editing ? "Задача" : "Новая задача"} onClose=${onClose}
-      footer=${html`
-        <button class="btn ghost" onClick=${onClose}>Отмена</button>
-        <button class="btn primary" disabled=${busy} onClick=${submit}>${busy ? "Сохранение…" : "Сохранить"}</button>`}>
-      <form onSubmit=${submit} class="form">
+    <div class="sheet-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div class="sheet" ref=${sheetRef}>
+        <div class="sheet-handle" onPointerDown=${onHandleDown}><span></span></div>
+        <div class="sheet-title">${editing ? "Задача" : "Новая задача"}</div>
+        <div class="sheet-body">
+          <form onSubmit=${submit} class="form">
         ${error && html`<div class="notice error">${error}</div>`}
         <div class="field"><label>Название</label>
           <input class="input" placeholder="Что нужно сделать" autofocus
@@ -374,8 +399,12 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
               <button type="button" class="btn sm ghost" onClick=${() => setConfirmDel(false)}>Отмена</button>
             </div>
           </div>`}
-      </form>
-    <//>`;
+          </form>
+        </div>
+        <button class="sheet-save" type="button" disabled=${busy} onClick=${submit}
+          title="Сохранить" aria-label="Сохранить">${Icon.arrowUp()}</button>
+      </div>
+    </div>`;
 }
 
 export function ListForm({ initial, onDelete, onClose }) {

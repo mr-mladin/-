@@ -124,8 +124,26 @@ textarea.input { resize: vertical; }
 .modal-head h3 { margin: 0; font-size: 17px; }
 .modal-body { padding: 18px; overflow-y: auto; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 18px; border-top: 1px solid var(--border); }
+
+/* Нижняя шторка (форма задачи): выезжает снизу; «ручку» сверху тянут вниз для
+   отмены, круглая стрелка справа снизу — сохранить. */
+.sheet-back { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.5); display: flex; align-items: flex-end;
+  justify-content: center; z-index: 50; animation: overlayIn .16s ease; }
+.sheet { position: relative; width: 100%; max-width: 460px; max-height: 92dvh; display: flex; flex-direction: column;
+  background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.3);
+  animation: sheetUp .26s cubic-bezier(.2, .8, .3, 1); }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+.sheet-handle { flex: none; display: flex; justify-content: center; padding: 10px 0 6px; cursor: grab; touch-action: none; }
+.sheet-handle span { width: 40px; height: 5px; border-radius: 3px; background: color-mix(in srgb, var(--text) 18%, transparent); }
+.sheet-title { flex: none; text-align: center; font-size: 13px; font-weight: 600; color: var(--text-mute); padding-bottom: 6px; }
+.sheet-body { overflow-y: auto; padding: 4px 18px calc(86px + env(safe-area-inset-bottom)); -webkit-overflow-scrolling: touch; }
+.sheet-save { position: absolute; right: 18px; bottom: calc(18px + env(safe-area-inset-bottom)); width: 52px; height: 52px;
+  border: 0; border-radius: 50%; background: var(--accent); color: #fff; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent); }
+.sheet-save:disabled { opacity: .55; }
+.sheet-save .ico { width: 26px; height: 26px; }
 @media (prefers-reduced-motion: reduce) {
-  .modal-back, .modal, .evc { animation: none; }
+  .modal-back, .modal, .evc, .sheet { animation: none; }
   .tl-event { transition: none; }
 }
 
