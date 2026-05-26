@@ -300,6 +300,8 @@ function Planner() {
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
   // Цель правки: у повтора — шаблон, иначе сама задача.
   const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
+  // Фокус + каретка в конец при появлении поля встроенной правки.
+  const focusEnd = (el) => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; try { el.setSelectionRange(n, n); } catch (e) {} } };
   function startTitleEdit(i) { setSubEdit(null); setTitleEdit({ key: i.key, value: i.title || "" }); }
   function commitTitle(i) {
     const e = titleEdit; if (!e || e.key !== i.key) return;
@@ -1074,7 +1076,8 @@ function Planner() {
                       <div class="tl-text">
                         <div class="tl-titlerow">
                           ${titleEdit && titleEdit.key === i.key
-                            ? html`<input class="tl-title-edit" value=${titleEdit.value} autofocus
+                            ? html`<input class="tl-title-edit" ref=${focusEnd} value=${titleEdit.value}
+                                style=${`width:${Math.max(titleEdit.value.length + 1, 4)}ch;`}
                                 onInput=${e => setTitleEdit({ key: i.key, value: e.target.value })}
                                 onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
                                 onBlur=${() => commitTitle(i)} />`
@@ -1099,7 +1102,7 @@ function Planner() {
                                       style=${`border-color:${colorOf(i)};${s.done ? `background:${colorOf(i)};` : ""}`}
                                       onClick=${e => { e.stopPropagation(); store.actions.tasks.toggleSub(i.recurring ? i.templateId : i.id, s.id).catch(showErr); }}>${Icon.check()}</button>
                                     ${subEdit && subEdit.key === i.key && subEdit.subId === s.id
-                                      ? html`<input class="tl-subs-edit" value=${subEdit.value} autofocus
+                                      ? html`<input class="tl-subs-edit" ref=${focusEnd} value=${subEdit.value}
                                           onInput=${e => setSubEdit({ key: i.key, subId: s.id, value: e.target.value })}
                                           onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitSubEdit(i); } else if (e.key === "Escape") { e.preventDefault(); setSubEdit(null); } }}
                                           onBlur=${() => commitSubEdit(i)} />`
