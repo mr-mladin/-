@@ -335,7 +335,7 @@ textarea.input { resize: vertical; }
 
 /* Лента дня в стиле Structured: часы слева, цветная пилюля-иконка на линии,
    текст справа от пилюли. */
-.tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 0; user-select: none; -webkit-user-select: none; }
+.tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 18px; user-select: none; -webkit-user-select: none; }
 .tl-spine { position: absolute; top: 0; bottom: 0; left: 77px; width: 2px; border-radius: 2px;
   background: color-mix(in srgb, var(--border) 50%, transparent); }
 .tl-event.sel .tl-pill { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); }
