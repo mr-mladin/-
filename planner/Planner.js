@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  splitEmoji, gapCaption, durHuman, doneFeedback, haptic,
+  splitEmoji, durHuman, doneFeedback, haptic,
 } from "./lib.js";
 import { ConfirmModal, Toasts, TaskEditor, ListForm, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
@@ -857,15 +857,6 @@ function Planner() {
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
   const dayTl = useMemo(() => [...timed].sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop))), [timed]);
-  const dayGaps = useMemo(() => {
-    const gaps = []; let prevEnd = null;
-    for (const i of dayTl) {
-      const s = i.vTop, e = i.vEnd;
-      if (prevEnd != null && s - prevEnd >= 30) gaps.push({ start: prevEnd, mins: s - prevEnd });
-      prevEnd = prevEnd == null ? e : Math.max(prevEnd, e);
-    }
-    return gaps;
-  }, [dayTl]);
 
   // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
   const edTask = editing?.task || null;
@@ -1029,12 +1020,6 @@ function Planner() {
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
                 <div class="tl-spine"></div>
-                ${dayGaps.map(g => {
-                  const gh = (g.mins / 60) * hourPx;
-                  if (gh < 42) return null;
-                  return html`<div class="tl-gap" key=${"g" + g.start} style=${`top:${((g.start + g.mins / 2) / 60) * hourPx}px;`}>
-                    ${gapCaption(g.mins)}</div>`;
-                })}
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
                 ${selRange && html`<div class="tl-selrect"
