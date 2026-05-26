@@ -44,6 +44,7 @@ export function StoreProvider({ children }) {
   const undoStack = useRef([]);
   const redoStack = useRef([]);
   const batching = useRef(null);
+  const writeAt = useRef(0); // время последнего изменения — защита от затирания перечиткой
 
   useEffect(() => { applyTheme(state.theme); }, []);
 
@@ -83,6 +84,9 @@ export function StoreProvider({ children }) {
       if (document.visibilityState !== "visible" || !state.user) return;
       const now = Date.now();
       if (now - last < 1500) return; // не дёргаем по дублю focus+visibility
+      // Не перечитываем сразу после изменения: оптимистично созданная/изменённая
+      // задача ещё может не доехать до БД, и перечитка затёрла бы её.
+      if (now - writeAt.current < 4000) return;
       last = now;
       loadAll();
     };
@@ -154,6 +158,7 @@ export function StoreProvider({ children }) {
   // Стеки обновляем синхронно (UI меняется оптимистично), а запись в БД идёт
   // фоном. Так быстрый Cmd+Z → Cmd+Shift+Z не теряет шаг из-за сетевой задержки.
   function step(entry, run, fromStack, toStack, okLabel, errLabel) {
+    writeAt.current = Date.now();
     toStack.current.push(entry);
     pushToast(okLabel + (entry.label ? ": " + entry.label : ""), "info");
     Promise.resolve().then(run).catch(() => {
@@ -387,7 +392,12 @@ export function StoreProvider({ children }) {
     dispatch({ type: "set", payload: { theme: mode } });
   }
 
-  const value = { ...state, toasts, pushToast, undo, redo, batch, auth, setTheme, actions: { taskLists, tasks } };
+  // Каждое действие помечает время изменения — чтобы фоновая перечитка не
+  // затёрла только что созданную/изменённую задачу (см. refetch выше).
+  const markWrites = (obj) => Object.fromEntries(
+    Object.entries(obj).map(([k, fn]) => [k, (...a) => { writeAt.current = Date.now(); return fn(...a); }]));
+  const value = { ...state, toasts, pushToast, undo, redo, batch, auth, setTheme,
+    actions: { taskLists: markWrites(taskLists), tasks: markWrites(tasks) } };
   return h(StoreContext.Provider, { value }, children);
 }
 
