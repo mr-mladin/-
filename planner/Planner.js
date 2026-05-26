@@ -860,11 +860,11 @@ function Planner() {
   const headLabel = view === "week" ? weekRangeLabel(date) : monthLabel;
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
-  const dayTl = useMemo(() => [...timed].sort((a, b) => (a.start_min - b.start_min) || ((a.duration_min || 0) - (b.duration_min || 0))), [timed]);
+  const dayTl = useMemo(() => [...timed].sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop))), [timed]);
   const dayGaps = useMemo(() => {
     const gaps = []; let prevEnd = null;
     for (const i of dayTl) {
-      const s = i.start_min, e = s + (i.duration_min || 0);
+      const s = i.vTop, e = i.vEnd;
       if (prevEnd != null && s - prevEnd >= 30) gaps.push({ start: prevEnd, mins: s - prevEnd });
       prevEnd = prevEnd == null ? e : Math.max(prevEnd, e);
     }
@@ -876,8 +876,8 @@ function Planner() {
   // Статичная (без жестов) панель соседнего дня — для предпросмотра в карусели.
   function dayStaticPane(pd) {
     const items = itemsForDate(tasks, pd)
-      .filter(i => i.start_min !== null && i.start_min !== undefined)
-      .sort((a, b) => (a.start_min - b.start_min) || ((a.duration_min || 0) - (b.duration_min || 0)));
+      .filter(i => i.vTop !== null && i.vTop !== undefined)
+      .sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop)));
     const td = pd === todayISO();
     return html`<div class="tl tl-static" style=${`height:${24 * hourPx}px;`}>
       ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
@@ -886,14 +886,13 @@ function Planner() {
       ${td && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
         <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
       ${items.map(i => {
-        const start = i.start_min, dur = i.duration_min || 0;
-        const top = (start / 60) * hourPx;
-        const height = Math.max(MIN_EVENT_PX, (dur / 60) * hourPx);
+        const top = (i.vTop / 60) * hourPx;
+        const height = Math.max(MIN_EVENT_PX, ((i.vEnd - i.vTop) / 60) * hourPx);
         const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
         const { emoji, text } = splitEmoji(i.title);
         const icon = i.icon || emoji;
         const ttl = i.icon ? i.title : (text || i.title);
-        return html`<div class=${"tl-event" + density + (i.done ? " done" : "")} key=${i.key}
+        return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
           style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
           <div class="tl-pill"><span class="tl-pill-icon">${icon || ""}</span></div>
           <div class="tl-body"><div class="tl-text">
@@ -901,7 +900,7 @@ function Planner() {
               <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
               <span class=${"task-check sm" + (i.done ? " on" : "")}>${Icon.check()}</span>
             </div>
-            <div class="tl-meta">${minRangeLabel(start, dur)} (${durHuman(dur)})</div>
+            <div class="tl-meta">${minRangeLabel(i.start_min, i.duration_min || 0)} (${durHuman(i.duration_min || 0)})</div>
           </div></div>
         </div>`;
       })}
@@ -1022,37 +1021,42 @@ function Planner() {
                 ${selRange && html`<div class="tl-selrect"
                   style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
                 ${dayTl.map(i => {
-                  let start = i.start_min, dur = i.duration_min || 0;
+                  // Переходящая через полночь задача рисуется сегментом дня и не
+                  // перетаскивается/не тянется (правка — через карточку по тапу).
+                  const spanning = i.spanTop || i.spanBottom || i.cont;
+                  let vTop = i.vTop, vDur = i.vEnd - i.vTop;
                   const inGroupMove = drag && drag.type === "moveGroup" && drag.keys.includes(i.key);
                   const isKeyMove = drag && drag.key === i.key && (drag.type === "move" || drag.type === "resize");
-                  if (inGroupMove) start = clamp(i.start_min + drag.delta, 0, 1440 - dur);
-                  else if (isKeyMove) { start = drag.start; dur = drag.dur; }
+                  if (inGroupMove) vTop = clamp(i.start_min + drag.delta, 0, 1440 - vDur);
+                  else if (isKeyMove) { vTop = drag.start; vDur = drag.dur; }
                   const dragging = inGroupMove || isKeyMove;
                   const sel = selected.has(i.key);
-                  const top = (start / 60) * hourPx;
-                  const height = Math.max(MIN_EVENT_PX, (dur / 60) * hourPx);
+                  const top = (vTop / 60) * hourPx;
+                  const height = Math.max(MIN_EVENT_PX, (vDur / 60) * hourPx);
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
                   const { emoji, text } = splitEmoji(i.title);
                   const icon = i.icon || emoji;
                   const ttl = i.icon ? i.title : (text || i.title);
-                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "")} key=${i.key}
+                  const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
+                  const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
+                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
-                    <div class="tl-pill" onPointerDown=${e => onBlockPointerDown(e, i)}>
-                      <div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>
+                    <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
+                      ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       <span class="tl-pill-icon">${icon || ""}</span>
-                      <div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>
-                      ${sel && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
-                      ${sel && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
+                      ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
+                      ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
+                      ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>
-                    <div class="tl-body" onPointerDown=${e => onBlockPointerDown(e, i)}>
+                    <div class="tl-body" onPointerDown=${down} onClick=${tap}>
                       <div class="tl-text">
                         <div class="tl-titlerow">
                           <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
                           <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                             onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                         </div>
-                        <div class="tl-meta">${minRangeLabel(start, dur)} (${durHuman(dur)})</div>
+                        <div class="tl-meta">${minRangeLabel(i.start_min, i.duration_min || 0)} (${durHuman(i.duration_min || 0)})</div>
                       </div>
                     </div>
                   </div>`;
@@ -1188,7 +1192,7 @@ function Planner() {
 function layoutColumns(items, drag) {
   const eff = items.map(i => drag && drag.key === i.key
     ? { ...i, _start: drag.start, _dur: drag.dur }
-    : { ...i, _start: i.start_min, _dur: i.duration_min });
+    : { ...i, _start: i.vTop, _dur: i.vEnd - i.vTop });
   const sorted = eff.sort((a, b) => (a._start - b._start) || (a._dur - b._dur));
   let cluster = [], clusterEnd = -1;
   const flush = () => {

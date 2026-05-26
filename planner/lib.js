@@ -175,22 +175,42 @@ function base(t) {
     list_id: t.list_id || null, start_min: t.start_min, duration_min: t.duration_min,
   };
 }
-function concreteItem(t) {
-  return { key: t.id, kind: "concrete", id: t.id, templateId: null, occDate: t.date,
-    recurring: false, done: !!t.done, ...base(t) };
+// Видимый сегмент задачи в дне со смещением off (в днях от даты задачи). Задача
+// может тянуться за полночь: в свой день обрезается на 00:00, в следующий —
+// продолжается с 00:00. Возвращает {vTop,vEnd,spanTop,spanBottom,cont} или null.
+function segment(start, dur, off) {
+  if (start === null || start === undefined) return off === 0 ? { vTop: null, vEnd: null, spanTop: false, spanBottom: false, cont: false } : null;
+  const end = start + (dur || 0);
+  const ws = off * 1440, we = ws + 1440;
+  const s = Math.max(start, ws), e = Math.min(end, we);
+  if (e <= s) return null;
+  return { vTop: s - ws, vEnd: e - ws, spanTop: off > 0, spanBottom: end > we, cont: off > 0 };
 }
-function virtualItem(tmpl, dateISO) {
-  return { key: tmpl.id + "|" + dateISO, kind: "occurrence", id: null,
-    templateId: tmpl.id, occDate: dateISO, recurring: true, done: false, ...base(tmpl) };
+const pick = (a, b) => (a === null || a === undefined ? b : a);
+function addDaysISO(iso, n) { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); }
+
+function concreteItem(t, sg, dateISO) {
+  return { key: t.id + (sg.cont ? "|" + dateISO : ""), kind: "concrete", id: t.id, templateId: null, occDate: t.date,
+    recurring: false, done: !!t.done, ...base(t),
+    vTop: sg.vTop, vEnd: sg.vEnd, spanTop: sg.spanTop, spanBottom: sg.spanBottom, cont: sg.cont };
 }
-function overrideItem(tmpl, ov, dateISO) {
-  const pick = (a, b) => (a === null || a === undefined ? b : a);
+// Элемент повторения. ov — строка-исключение (или null = виртуальное), occDate —
+// дата самого повторения, off — смещение дня показа (0 — в свой день, 1 —
+// продолжение за полночь на следующий день), keyDate — день показа (для ключа).
+function recurItem(tmpl, ov, occDate, off, keyDate) {
+  const start = ov ? pick(ov.start_min, tmpl.start_min) : tmpl.start_min;
+  const dur = ov ? pick(ov.duration_min, tmpl.duration_min) : tmpl.duration_min;
+  const sg = segment(start, dur, off);
+  if (!sg) return null;
   return {
-    key: tmpl.id + "|" + dateISO, kind: "occurrence", id: ov.id,
-    templateId: tmpl.id, occDate: dateISO, recurring: true, done: !!ov.done,
-    title: pick(ov.title, tmpl.title), notes: pick(ov.notes, tmpl.notes) || "",
-    color: pick(ov.color, tmpl.color), list_id: pick(ov.list_id, tmpl.list_id),
-    start_min: pick(ov.start_min, tmpl.start_min), duration_min: pick(ov.duration_min, tmpl.duration_min),
+    key: tmpl.id + "|" + keyDate + (off > 0 ? "|c" : ""), kind: "occurrence", id: ov ? ov.id : null,
+    templateId: tmpl.id, occDate, recurring: true, done: ov ? !!ov.done : false,
+    title: ov ? pick(ov.title, tmpl.title) : tmpl.title,
+    notes: (ov ? pick(ov.notes, tmpl.notes) : tmpl.notes) || "",
+    color: ov ? pick(ov.color, tmpl.color) : tmpl.color,
+    list_id: ov ? pick(ov.list_id, tmpl.list_id) : tmpl.list_id,
+    start_min: start, duration_min: dur,
+    vTop: sg.vTop, vEnd: sg.vEnd, spanTop: sg.spanTop, spanBottom: sg.spanBottom, cont: sg.cont,
   };
 }
 
@@ -202,14 +222,26 @@ export function itemsForDate(tasks, dateISO) {
   }
   for (const t of tasks) {
     if (!t.recurrence && !t.recurrence_parent) {
-      if (t.date === dateISO) items.push(concreteItem(t));
+      if (!t.date) continue;
+      const off = daysBetween(t.date, dateISO);
+      if (off < 0) continue;
+      const sg = segment(t.start_min, t.duration_min, off);
+      if (!sg) continue;
+      items.push(concreteItem(t, sg, dateISO));
       continue;
     }
     if (t.recurrence && !t.recurrence_parent) {
-      if (!occursOn(t, dateISO)) continue;
-      const ov = overrides.get(t.id + "|" + dateISO);
-      if (ov) { if (!ov.skipped) items.push(overrideItem(t, ov, dateISO)); }
-      else items.push(virtualItem(t, dateISO));
+      // повторение, начинающееся сегодня
+      if (occursOn(t, dateISO)) {
+        const ov = overrides.get(t.id + "|" + dateISO);
+        if (!(ov && ov.skipped)) { const it = recurItem(t, ov, dateISO, 0, dateISO); if (it) items.push(it); }
+      }
+      // продолжение со вчерашнего повторения (задача переходит за полночь)
+      const prev = addDaysISO(dateISO, -1);
+      if (occursOn(t, prev)) {
+        const ovp = overrides.get(t.id + "|" + prev);
+        if (!(ovp && ovp.skipped)) { const it = recurItem(t, ovp, prev, 1, dateISO); if (it) items.push(it); }
+      }
     }
   }
   return items;

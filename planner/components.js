@@ -5,7 +5,7 @@ import { Icon, todayISO, fromISO, monthGen, RECUR_OPTIONS } from "./lib.js";
 import { minToHHMM, hhmmToMin, doneFeedback } from "./lib.js";
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
-const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240];
+const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 600, 720];
 const TASK_EMOJIS = ["💼", "📞", "✉️", "💻", "📝", "📚", "🎯", "💡", "📅", "⏰",
   "🏋️", "🏃", "🧘", "🚶", "☕", "🍳", "🍽️", "🛒", "🧹", "🚗",
   "✈️", "💊", "🩺", "💤", "🎵", "🎮", "🎨", "💰", "❤️", "🐝", "🌅", "⭐"];
@@ -227,7 +227,7 @@ export function EventCard({ item, onClose, onDelete }) {
             <div class="evc-line"><span>Конец</span>
               <span class="evc-line-r">
                 <input class="evc-inp" type="time" value=${minToHHMM(endMin)}
-                  onInput=${e => { if (e.target.value) { const nd = hhmmToMin(e.target.value) - hhmmToMin(start); if (nd > 0) { setDur(nd); save({ duration_min: nd }); } } }} />
+                  onInput=${e => { if (e.target.value) { let nd = hhmmToMin(e.target.value) - hhmmToMin(start); if (nd <= 0) nd += 1440; setDur(nd); save({ duration_min: nd }); } }} />
               </span></div>`}
         </div>`}
 
