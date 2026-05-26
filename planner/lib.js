@@ -131,11 +131,27 @@ export function gapCaption(mins) {
   return GAP_LINES[Math.floor((mins || 0) / 37) % GAP_LINES.length];
 }
 
-// Ведущий эмодзи названия выносим в кружок-иконку пилюли.
+// Ведущий эмодзи названия выносим в кружок-иконку пилюли. Берём первый
+// графемный кластер через Intl.Segmenter — он не рвёт эмодзи на части
+// (модификаторы тона кожи 🏻–🏿, ZWJ-последовательности, флаги собираются
+// в один символ). Прежняя регулярка теряла тон кожи и оставляла «битый»
+// остаток в названии.
 export function splitEmoji(title) {
   const t = title || "";
-  const m = t.match(/^(\p{Extended_Pictographic}[‍️\p{Extended_Pictographic}]*)\s*/u);
-  if (m) return { emoji: m[1], text: t.slice(m[0].length) };
+  if (!t) return { emoji: "", text: "" };
+  let first = "";
+  try {
+    const it = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t);
+    first = it[Symbol.iterator]().next().value?.segment || "";
+  } catch (e) {
+    const m = t.match(/^\p{Extended_Pictographic}[‍️\p{Emoji_Modifier}\p{Extended_Pictographic}]*/u);
+    first = m ? m[0] : "";
+  }
+  // Кружок-иконка только если первый символ — собственно эмодзи (картинка или
+  // флаг), а не буква/цифра.
+  if (first && /^(\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(first)) {
+    return { emoji: first, text: t.slice(first.length).replace(/^\s+/, "") };
+  }
   return { emoji: "", text: t };
 }
 
