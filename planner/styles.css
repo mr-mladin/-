@@ -373,25 +373,21 @@ textarea.input { resize: vertical; }
 .tl-event.done .tl-pill-check { translate: -50% var(--drop, 0px); }
 /* Момент выполнения: сначала пульс (~0.5с) + конфетти, через ~1.9с — падение
    с высокими лёгкими отскоками (как резиновый мячик/баскетбольный). */
-.tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.1s linear 1.9s both; }
+.tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.6s linear 1.9s both; }
 @keyframes ballPulse {
   0% { scale: 1; }
   35% { scale: 1.45; }
   100% { scale: 1; }
 }
+/* Лёгкий мяч: мягкое (не резкое) ускорение вниз, 3 затухающих отскока. */
 @keyframes ballFall {
-  0%   { translate: -50% 0; animation-timing-function: cubic-bezier(.36,0,.78,.2); }
-  17%  { translate: -50% var(--drop); animation-timing-function: cubic-bezier(.05,.7,.3,1); }
-  33%  { translate: -53% calc(var(--drop) * .50); animation-timing-function: cubic-bezier(.36,0,.78,.2); }
-  46%  { translate: -47% var(--drop); animation-timing-function: cubic-bezier(.05,.7,.3,1); }
-  58%  { translate: -52% calc(var(--drop) * .32); animation-timing-function: cubic-bezier(.36,0,.78,.2); }
-  68%  { translate: -48% var(--drop); animation-timing-function: cubic-bezier(.05,.7,.3,1); }
-  76%  { translate: -51% calc(var(--drop) * .19); animation-timing-function: cubic-bezier(.36,0,.78,.2); }
-  83%  { translate: -49% var(--drop); animation-timing-function: cubic-bezier(.05,.7,.3,1); }
-  88%  { translate: -50% calc(var(--drop) * .11); animation-timing-function: cubic-bezier(.36,0,.78,.2); }
-  92%  { translate: -50% var(--drop); animation-timing-function: cubic-bezier(.05,.7,.3,1); }
-  95%  { translate: -50% calc(var(--drop) * .05); animation-timing-function: cubic-bezier(.36,0,.78,.2); }
-  98%  { translate: -50% var(--drop); animation-timing-function: cubic-bezier(.1,.6,.3,1); }
+  0%   { translate: -50% 0; animation-timing-function: cubic-bezier(.3,0,.5,.4); }
+  26%  { translate: -50% var(--drop); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
+  46%  { translate: -52% calc(var(--drop) * .45); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
+  62%  { translate: -48% var(--drop); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
+  77%  { translate: -51% calc(var(--drop) * .22); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
+  88%  { translate: -50% var(--drop); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
+  95%  { translate: -50% calc(var(--drop) * .08); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
   100% { translate: -50% var(--drop); }
 }
 .tl-event.compact .tl-pill-check, .tl-event.compact.done .tl-pill-check {

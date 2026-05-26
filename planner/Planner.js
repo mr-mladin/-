@@ -690,7 +690,7 @@ function Planner() {
     if (!item.done) {
       const id = Date.now() + Math.random();
       setBurst({ key: item.key, id, bits: makeBits() });
-      setTimeout(() => setBurst(b => (b && b.id === id) ? null : b), 4100);
+      setTimeout(() => setBurst(b => (b && b.id === id) ? null : b), 4600);
     }
     return toggleDone(item);
   }
