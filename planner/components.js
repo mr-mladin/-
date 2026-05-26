@@ -115,7 +115,11 @@ function dbHint(msg) {
   return msg;
 }
 
-export function TaskForm({ initial, defaults, occ, onClose }) {
+// Встроенный редактор задачи (вместо модальной формы). Рендерит карточку без
+// собственного позиционирования — обёртку/место задаёт родитель (в сетке дня
+// карточка «прирастает» к задаче, в боковой панели раскрывается на месте).
+// Иерархия: Название → Заметки → Подзадачи → Проект → Начало → Конец → Повтор.
+export function TaskEditor({ initial, defaults, occ, onClose }) {
   const store = useStore();
   const { taskLists } = store;
   const editing = !!initial;
@@ -133,42 +137,44 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
   const [recurrence, setRecurrence] = useState(src.recurrence || "");
   const [until, setUntil] = useState(src.recurrence_until || "");
   const [notes, setNotes] = useState(src.notes || "");
+  const [subtasks, setSubtasks] = useState(Array.isArray(src.subtasks) ? src.subtasks.map(s => ({ ...s })) : []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [notesOpen, setNotesOpen] = useState(!!(src.notes && src.notes.trim()));
+  const [subOpen, setSubOpen] = useState(false);
+  const [projOpen, setProjOpen] = useState(false);
+  const [repOpen, setRepOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
 
   const lists = [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-  const listColor = lists.find(l => l.id === listId)?.color;
+  const list = lists.find(l => l.id === listId);
+  const dotColor = list?.color || "var(--text-mute)";
+  const subDone = subtasks.filter(s => s.done).length;
 
-  const sheetRef = useRef(null);
+  const cardRef = useRef(null);
+  const titleRef = useRef(null);
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => { document.removeEventListener("keydown", onKey); document.body.style.overflow = prev; };
-  }, [onClose]);
-  // Потянуть «ручку» вниз — закрыть форму (вместо кнопки «Отмена»). Шторка едет
-  // за пальцем, после порога — закрывается, иначе возвращается на место.
-  function onHandleDown(e) {
-    const el = sheetRef.current; if (!el) return;
-    const sy = e.clientY; let dy = 0;
-    const move = ev => { dy = Math.max(0, ev.clientY - sy); el.style.transition = "none"; el.style.transform = `translateY(${dy}px)`; };
-    const up = () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-      if (dy > 110) { el.style.transition = "transform .2s ease-in"; el.style.transform = "translateY(100%)"; setTimeout(() => onClose(), 170); }
-      else { el.style.transition = "transform .25s cubic-bezier(.2,.7,.3,1)"; el.style.transform = "translateY(0)"; }
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", up);
-  }
+    // Клик вне карточки — закрыть (без сохранения изменений-черновика).
+    const onDown = e => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.(); };
+    setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
+    if (!editing) setTimeout(() => titleRef.current?.focus(), 30);
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+  }, [onClose, editing]);
 
   function changeDate(v) { setDate(v); if (!endDate || endDate < v) setEndDate(v); if (!v) { setStartTime(""); setRecurrence(""); } }
   function changeStart(v) { setStartTime(v); if (v && !endTime) { setEndTime(minToHHMM(hhmmToMin(v) + 60)); if (!endDate) setEndDate(date); } }
 
+  // ---- Подзадачи ----
+  const newSub = () => ({ id: "s-" + Math.random().toString(36).slice(2), title: "", done: false });
+  function addSub() { setSubtasks(p => [...p, newSub()]); setSubOpen(true); }
+  function setSub(id, patch) { setSubtasks(p => p.map(s => s.id === id ? { ...s, ...patch } : s)); }
+  function delSub(id) { setSubtasks(p => p.filter(s => s.id !== id)); }
+
   function payload() {
-    if (!date) return { title: title.trim(), list_id: listId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null };
+    const cleanSubs = subtasks.map(s => ({ id: s.id, title: (s.title || "").trim(), done: !!s.done })).filter(s => s.title);
+    if (!date) return { title: title.trim(), list_id: listId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null, subtasks: cleanSubs };
     const startMin = startTime ? hhmmToMin(startTime) : null;
     let duration = null;
     if (startMin !== null) {
@@ -182,12 +188,11 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
       title: title.trim(), list_id: listId || null, date,
       start_min: startMin, duration_min: startMin !== null ? duration : null,
       recurrence: recur, recurrence_until: recur ? (until || null) : null,
-      notes: notes.trim() || null,
+      notes: notes.trim() || null, subtasks: cleanSubs,
     };
   }
-  async function submit(e) {
-    e?.preventDefault();
-    if (!title.trim()) { setError("Введите название задачи"); store.pushToast("Введите название задачи", "error"); return; }
+  async function save() {
+    if (!title.trim()) { setError("Введите название задачи"); titleRef.current?.focus(); return; }
     setBusy(true);
     try {
       if (editing) await store.actions.tasks.update(initial.id, payload());
@@ -202,81 +207,112 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
     catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); }
   }
 
+  const recurLabel = (RECUR_OPTIONS.find(o => o.value === recurrence) || RECUR_OPTIONS[0]).label;
+
   return html`
-    <div class="sheet-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div class="sheet" ref=${sheetRef}>
-        <div class="sheet-handle" onPointerDown=${onHandleDown}><span></span></div>
-        <div class="sheet-title">${editing ? "Задача" : "Новая задача"}</div>
-        <div class="sheet-body">
-          <form onSubmit=${submit} class="form">
-        ${error && html`<div class="notice error">${error}</div>`}
-        <div class="field"><label>Название</label>
-          <input class="input" placeholder="Что нужно сделать" autofocus
-            value=${title} onInput=${e => setTitle(e.target.value)} /></div>
-
-        <div class="field"><label>Список</label>
-          <select class="select" value=${listId} onChange=${e => setListId(e.target.value)}>
-            <option value="">Входящие</option>
-            ${lists.map(l => html`<option value=${l.id} key=${l.id}>${l.name}</option>`)}
-          </select>
-          ${listColor && html`<div class="muted small" style="margin-top:4px;display:flex;align-items:center;gap:6px;">
-            <span style=${`width:10px;height:10px;border-radius:50%;background:${listColor};display:inline-block;`}></span>
-            Цвет блока в календаре</div>`}
-        </div>
-
-        <div class="field"><label>Начало</label>
-          <div class="dt-row">
-            <input class="input dt-date" type="date" value=${date} onInput=${e => changeDate(e.target.value)} />
-            ${date ? html`<input class="input dt-time" type="time" value=${startTime} onInput=${e => changeStart(e.target.value)} />` : ""}
-          </div>
-          ${date
-            ? html`<button type="button" class="btn sm ghost dt-clear" onClick=${() => changeDate("")}>Без даты</button>`
-            : html`<div class="dt-note"><button type="button" class="btn sm" onClick=${() => changeDate(todayISO())}>Сегодня</button><span class="muted small">без даты — попадёт во «Входящие»</span></div>`}
-        </div>
-
-        ${date && startTime && html`
-          <div class="field"><label>Конец</label>
-            <div class="dt-row">
-              <input class="input dt-date" type="date" value=${endDate} min=${date} onInput=${e => setEndDate(e.target.value)} />
-              <input class="input dt-time" type="time" value=${endTime} onInput=${e => setEndTime(e.target.value)} />
-            </div>
-          </div>`}
-
-        ${date && html`
-          <div class="field"><label>Повтор</label>
-            <select class="select" value=${recurrence} onChange=${e => setRecurrence(e.target.value)}>
-              ${RECUR_OPTIONS.map(o => html`<option value=${o.value} key=${o.value}>${o.label}</option>`)}
-            </select>
-            ${recurrence && html`<div style="display:flex;gap:8px;align-items:center;margin-top:8px;">
-              <span class="muted small">до даты:</span>
-              <input class="input" type="date" value=${until} onInput=${e => setUntil(e.target.value)} style="flex:1;" />
-              ${until && html`<button type="button" class="btn sm ghost" onClick=${() => setUntil("")}>Без конца</button>`}
-            </div>`}
-          </div>`}
-
-        <div class="field"><label>Заметка</label>
-          <textarea class="input" rows="2" value=${notes} onInput=${e => setNotes(e.target.value)}></textarea></div>
-
-        ${editing && !confirmDel && html`
-          <button type="button" class="btn ghost danger" style="align-self:flex-start;"
-            onClick=${() => setConfirmDel(true)}>${Icon.trash()} Удалить</button>`}
-        ${editing && confirmDel && html`
-          <div class="notice" style="display:flex;flex-direction:column;gap:8px;">
-            <span>${isSeries ? "Удалить повторяющуюся задачу?" : "Удалить задачу?"}</span>
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              ${occ && html`<button type="button" class="btn sm danger" disabled=${busy}
-                onClick=${() => run(() => store.actions.tasks.removeOccurrence(occ), "Повторение удалено")}>Только это повторение</button>`}
-              <button type="button" class="btn sm danger" disabled=${busy}
-                onClick=${() => run(() => isSeries ? store.actions.tasks.removeSeries(initial.id) : store.actions.tasks.remove(initial.id), "Задача удалена")}>
-                ${isSeries ? "Весь ряд" : "Удалить"}</button>
-              <button type="button" class="btn sm ghost" onClick=${() => setConfirmDel(false)}>Отмена</button>
-            </div>
-          </div>`}
-          </form>
-        </div>
-        <button class="sheet-save" type="button" disabled=${busy} onClick=${submit}
-          title="Сохранить" aria-label="Сохранить">${Icon.arrowUp()}</button>
+    <div class="ed-card" ref=${cardRef} onPointerDown=${e => e.stopPropagation()}>
+      <div class="ed-top">
+        <button class="ed-cancel" type="button" title="Отмена" aria-label="Отмена" onClick=${onClose}>${Icon.close()}</button>
+        <button class="ed-save" type="button" title="Сохранить" aria-label="Сохранить" disabled=${busy} onClick=${save}>${Icon.check()}</button>
       </div>
+
+      ${error && html`<div class="ed-error">${error}</div>`}
+
+      <input class="ed-title" ref=${titleRef} placeholder="Название задачи"
+        value=${title} onInput=${e => setTitle(e.target.value)}
+        onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
+
+      ${notesOpen
+        ? html`<textarea class="ed-notes" rows="2" placeholder="Заметка" autofocus
+            value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>`
+        : html`<button class="ed-add" type="button" onClick=${() => setNotesOpen(true)}>${Icon.note()} Заметка</button>`}
+
+      <div class="ed-sub">
+        ${subtasks.length === 0
+          ? html`<button class="ed-add" type="button" onClick=${addSub}>${Icon.check()} Добавить подзадачу</button>`
+          : html`
+            <button class=${"ed-sub-chip" + (subOpen ? " open" : "")} type="button" onClick=${() => setSubOpen(o => !o)}>
+              <span class="ed-sub-badge">${Icon.check()}</span>
+              <span>${subDone}/${subtasks.length}</span>
+              <span class="ed-chev">${Icon.right()}</span>
+            </button>`}
+        ${subOpen && subtasks.length > 0 && html`
+          <div class="ed-sub-list">
+            ${subtasks.map(s => html`
+              <div class=${"ed-sub-item" + (s.done ? " done" : "")} key=${s.id}>
+                <button class=${"task-check sm" + (s.done ? " on" : "")} type="button"
+                  style=${s.done ? `background:${dotColor};border-color:${dotColor};` : ""}
+                  onClick=${() => setSub(s.id, { done: !s.done })}>${Icon.check()}</button>
+                <input class="ed-sub-input" placeholder="Подзадача" value=${s.title}
+                  onInput=${e => setSub(s.id, { title: e.target.value })}
+                  onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }} />
+                <button class="ed-sub-del" type="button" title="Убрать" onClick=${() => delSub(s.id)}>${Icon.close()}</button>
+              </div>`)}
+            <button class="ed-add sm" type="button" onClick=${addSub}>${Icon.plus()} Ещё подзадача</button>
+          </div>`}
+      </div>
+
+      <div class="ed-field">
+        <button class="ed-proj" type="button" onClick=${() => setProjOpen(o => !o)}>
+          <span class="ed-dot" style=${`background:${dotColor};`}></span>
+          <span class="ed-proj-name">${list ? list.name : "Входящие"}</span>
+        </button>
+        ${projOpen && html`
+          <div class="ed-menu">
+            <button class=${"ed-menu-item" + (!listId ? " sel" : "")} type="button"
+              onClick=${() => { setListId(""); setProjOpen(false); }}>
+              <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
+            ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
+              onClick=${() => { setListId(l.id); setProjOpen(false); }}>
+              <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
+          </div>`}
+      </div>
+
+      ${date ? html`
+        <div class="ed-dt"><span class="ed-dt-label">Начало</span>
+          <input class="ed-input dt-date" type="date" value=${date} onInput=${e => changeDate(e.target.value)} />
+          <input class="ed-input dt-time" type="time" value=${startTime} onInput=${e => changeStart(e.target.value)} />
+          <button class="ed-dt-clear" type="button" title="Без даты" onClick=${() => changeDate("")}>${Icon.close()}</button>
+        </div>
+        ${startTime ? html`
+          <div class="ed-dt"><span class="ed-dt-label">Конец</span>
+            <input class="ed-input dt-date" type="date" value=${endDate} min=${date} onInput=${e => setEndDate(e.target.value)} />
+            <input class="ed-input dt-time" type="time" value=${endTime} onInput=${e => setEndTime(e.target.value)} />
+          </div>` : ""}`
+        : html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`}
+
+      ${date && html`
+        <div class="ed-field">
+          <button class="ed-proj" type="button" onClick=${() => setRepOpen(o => !o)}>
+            <span class="ed-rep-ico">${Icon.repeat()}</span>
+            <span class="ed-proj-name">${recurLabel}</span>
+          </button>
+          ${repOpen && html`
+            <div class="ed-menu">
+              ${RECUR_OPTIONS.map(o => html`<button class=${"ed-menu-item" + (recurrence === o.value ? " sel" : "")} type="button" key=${o.value}
+                onClick=${() => { setRecurrence(o.value); setRepOpen(false); }}>${o.label}</button>`)}
+            </div>`}
+          ${recurrence && html`<div class="ed-until">
+            <span>до</span>
+            <input class="ed-input dt-date" type="date" value=${until} onInput=${e => setUntil(e.target.value)} />
+            ${until && html`<button class="ed-dt-clear" type="button" onClick=${() => setUntil("")}>${Icon.close()}</button>`}
+          </div>`}
+        </div>`}
+
+      ${editing && !confirmDel && html`
+        <button class="ed-del" type="button" onClick=${() => setConfirmDel(true)}>${Icon.trash()} Удалить задачу</button>`}
+      ${editing && confirmDel && html`
+        <div class="ed-confirm">
+          <span>${isSeries ? "Удалить повторяющуюся задачу?" : "Удалить задачу?"}</span>
+          <div class="ed-confirm-row">
+            ${occ && html`<button class="btn sm danger" type="button" disabled=${busy}
+              onClick=${() => run(() => store.actions.tasks.removeOccurrence(occ), "Повторение удалено")}>Только это повторение</button>`}
+            <button class="btn sm danger" type="button" disabled=${busy}
+              onClick=${() => run(() => isSeries ? store.actions.tasks.removeSeries(initial.id) : store.actions.tasks.remove(initial.id), "Задача удалена")}>
+              ${isSeries ? "Весь ряд" : "Удалить"}</button>
+            <button class="btn sm ghost" type="button" onClick=${() => setConfirmDel(false)}>Отмена</button>
+          </div>
+        </div>`}
     </div>`;
 }
 

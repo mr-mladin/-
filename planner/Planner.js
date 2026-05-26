@@ -7,7 +7,7 @@ import {
   monthMatrix, weekRangeLabel, weekStart,
   splitEmoji, gapCaption, durHuman, doneFeedback, haptic,
 } from "./lib.js";
-import { ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, SettingsModal, SearchModal } from "./components.js";
+import { ConfirmModal, Toasts, TaskEditor, ListForm, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
 const VIEWS = [["day", "День"], ["week", "Неделя"], ["month", "Месяц"]];
 const WD_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -842,6 +842,7 @@ function Planner() {
       title: row.title || "", notes: row.notes || "", color: row.color || null,
       icon: row.icon || null, list_id: row.list_id || null,
       start_min: row.start_min, duration_min: row.duration_min,
+      subtasks: Array.isArray(row.subtasks) ? row.subtasks : [],
     };
   }
   function openPreview(item) { openEdit(item); }
@@ -863,6 +864,30 @@ function Planner() {
     }
     return gaps;
   }, [dayTl]);
+
+  // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
+  const edTask = editing?.task || null;
+  const closeEditor = () => { setEditing(null); setCreating(null); };
+  const editorEl = (editing || creating)
+    ? html`<${TaskEditor} key=${editing ? "e" + editing.task.id : "c"}
+        initial=${editing ? editing.task : undefined}
+        occ=${editing ? editing.occ : undefined}
+        defaults=${creating || undefined}
+        onClose=${closeEditor} />`
+    : null;
+  // В сетке дня — привязка к минуте начала задачи (для повторов — к позиции
+  // конкретного повторения на текущем дне).
+  const edGridMin = view === "day"
+    ? (editing && editing.occ && editing.occ.start_min != null ? editing.occ.start_min
+      : editing && edTask && edTask.date === date && edTask.start_min != null ? edTask.start_min
+      : creating && creating.date === date && creating.start_min != null ? creating.start_min
+      : null)
+    : null;
+  // В боковой панели — для задач без даты/времени (если они в текущей панели).
+  const edPanel = (editing && edTask && !edTask.date && trayTasks.some(t => t.id === edTask.id))
+    || (creating && !creating.date);
+  // Плавающая карточка — всё остальное (другой день, не «День», и т.п.).
+  const edFloat = !!(editing || creating) && edGridMin == null && !edPanel;
 
   const prevDate = (() => { const x = fromISO(date); x.setDate(x.getDate() - 1); return toISO(x); })();
   const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();
@@ -941,7 +966,9 @@ function Planner() {
           <div class="proj-tasks">
             ${trayTasks.length === 0
               ? html`<div class="muted small" style="padding:10px 6px;">Здесь пока нет задач.</div>`
-              : trayTasks.map(t => html`
+              : trayTasks.map(t => (editing && edTask && !edTask.date && edTask.id === t.id)
+                ? html`<div key=${t.id}>${editorEl}</div>`
+                : html`
                 <div class="tray-task-wrap" key=${t.id} onPointerDown=${e => startTrayDrag(e, t)}>
                   <div class=${"tray-task" + (t.done ? " done" : "")}>
                   <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
@@ -956,9 +983,10 @@ function Planner() {
                   ${!t.date ? html`<button class="btn-mini" title="Запланировать на этот день" onPointerDown=${e => e.stopPropagation()} onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>` : ""}
                   </div>
                 </div>`)}
-            <button class="btn sm ghost proj-add"
+            ${creating && !creating.date && editorEl}
+            ${!(creating && !creating.date) && html`<button class="btn sm ghost proj-add"
               onClick=${() => setCreating({ list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
-              ${Icon.plus()} Добавить задачу</button>
+              ${Icon.plus()} Добавить задачу</button>`}
           </div>
         </aside>
 
@@ -1009,6 +1037,7 @@ function Planner() {
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
                 ${selRange && html`<div class="tl-selrect"
                   style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
+                ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
                 ${dayTl.map(i => {
                   // Переходящая через полночь задача рисуется сегментом дня и не
                   // перетаскивается/не тянется (правка — через карточку по тапу).
@@ -1045,7 +1074,7 @@ function Planner() {
                           <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                             onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                         </div>
-                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
+                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})${(i.subtasks && i.subtasks.length) ? html` · <span class="tl-sub">${Icon.check()}${i.subtasks.filter(s => s.done).length}/${i.subtasks.length}</span>` : ""}</div>
                       </div>
                     </div>
                   </div>`;
@@ -1140,7 +1169,8 @@ function Planner() {
         </div>
 
         <button class="mobile-fab" title="Новая задача"
-          onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
+          onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null,
+            start_min: clamp((isToday ? Math.round(nowMin / 30) * 30 : 540), 0, 1380), duration_min: 60 })}>
           ${Icon.plus()}</button>
       </div>
     </div>
@@ -1158,8 +1188,7 @@ function Planner() {
     ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
     ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
       onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
-    ${creating && html`<${TaskForm} defaults=${creating} onClose=${() => setCreating(null)} />`}
-    ${editing && html`<${TaskForm} initial=${editing.task} occ=${editing.occ} onClose=${() => setEditing(null)} />`}
+    ${edFloat && html`<div class="ed-float-back" onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}
       onClose=${() => setListModal(null)} />`}

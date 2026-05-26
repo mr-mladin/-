@@ -189,7 +189,13 @@ function base(t) {
   return {
     title: t.title, notes: t.notes || "", color: t.color || null, icon: t.icon || null,
     list_id: t.list_id || null, start_min: t.start_min, duration_min: t.duration_min,
+    subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
   };
+}
+// Прогресс подзадач: { done, total }.
+export function subProgress(subs) {
+  const a = Array.isArray(subs) ? subs : [];
+  return { done: a.filter(s => s && s.done).length, total: a.length };
 }
 // Видимый сегмент задачи в дне со смещением off (в днях от даты задачи). Задача
 // может тянуться за полночь: в свой день обрезается на 00:00, в следующий —

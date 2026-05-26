@@ -547,3 +547,100 @@ textarea.input { resize: vertical; }
   text-overflow: ellipsis; white-space: nowrap; }
 .search-item.done .search-item-title { text-decoration: line-through; color: var(--text-mute); }
 .search-item-meta { flex: none; font-size: 12px; color: var(--text-mute); }
+
+/* ---- Встроенный редактор задачи ---- */
+.tl-sub { display: inline-flex; align-items: center; gap: 2px; }
+.tl-sub .ico { width: 11px; height: 11px; }
+
+/* Якорь в сетке дня — карточка «прирастает» к минуте начала задачи. */
+.ed-anchor { position: absolute; left: 20px; right: 8px; z-index: 30; }
+/* Плавающий вариант (другой день / не «День»). */
+.ed-float-back { position: fixed; inset: 0; z-index: 60; background: rgba(2, 6, 23, 0.35);
+  display: flex; align-items: flex-start; justify-content: center; padding: 64px 16px 24px; overflow-y: auto; }
+
+.ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
+  background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28); padding: 12px 14px 14px;
+  max-height: 72vh; overflow-y: auto; animation: edPop .16s cubic-bezier(.2,.7,.3,1); }
+.ed-anchor .ed-card { max-width: none; }
+@keyframes edPop { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
+
+.ed-top { display: flex; align-items: center; justify-content: space-between; }
+.ed-cancel, .ed-save { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center;
+  justify-content: center; cursor: pointer; border: 0; }
+.ed-cancel { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+.ed-cancel:hover { background: rgba(239, 68, 68, 0.2); }
+.ed-save { background: var(--accent); color: #fff; }
+.ed-save:disabled { opacity: .5; cursor: default; }
+.ed-cancel .ico, .ed-save .ico { width: 18px; height: 18px; }
+
+.ed-error { font-size: 12px; color: var(--danger); background: rgba(239,68,68,0.1);
+  padding: 6px 10px; border-radius: var(--radius-sm); }
+
+.ed-title { border: 0; background: none; font-family: inherit; font-size: 18px; font-weight: 650;
+  color: var(--text); padding: 0 2px; outline: none; }
+.ed-title::placeholder { color: var(--text-mute); font-weight: 600; }
+
+.ed-notes { border: 1px solid var(--border); background: var(--bg-soft); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 14px; color: var(--text); padding: 8px 10px; outline: none; resize: vertical; }
+
+/* «Добавить …» — лёгкая пунктирная кнопка-приглашение. */
+.ed-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: none; border: 0; color: var(--text-mute); font-family: inherit; font-size: 13px; padding: 4px 2px; }
+.ed-add:hover { color: var(--text-soft); }
+.ed-add .ico { width: 15px; height: 15px; }
+.ed-add.sm { font-size: 12px; }
+
+.ed-sub { display: flex; flex-direction: column; gap: 6px; }
+.ed-sub-chip { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 4px 10px 4px 5px;
+  font-family: inherit; font-size: 13px; color: var(--text-soft); }
+.ed-sub-badge { width: 18px; height: 18px; border-radius: 5px; background: var(--text-mute); color: #fff;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ed-sub-badge .ico { width: 12px; height: 12px; }
+.ed-chev { display: inline-flex; transition: transform .18s; color: var(--text-mute); }
+.ed-chev .ico { width: 16px; height: 16px; }
+.ed-sub-chip.open .ed-chev { transform: rotate(90deg); }
+.ed-sub-list { display: flex; flex-direction: column; }
+.ed-sub-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-top: 1px solid var(--border); }
+.ed-sub-item:first-child { border-top: 0; }
+.ed-sub-input { flex: 1; min-width: 0; border: 0; background: none; font-family: inherit; font-size: 14px;
+  color: var(--text); outline: none; }
+.ed-sub-item.done .ed-sub-input { text-decoration: line-through; color: var(--text-mute); }
+.ed-sub-del { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px;
+  opacity: 0; transition: opacity .15s; }
+.ed-sub-item:hover .ed-sub-del { opacity: 1; }
+.ed-sub-del .ico { width: 14px; height: 14px; }
+
+.ed-field { position: relative; display: flex; flex-direction: column; gap: 6px; }
+.ed-proj { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
+  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 5px 12px;
+  font-family: inherit; font-size: 13px; color: var(--text); }
+.ed-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
+.ed-rep-ico { display: inline-flex; color: var(--text-mute); }
+.ed-rep-ico .ico { width: 15px; height: 15px; }
+.ed-menu { display: flex; flex-direction: column; gap: 1px; background: var(--surface);
+  border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px; max-height: 220px;
+  overflow-y: auto; box-shadow: 0 10px 28px rgba(2,6,23,0.2); }
+.ed-menu-item { display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer;
+  background: none; border: 0; border-radius: var(--radius-sm); padding: 7px 9px; font-family: inherit;
+  font-size: 14px; color: var(--text); }
+.ed-menu-item:hover { background: var(--bg-soft); }
+.ed-menu-item.sel { background: var(--accent-soft); }
+
+.ed-dt { display: flex; align-items: center; gap: 8px; }
+.ed-dt-label { width: 56px; flex: none; font-size: 13px; color: var(--text-soft); }
+.ed-input { border: 1px solid var(--border); background: var(--bg-soft); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 14px; color: var(--text); padding: 6px 8px; outline: none; }
+.ed-input.dt-date { flex: 1; min-width: 0; }
+.ed-input.dt-time { width: 92px; flex: none; }
+.ed-dt-clear { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px; }
+.ed-dt-clear .ico { width: 15px; height: 15px; }
+.ed-until { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); }
+
+.ed-del { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  background: none; border: 0; color: var(--danger); font-family: inherit; font-size: 13px; padding: 4px 2px; }
+.ed-del .ico { width: 15px; height: 15px; }
+.ed-confirm { display: flex; flex-direction: column; gap: 8px; background: rgba(239,68,68,0.08);
+  border-radius: var(--radius-sm); padding: 10px; font-size: 13px; }
+.ed-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; }

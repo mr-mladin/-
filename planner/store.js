@@ -320,7 +320,7 @@ export function StoreProvider({ children }) {
       // ответа сервера), иначе быстрый Cmd+Z отменил бы предыдущее действие.
       const tempId = "tmp-" + Math.random().toString(36).slice(2);
       const optimistic = {
-        done: false, recurrence_parent: null, occ_date: null, skipped: false,
+        done: false, recurrence_parent: null, occ_date: null, skipped: false, subtasks: [],
         ...payload, id: tempId, user_id: state.user?.id,
       };
       dispatch({ type: "upsertOne", key: "tasks", item: optimistic });
