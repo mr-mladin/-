@@ -472,7 +472,7 @@ function Planner() {
 
   // Мобильное перемещение пилюли: только после долгого нажатия (режим
   // перемещения с пульсацией). До этого касание по пилюле = обычный скролл/тап.
-  function onBlockTouch(e, item) {
+  function onBlockTouch(e, item, tapAction) {
     const sx = e.clientX, sy = e.clientY;
     const grab = yToMin(e.clientY) - item.start_min;
     const dur = item.duration_min || 0;
@@ -498,7 +498,7 @@ function Planner() {
       const wasArmed = armed;
       cleanup();
       setDrag(null);
-      if (!wasArmed) { openPreview(item); return; }
+      if (!wasArmed) { (tapAction || (() => openPreview(item)))(); return; }
       if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
     };
     const cleanup = () => {
@@ -515,10 +515,10 @@ function Planner() {
     else hold = setTimeout(() => arm(true), 280);  // не выделена → выделяем удержанием
   }
 
-  function onBlockPointerDown(e, item) {
+  function onBlockPointerDown(e, item, tapAction) {
     e.stopPropagation();
     if (e.button === 2) return; // правый клик — контекстное меню (карточка)
-    if (e.pointerType === "touch") { onBlockTouch(e, item); return; }
+    if (e.pointerType === "touch") { onBlockTouch(e, item, tapAction); return; }
     if (e.button !== 0) return;
     e.preventDefault();
     const startClientY = e.clientY, startClientX = e.clientX;
@@ -538,10 +538,12 @@ function Planner() {
         setDrag({ type: copy ? "copyGroup" : "moveGroup", keys: group.map(g => g.item.key), delta });
         return;
       }
-      // Утянули в боковую панель — задача «снимается» из сетки (плавающий ярлык).
-      if (!copy && item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
+      // Утянули в боковую панель или в зону «весь день» — задача «снимается» из
+      // сетки (плавающий ярлык + подсветка зоны-приёмника).
+      const z = !copy && item.kind === "concrete" ? dndZoneAt(ev.clientX, ev.clientY) : null;
+      if (z === "tray" || z === "allday") {
         setDrag(null);
-        setDnd({ source: "grid", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "tray" });
+        setDnd({ source: "grid", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: z });
         return;
       }
       setDnd(null);
@@ -551,7 +553,7 @@ function Planner() {
     const up = (ev) => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
       setDrag(null); setDnd(null);
-      if (!moved) { handleTap(item, shift); return; }
+      if (!moved) { (tapAction || (() => handleTap(item, shift)))(); return; }
       if (copy) {
         const list = group ? group : [{ item, start: item.start_min, dur: item.duration_min || 0 }];
         const off = group ? delta : (newStart - item.start_min);
@@ -1054,7 +1056,7 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
-              ${allDay.length > 0 && html`<div class="allday">
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")}>
                 ${allDay.map(i => html`
                   <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}
                     onPointerDown=${e => { if (i.id) startTrayDrag(e, i); }}>
@@ -1069,7 +1071,8 @@ function Planner() {
                           onBlur=${() => commitTitle(i)} />`
                       : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
                   </div>`)}
-              </div>`}
+                ${allDay.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
+              </div>
               <div class="tl-track" ref=${trackRef}>
               <div class="tl-pane">${peek ? dayStaticPane(prevDate) : null}</div>
               <div class="tl-pane">
@@ -1120,7 +1123,9 @@ function Planner() {
                                 onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
                                 onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
                                 onBlur=${() => commitTitle(i)} />`
-                            : html`<div class="tl-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
+                            : html`<div class="tl-title"
+                                onPointerDown=${e => { if (!spanning) onBlockPointerDown(e, i, () => startTitleEdit(i, caretOffsetFromClick(e))); }}
+                                onClick=${e => { if (spanning) { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); } }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
                         </div>
                         <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
