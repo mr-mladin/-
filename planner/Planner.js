@@ -680,17 +680,17 @@ function Planner() {
   // Завершение задачи в сетке: конфетти-хлопок + падение шарика-чекбокса вниз.
   const CONFETTI = ["#22c55e", "#0ea5e9", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
   function makeBits() {
-    return Array.from({ length: 13 }, () => {
-      const a = Math.random() * Math.PI * 2, dist = 16 + Math.random() * 24;
-      return { dx: Math.round(Math.cos(a) * dist), dy: Math.round(Math.sin(a) * dist - 6),
-        rot: (Math.random() * 360 - 180) | 0, color: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 70) | 0 };
+    return Array.from({ length: 18 }, () => {
+      const a = Math.random() * Math.PI * 2, dist = 20 + Math.random() * 28;
+      return { dx: Math.round(Math.cos(a) * dist), dy: Math.round(Math.sin(a) * dist),
+        rot: (Math.random() * 360 - 180) | 0, color: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 80) | 0 };
     });
   }
   function completeToggle(item) {
     if (!item.done) {
       const id = Date.now() + Math.random();
       setBurst({ key: item.key, id, bits: makeBits() });
-      setTimeout(() => setBurst(b => (b && b.id === id) ? null : b), 1000);
+      setTimeout(() => setBurst(b => (b && b.id === id) ? null : b), 3300);
     }
     return toggleDone(item);
   }
