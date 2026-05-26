@@ -971,14 +971,10 @@ function Planner() {
                 <input class="planner-date-input" type="date" ref=${dateInputRef} value=${date}
                   onInput=${e => e.target.value && setDate(e.target.value)} />
               </button>
-              <button class="btn-mini" onClick=${() => shift(-1)} title="Назад">${Icon.left()}</button>
               ${view !== "day" ? html`<span class="planner-date-main">${headLabel}</span>` : ""}
-              <button class="btn-mini" onClick=${() => shift(1)} title="Вперёд">${Icon.right()}</button>
             </div>
             <div class="planner-head-actions">
               ${!isToday ? html`<button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>` : ""}
-              <button class="btn primary sm head-add" onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
-                ${Icon.plus()} Задача</button>
               <button class="btn sm ghost view-cycle" title="Сменить режим"
                 onClick=${() => { const i = VIEWS.findIndex(([v]) => v === view); setView(VIEWS[(i + 1) % VIEWS.length][0]); }}>
                 ${(VIEWS.find(([v]) => v === view) || VIEWS[0])[1]}</button>

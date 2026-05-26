@@ -184,8 +184,18 @@ textarea.input { resize: vertical; }
 .planner { display: flex; gap: 0; flex: 1; min-height: 0; padding: 0; }
 .planner-aside { width: 400px; flex: none; display: flex; flex-direction: column;
   padding: 16px 16px 16px 18px; }
-/* Нижняя панель навигации — только на мобильном (включается в @media ниже) */
-.mobile-fab { display: none; }
+/* Круглая «+» в правом нижнем углу — добавление новой задачи (все экраны). */
+.mobile-fab { display: flex; position: fixed; z-index: 45;
+  right: calc(24px + env(safe-area-inset-right)); bottom: calc(24px + env(safe-area-inset-bottom));
+  flex: none; width: 56px; height: 56px; border-radius: 50%;
+  border: 0; background: var(--accent); color: #fff; align-items: center; justify-content: center;
+  cursor: pointer; animation: fabPulse 2.6s ease-in-out infinite; }
+.mobile-fab .ico { width: 26px; height: 26px; }
+@keyframes fabPulse {
+  0%   { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent); }
+  70%  { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent); }
+  100% { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
+}
 /* Выбор проекта (раскрывается при наведении) */
 .proj-select { position: relative; flex: none; }
 .proj-current { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
@@ -241,7 +251,7 @@ textarea.input { resize: vertical; }
 .ctx-item .ico { width: 16px; height: 16px; }
 
 /* Список задач проекта */
-.proj-tasks { flex: 1; min-height: 0; overflow-y: auto; margin-top: 12px; display: flex; flex-direction: column; gap: 6px; }
+.proj-tasks { flex: 1; min-height: 0; overflow-y: auto; margin-top: 12px; display: flex; flex-direction: column; gap: 4px; }
 .proj-add { margin-top: 8px; width: 100%; justify-content: center; }
 .tray-task-meta { font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tray-task.done .tray-task-meta { color: var(--text-mute); }
@@ -282,7 +292,7 @@ textarea.input { resize: vertical; }
 .planner-tray-head .ico { width: 16px; height: 16px; }
 .tray-task-wrap { cursor: grab; touch-action: pan-y; border-radius: var(--radius); }
 .tray-task-wrap:active { cursor: grabbing; }
-.tray-task { display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: var(--radius-lg);
+.tray-task { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: var(--radius);
   background: var(--surface); border: 1px solid transparent; box-shadow: 0 1px 2px rgba(15,23,42,0.04);
   transition: box-shadow .15s; }
 .tray-task-wrap:hover .tray-task { box-shadow: 0 3px 12px rgba(15,23,42,0.09); }
@@ -297,7 +307,7 @@ textarea.input { resize: vertical; }
 .dnd-ghost-hint { font-size: 11px; color: var(--text-mute); }
 .tray-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;
   background: none; border: none; cursor: pointer; text-align: left; color: var(--text); padding: 0; font-family: inherit; }
-.tray-task-title { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tray-task-title { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tray-task-list { font-size: 11px; }
 .tray-task.done .tray-task-title { text-decoration: line-through; color: var(--text-mute); }
 
@@ -491,12 +501,8 @@ textarea.input { resize: vertical; }
     margin-right: calc(-10px - env(safe-area-inset-right));
     padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
   .tl { left: 0; }
-  .head-add { display: none; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
   .planner-week { padding: 0 4px; margin-bottom: 8px; }
-  /* Стрелки листания дней на мобильном убраны: день меняем тапом по полосе
-     недели, дату — иконкой календаря. */
-  .planner-nav .btn-mini { display: none; }
   /* Полоса недели плотнее — больше места под сетку дня. */
   .wday { padding: 4px 0 5px; gap: 2px; }
   .wday-num { width: 28px; height: 28px; font-size: 15px; }
@@ -505,18 +511,10 @@ textarea.input { resize: vertical; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
   .month-chip-title { font-size: 10px; }
 
-  /* Круглая «+» в правом нижнем углу сетки дня (нижнее меню убрано). */
-  .mobile-fab { display: flex; position: fixed; z-index: 45;
-    right: calc(16px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
-    flex: none; width: 58px; height: 58px; border-radius: 50%;
-    border: 0; background: var(--accent); color: #fff; align-items: center; justify-content: center;
-    cursor: pointer; animation: fabPulse 2.6s ease-in-out infinite; }
+  /* На мобильном «+» чуть крупнее и ближе к краю. */
+  .mobile-fab { right: calc(16px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
+    width: 58px; height: 58px; }
   .mobile-fab .ico { width: 27px; height: 27px; }
-  @keyframes fabPulse {
-    0%   { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 42%, transparent); }
-    70%  { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent); }
-    100% { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
-  }
 }
 
 /* Настройки */
