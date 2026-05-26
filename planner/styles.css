@@ -397,12 +397,12 @@ textarea.input { resize: vertical; }
 .task-check, .allday-check { position: relative; }
 .confetti { position: absolute; top: 17px; left: 50%; width: 0; height: 0; pointer-events: none; z-index: 8; }
 .confetti.center { top: 50%; left: 50%; }
-.confetti-bit { position: absolute; left: 0; top: 0; width: 4px; height: 10px; border-radius: 1px;
-  opacity: 0; transform: translate(-50%, -50%) scale(.4) rotate(0deg); animation: confettiPop .9s ease-out forwards; }
+.confetti-bit { position: absolute; left: 0; top: 0; font-size: 16px; line-height: 1; white-space: nowrap;
+  opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); animation: confettiPop .95s ease-out forwards; }
 @keyframes confettiPop {
-  0%   { opacity: 1; transform: translate(-50%, -50%) scale(.5) rotate(0deg); }
-  30%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot)); }
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); }
+  18%  { opacity: 1; transform: translate(calc(-50% + var(--dx) * .55), calc(-50% + var(--dy) * .55)) scale(1.1) rotate(calc(var(--rot) * .6deg)); }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 10px)) scale(.85) rotate(calc(var(--rot) * 1deg)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .tl-pill-check.falling { animation: none !important; }

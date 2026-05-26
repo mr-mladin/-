@@ -678,27 +678,26 @@ function Planner() {
     doneFeedback();
     return store.actions.tasks.toggleDone(item).catch(showErr);
   };
-  // Конфетти при выполнении задачи — сдержанная «взрослая» палитра (золото,
-  // нейтральные, один акцент), частицы-полоски.
-  const CONFETTI = ["#d9a441", "#e6e9ef", "#9aa3b2", "#3b82f6", "#1f2937"];
+  // Конфетти при выполнении задачи — эмодзи-частицы.
+  const CONFETTI = ["✅", "🐝", "😎", "💸", "🤝", "🚀", "💬", "🙌🏻"];
   function makeBits() {
-    return Array.from({ length: 16 }, () => {
-      const a = Math.random() * Math.PI * 2, dist = 20 + Math.random() * 28;
+    return Array.from({ length: 12 }, () => {
+      const a = Math.random() * Math.PI * 2, dist = 24 + Math.random() * 30;
       return { dx: Math.round(Math.cos(a) * dist), dy: Math.round(Math.sin(a) * dist),
-        rot: (Math.random() * 540 - 270) | 0, color: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 70) | 0 };
+        rot: (Math.random() * 120 - 60) | 0, emoji: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 80) | 0 };
     });
   }
   // Хлопок конфетти у любого чекбокса (по уникальному ключу).
   function popConfetti(key) {
     const id = Date.now() + Math.random();
     setConfetti({ key, id, bits: makeBits() });
-    setTimeout(() => setConfetti(c => (c && c.id === id) ? null : c), 1100);
+    setTimeout(() => setConfetti(c => (c && c.id === id) ? null : c), 1200);
   }
   // Конфетти-элемент для вставки рядом с чекбоксом (cls="center" — по центру кнопки).
   const confettiEl = (key, cls) => (confetti && confetti.key === key)
     ? html`<span class=${"confetti" + (cls ? " " + cls : "")}>
         ${confetti.bits.map((b, n) => html`<span class="confetti-bit" key=${n}
-          style=${`--dx:${b.dx}px;--dy:${b.dy}px;--rot:${b.rot}deg;background:${b.color};animation-delay:${b.d}ms;`}></span>`)}
+          style=${`--dx:${b.dx}px;--dy:${b.dy}px;--rot:${b.rot};animation-delay:${b.d}ms;`}>${b.emoji}</span>`)}
       </span>` : "";
   // Завершение задачи в сетке: конфетти + падение шарика-чекбокса вниз капсулы.
   function completeToggle(item) {
