@@ -7,7 +7,7 @@ import {
   monthMatrix, weekRangeLabel, weekStart,
   splitEmoji, gapCaption, durHuman, doneFeedback, haptic,
 } from "./lib.js";
-import { Modal, ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, EventCard, SettingsModal, SearchModal } from "./components.js";
+import { ConfirmModal, Toasts, TaskForm, ListForm, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
 const VIEWS = [["day", "День"], ["week", "Неделя"], ["month", "Месяц"]];
 const WD_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
@@ -52,8 +52,6 @@ function Planner() {
   const [filter, setFilter] = useState("all");
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
-  const [preview, setPreview] = useState(null);
-  const [delItem, setDelItem] = useState(null);
   const [drag, setDrag] = useState(null);
   const [dnd, setDnd] = useState(null);
   const [listModal, setListModal] = useState(null);
@@ -846,12 +844,7 @@ function Planner() {
       start_min: row.start_min, duration_min: row.duration_min,
     };
   }
-  function openPreview(item) { setPreview(item); }
-  function handleDelete(item) {
-    setPreview(null);
-    if (item.recurring) { openEdit(item); return; }
-    setDelItem(item);
-  }
+  function openPreview(item) { openEdit(item); }
 
   const d = fromISO(date);
   const monthLabel = `${monthNom(d)[0].toUpperCase()}${monthNom(d).slice(1)} ${d.getFullYear()}`;
@@ -1156,13 +1149,6 @@ function Planner() {
       </div>
     </div>
 
-    ${preview && html`<${EventCard} item=${preview}
-      onClose=${() => setPreview(null)} onDelete=${() => handleDelete(preview)} />`}
-    ${delItem && html`<${ConfirmModal} title="Удалить задачу?"
-      message=${`«${delItem.title}» будет удалена без возможности восстановления.`}
-      onCancel=${() => setDelItem(null)}
-      onConfirm=${async () => { try { await store.actions.tasks.remove(delItem.id); store.pushToast("Задача удалена", "success"); }
-        catch (e) { showErr(e); } setDelItem(null); }} />`}
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
       ${dnd.zone === "tray" ? html`<span class="dnd-ghost-hint">снять время</span>` : ""}

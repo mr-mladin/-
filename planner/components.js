@@ -1,14 +1,13 @@
 import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
-import { Icon, todayISO, fromISO, monthGen, RECUR_OPTIONS } from "./lib.js";
-import { minToHHMM, hhmmToMin, doneFeedback } from "./lib.js";
+import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS } from "./lib.js";
+import { minToHHMM, hhmmToMin } from "./lib.js";
+
+const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
+const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
-const DURATIONS = [15, 30, 45, 60, 90, 120, 180, 240, 360, 480, 600, 720];
-const TASK_EMOJIS = ["💼", "📞", "✉️", "💻", "📝", "📚", "🎯", "💡", "📅", "⏰",
-  "🏋️", "🏃", "🧘", "🚶", "☕", "🍳", "🍽️", "🛒", "🧹", "🚗",
-  "✈️", "💊", "🩺", "💤", "🎵", "🎮", "🎨", "💰", "❤️", "🐝", "🌅", "⭐"];
 
 export function Modal({ title, onClose, children, footer }) {
   useEffect(() => {
@@ -110,138 +109,6 @@ export function Toasts() {
   </div>`;
 }
 
-export function EventCard({ item, onClose, onDelete }) {
-  const store = useStore();
-  const lists = [...store.taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-  const rowId = item.id || item.templateId;
-
-  const [title, setTitle] = useState(item.title || "");
-  const [notes, setNotes] = useState(item.notes || "");
-  const [listId, setListId] = useState(item.list_id || "");
-  const [done, setDone] = useState(!!item.done);
-  const [allDay, setAllDay] = useState(item.start_min === null || item.start_min === undefined);
-  const [day, setDay] = useState(item.occDate || todayISO());
-  const [start, setStart] = useState(minToHHMM(item.start_min ?? 9 * 60));
-  const [dur, setDur] = useState(item.duration_min || 60);
-  const [icon, setIcon] = useState(item.icon || "");
-  const [expand, setExpand] = useState(false);
-  const [projOpen, setProjOpen] = useState(false);
-  const [emojiOpen, setEmojiOpen] = useState(false);
-  const projRef = useRef(null);
-  const emojiRef = useRef(null);
-  const stateRef = useRef({});
-  stateRef.current = { title, notes };
-
-  useEffect(() => {
-    const onKey = e => { if (e.key === "Escape") flushAndClose(); };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-  useEffect(() => {
-    if (!projOpen) return;
-    const onDown = e => { if (projRef.current && !projRef.current.contains(e.target)) setProjOpen(false); };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [projOpen]);
-  useEffect(() => {
-    if (!emojiOpen) return;
-    const onDown = e => { if (emojiRef.current && !emojiRef.current.contains(e.target)) setEmojiOpen(false); };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [emojiOpen]);
-
-  const save = (patch) => store.actions.tasks.update(rowId, patch).catch(() => {});
-  const curList = lists.find(l => l.id === listId);
-  const dotColor = curList?.color || "var(--accent)";
-  const endMin = (allDay ? 0 : hhmmToMin(start)) + dur;
-  const dd = fromISO(day);
-  const summary = allDay
-    ? `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · весь день`
-    : `${dd.getDate()} ${monthGen(dd)} ${dd.getFullYear()} г. · ${start} — ${minToHHMM(endMin)}`;
-
-  function toggleDone() { const next = !done; doneFeedback(); setDone(next); store.actions.tasks.toggleDone({ ...item, done }).catch(() => {}); }
-
-  // Сохраняем название и заметку перед закрытием: при закрытии тапом по фону
-  // поле не успевает потерять фокус (onBlur), поэтому правки сохраняем здесь.
-  function flushAndClose() {
-    const t = stateRef.current.title.trim() || "Без названия";
-    const n = stateRef.current.notes.trim() || null;
-    const patch = {};
-    if (t !== (item.title || "")) patch.title = t;
-    if (n !== (item.notes || null)) patch.notes = n;
-    if (patch.title !== undefined || patch.notes !== undefined) save(patch);
-    onClose?.();
-  }
-
-  return html`
-    <div class="modal-back" onPointerDown=${e => { if (e.target === e.currentTarget) flushAndClose(); }}>
-      <div class="evc" role="dialog" style=${`--c:${dotColor};`}>
-        <div class="evc-head">
-          <button class=${"task-check sm" + (done ? " on" : "")} title="Готово" onClick=${toggleDone}>${Icon.check()}</button>
-          <div class="evc-emoji" ref=${emojiRef}>
-            <button class=${"evc-emoji-btn" + (icon ? " set" : "")} style=${`--c:${dotColor};`}
-              title="Иконка" onClick=${() => setEmojiOpen(o => !o)}>${icon || Icon.plus()}</button>
-            ${emojiOpen && html`<div class="evc-emoji-menu">
-              ${TASK_EMOJIS.map(em => html`<button class=${"evc-emoji-cell" + (icon === em ? " on" : "")} key=${em}
-                onClick=${() => { setIcon(em); save({ icon: em }); setEmojiOpen(false); }}>${em}</button>`)}
-              <button class="evc-emoji-clear" onClick=${() => { setIcon(""); save({ icon: null }); setEmojiOpen(false); }}>Без иконки</button>
-            </div>`}
-          </div>
-          <div class="evc-proj" ref=${projRef}>
-            <button class="evc-dot" title="Проект" onClick=${() => setProjOpen(o => !o)}>
-              <span class="evc-dot-c" style=${`background:${dotColor};`}></span>${Icon.right()}</button>
-            ${projOpen && html`<div class="evc-proj-menu">
-              <button class="evc-proj-item" onClick=${() => { setListId(""); save({ list_id: null }); setProjOpen(false); }}>
-                <span class="evc-pcheck">${listId ? "" : Icon.check()}</span>
-                <span class="evc-pdot" style="background:#94a3b8;"></span>Входящие</button>
-              ${lists.map(l => html`<button class="evc-proj-item" key=${l.id}
-                onClick=${() => { setListId(l.id); save({ list_id: l.id }); setProjOpen(false); }}>
-                <span class="evc-pcheck">${listId === l.id ? Icon.check() : ""}</span>
-                <span class="evc-pdot" style=${`background:${l.color};`}></span>${l.name}</button>`)}
-            </div>`}
-          </div>
-          <button class="evc-del" title="Удалить" onClick=${onDelete}>${Icon.close()}</button>
-        </div>
-        <input class=${"evc-title" + (done ? " done" : "")} value=${title} placeholder="Название задачи"
-          onInput=${e => setTitle(e.target.value)} onBlur=${() => save({ title: title.trim() || "Без названия" })} />
-
-        <button class="evc-summary" onClick=${() => setExpand(e => !e)}>
-          ${Icon.clock()}<span>${summary}</span></button>
-
-        ${expand && html`<div class="evc-group">
-          <label class="evc-line">
-            <span>Весь день</span>
-            <input type="checkbox" checked=${allDay} onChange=${e => {
-              const v = e.target.checked; setAllDay(v);
-              if (v) save({ start_min: null, duration_min: null });
-              else save({ start_min: hhmmToMin(start), duration_min: dur });
-            }} /></label>
-          ${!allDay && html`
-            <div class="evc-line"><span>Начало</span>
-              <span class="evc-line-r">
-                <input class="evc-inp" type="date" value=${day}
-                  onInput=${e => { if (e.target.value) { setDay(e.target.value); save({ date: e.target.value }); } }} />
-                <input class="evc-inp" type="time" value=${start}
-                  onInput=${e => { if (e.target.value) { setStart(e.target.value); save({ start_min: hhmmToMin(e.target.value), duration_min: dur }); } }} />
-              </span></div>
-            <div class="evc-line"><span>Конец</span>
-              <span class="evc-line-r">
-                <input class="evc-inp" type="time" value=${minToHHMM(endMin)}
-                  onInput=${e => { if (e.target.value) { let nd = hhmmToMin(e.target.value) - hhmmToMin(start); if (nd <= 0) nd += 1440; setDur(nd); save({ duration_min: nd }); } }} />
-              </span></div>`}
-        </div>`}
-
-        <textarea class="evc-notes" rows="2" placeholder="Добавить заметку"
-          value=${notes} onInput=${e => setNotes(e.target.value)} onBlur=${() => save({ notes: notes.trim() || null })}></textarea>
-      </div>
-    </div>`;
-}
-
-function durLabel(min) {
-  if (min < 60) return min + " мин";
-  const h = Math.floor(min / 60), m = min % 60;
-  return m ? `${h} ч ${m} мин` : `${h} ч`;
-}
 function dbHint(msg) {
   if (msg && /relation|table|schema cache|does not exist/i.test(msg))
     return "Таблицы планера ещё не созданы в базе. Создайте их по инструкции и обновите страницу.";
@@ -255,12 +122,14 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
   const isSeries = !!(initial && initial.recurrence);
   const src = initial || defaults || {};
 
+  const _hasStart = src.start_min !== null && src.start_min !== undefined;
+  const _end = _hasStart ? src.start_min + (src.duration_min || 0) : null;
   const [title, setTitle] = useState(src.title || "");
   const [listId, setListId] = useState(src.list_id || "");
   const [date, setDate] = useState(src.date || "");
-  const [hasTime, setHasTime] = useState(src.start_min !== null && src.start_min !== undefined);
-  const [start, setStart] = useState(minToHHMM(src.start_min ?? 9 * 60));
-  const [duration, setDuration] = useState(src.duration_min || 60);
+  const [startTime, setStartTime] = useState(_hasStart ? minToHHMM(src.start_min) : "");
+  const [endDate, setEndDate] = useState(src.date && _end != null ? addDaysISO(src.date, Math.floor(_end / 1440)) : (src.date || ""));
+  const [endTime, setEndTime] = useState(_end != null ? minToHHMM(_end % 1440) : "");
   const [recurrence, setRecurrence] = useState(src.recurrence || "");
   const [until, setUntil] = useState(src.recurrence_until || "");
   const [notes, setNotes] = useState(src.notes || "");
@@ -295,12 +164,23 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
     document.addEventListener("pointerup", up);
   }
 
+  function changeDate(v) { setDate(v); if (!endDate || endDate < v) setEndDate(v); if (!v) { setStartTime(""); setRecurrence(""); } }
+  function changeStart(v) { setStartTime(v); if (v && !endTime) { setEndTime(minToHHMM(hhmmToMin(v) + 60)); if (!endDate) setEndDate(date); } }
+
   function payload() {
-    const startMin = hasTime && date ? hhmmToMin(start) : null;
-    const recur = date && recurrence ? recurrence : null;
+    if (!date) return { title: title.trim(), list_id: listId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null };
+    const startMin = startTime ? hhmmToMin(startTime) : null;
+    let duration = null;
+    if (startMin !== null) {
+      if (endTime) {
+        duration = daysBetweenISO(date, endDate || date) * 1440 + hhmmToMin(endTime) - startMin;
+        if (duration <= 0) duration = 60; // конец не позже начала — час по умолчанию
+      } else duration = 60;
+    }
+    const recur = recurrence ? recurrence : null;
     return {
-      title: title.trim(), list_id: listId || null, date: date || null,
-      start_min: startMin, duration_min: startMin !== null ? Number(duration) : null,
+      title: title.trim(), list_id: listId || null, date,
+      start_min: startMin, duration_min: startMin !== null ? duration : null,
       recurrence: recur, recurrence_until: recur ? (until || null) : null,
       notes: notes.trim() || null,
     };
@@ -344,32 +224,25 @@ export function TaskForm({ initial, defaults, occ, onClose }) {
             Цвет блока в календаре</div>`}
         </div>
 
-        <div class="field"><label>Дата</label>
-          <div style="display:flex;gap:8px;align-items:center;">
-            <input class="input" type="date" value=${date} onInput=${e => setDate(e.target.value)} style="flex:1;" />
-            ${date
-              ? html`<button type="button" class="btn sm ghost" onClick=${() => { setDate(""); setRecurrence(""); }}>Без даты</button>`
-              : html`<button type="button" class="btn sm" onClick=${() => setDate(todayISO())}>Сегодня</button>`}
+        <div class="field"><label>Начало</label>
+          <div class="dt-row">
+            <input class="input dt-date" type="date" value=${date} onInput=${e => changeDate(e.target.value)} />
+            ${date ? html`<input class="input dt-time" type="time" value=${startTime} onInput=${e => changeStart(e.target.value)} />` : ""}
           </div>
-          ${!date && html`<div class="muted small" style="margin-top:4px;">Без даты задача попадёт во «Входящие».</div>`}
+          ${date
+            ? html`<button type="button" class="btn sm ghost dt-clear" onClick=${() => changeDate("")}>Без даты</button>`
+            : html`<div class="dt-note"><button type="button" class="btn sm" onClick=${() => changeDate(todayISO())}>Сегодня</button><span class="muted small">без даты — попадёт во «Входящие»</span></div>`}
         </div>
 
+        ${date && startTime && html`
+          <div class="field"><label>Конец</label>
+            <div class="dt-row">
+              <input class="input dt-date" type="date" value=${endDate} min=${date} onInput=${e => setEndDate(e.target.value)} />
+              <input class="input dt-time" type="time" value=${endTime} onInput=${e => setEndTime(e.target.value)} />
+            </div>
+          </div>`}
+
         ${date && html`
-          <label class="field" style="flex-direction:row;align-items:center;gap:8px;cursor:pointer;">
-            <input type="checkbox" checked=${hasTime} onChange=${e => setHasTime(e.target.checked)} /> Указать время
-          </label>
-          ${hasTime && html`
-            <div style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div class="field" style="flex:1;min-width:120px;"><label>Начало</label>
-                <input class="input" type="time" value=${start} onInput=${e => setStart(e.target.value)} /></div>
-              <div class="field" style="flex:1;min-width:120px;"><label>Длительность</label>
-                <select class="select" value=${String(duration)} onChange=${e => setDuration(Number(e.target.value))}>
-                  ${(DURATIONS.includes(duration) ? DURATIONS : [...DURATIONS, duration].sort((a, b) => a - b))
-                    .map(d => html`<option value=${String(d)} key=${d}>${durLabel(d)}</option>`)}
-                </select>
-                <div class="muted small" style="margin-top:4px;">до ${minToHHMM(hhmmToMin(start) + Number(duration))}</div>
-              </div>
-            </div>`}
           <div class="field"><label>Повтор</label>
             <select class="select" value=${recurrence} onChange=${e => setRecurrence(e.target.value)}>
               ${RECUR_OPTIONS.map(o => html`<option value=${o.value} key=${o.value}>${o.label}</option>`)}
