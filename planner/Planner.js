@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate,
   monthMatrix, weekRangeLabel, weekStart,
-  splitEmoji, durHuman, doneFeedback, haptic,
+  durHuman, doneFeedback, haptic,
 } from "./lib.js";
 import { ConfirmModal, Toasts, TaskEditor, ListForm, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
@@ -918,16 +918,12 @@ function Planner() {
         const top = (i.vTop / 60) * hourPx;
         const height = Math.max(MIN_EVENT_PX, ((i.vEnd - i.vTop) / 60) * hourPx);
         const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
-        const { emoji, text } = splitEmoji(i.title);
-        const icon = i.icon || emoji;
-        const ttl = i.icon ? i.title : (text || i.title);
         return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
           style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
-          <div class="tl-pill"><span class="tl-pill-icon">${icon || ""}</span></div>
+          <div class="tl-pill"><span class=${"tl-pill-check" + (i.done ? " on" : "")}>${Icon.check()}</span></div>
           <div class="tl-body"><div class="tl-text">
             <div class="tl-titlerow">
-              <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
-              <span class=${"task-check sm" + (i.done ? " on" : "")}>${Icon.check()}</span>
+              <div class="tl-title">${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
             </div>
             <div class="tl-meta">${minRangeLabel(i.start_min, i.duration_min || 0)} (${durHuman(i.duration_min || 0)})</div>
           </div></div>
@@ -1057,9 +1053,6 @@ function Planner() {
                   const top = (vTop / 60) * hourPx;
                   const height = Math.max(MIN_EVENT_PX, (vDur / 60) * hourPx);
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
-                  const { emoji, text } = splitEmoji(i.title);
-                  const icon = i.icon || emoji;
-                  const ttl = i.icon ? i.title : (text || i.title);
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
                   return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
@@ -1067,7 +1060,9 @@ function Planner() {
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
                       ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
-                      <span class="tl-pill-icon">${icon || ""}</span>
+                      <button class=${"tl-pill-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                        onPointerDown=${e => e.stopPropagation()}
+                        onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                       ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
@@ -1081,9 +1076,7 @@ function Planner() {
                                 onInput=${e => setTitleEdit({ key: i.key, value: e.target.value })}
                                 onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
                                 onBlur=${() => commitTitle(i)} />`
-                            : html`<div class="tl-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i); }}>${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
-                          <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
-                            onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
+                            : html`<div class="tl-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i); }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
                         </div>
                         <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
