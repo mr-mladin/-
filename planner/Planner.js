@@ -55,7 +55,8 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [dnd, setDnd] = useState(null);
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
-  const [burst, setBurst] = useState(null); // { key, id, bits } — конфетти при выполнении задачи
+  const [confetti, setConfetti] = useState(null); // { key, id, bits } — хлопок конфетти при выполнении
+  const [fallKey, setFallKey] = useState(null);   // ключ задачи в сетке, чей шарик сейчас падает
   const toggleSubs = (key) => setOpenSubs(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const [titleEdit, setTitleEdit] = useState(null); // { key, value } — встроенная правка названия в сетке
   const [subEdit, setSubEdit] = useState(null);     // { key, subId, value } — встроенная правка подзадачи
@@ -677,20 +678,34 @@ function Planner() {
     doneFeedback();
     return store.actions.tasks.toggleDone(item).catch(showErr);
   };
-  // Завершение задачи в сетке: конфетти-хлопок + падение шарика-чекбокса вниз.
-  const CONFETTI = ["#22c55e", "#0ea5e9", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+  // Конфетти при выполнении задачи — сдержанная «взрослая» палитра (золото,
+  // нейтральные, один акцент), частицы-полоски.
+  const CONFETTI = ["#d9a441", "#e6e9ef", "#9aa3b2", "#3b82f6", "#1f2937"];
   function makeBits() {
-    return Array.from({ length: 18 }, () => {
+    return Array.from({ length: 16 }, () => {
       const a = Math.random() * Math.PI * 2, dist = 20 + Math.random() * 28;
       return { dx: Math.round(Math.cos(a) * dist), dy: Math.round(Math.sin(a) * dist),
-        rot: (Math.random() * 360 - 180) | 0, color: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 80) | 0 };
+        rot: (Math.random() * 540 - 270) | 0, color: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 70) | 0 };
     });
   }
+  // Хлопок конфетти у любого чекбокса (по уникальному ключу).
+  function popConfetti(key) {
+    const id = Date.now() + Math.random();
+    setConfetti({ key, id, bits: makeBits() });
+    setTimeout(() => setConfetti(c => (c && c.id === id) ? null : c), 1100);
+  }
+  // Конфетти-элемент для вставки рядом с чекбоксом (cls="center" — по центру кнопки).
+  const confettiEl = (key, cls) => (confetti && confetti.key === key)
+    ? html`<span class=${"confetti" + (cls ? " " + cls : "")}>
+        ${confetti.bits.map((b, n) => html`<span class="confetti-bit" key=${n}
+          style=${`--dx:${b.dx}px;--dy:${b.dy}px;--rot:${b.rot}deg;background:${b.color};animation-delay:${b.d}ms;`}></span>`)}
+      </span>` : "";
+  // Завершение задачи в сетке: конфетти + падение шарика-чекбокса вниз капсулы.
   function completeToggle(item) {
     if (!item.done) {
-      const id = Date.now() + Math.random();
-      setBurst({ key: item.key, id, bits: makeBits() });
-      setTimeout(() => setBurst(b => (b && b.id === id) ? null : b), 4600);
+      popConfetti(item.key);
+      const k = item.key; setFallKey(k);
+      setTimeout(() => setFallKey(fk => fk === k ? null : fk), 4200);
     }
     return toggleDone(item);
   }
@@ -1039,7 +1054,7 @@ function Planner() {
                   <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
                     style=${t.done ? `background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};` : ""}
                     onPointerDown=${e => e.stopPropagation()}
-                    onClick=${() => toggleDone({ kind: "concrete", id: t.id, done: t.done })}>${Icon.check()}</button>
+                    onClick=${() => { if (!t.done) popConfetti("tray:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>${Icon.check()}${confettiEl("tray:" + t.id, "center")}</button>
                   <button class="tray-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
                     <span class="tray-task-title">${t.title}</span>
                     <span class="tray-task-meta">
@@ -1091,7 +1106,7 @@ function Planner() {
                     onPointerDown=${e => { if (i.id) startTrayDrag(e, i); }}>
                     <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
                       style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
-                      onClick=${() => { if (trayClickGuard.current) return; toggleDone(i); }}>${Icon.check()}</button>
+                      onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>
                     ${titleEdit && titleEdit.key === i.key
                       ? html`<input class="allday-edit" value=${titleEdit.value}
                           ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
@@ -1135,14 +1150,11 @@ function Planner() {
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
                       ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
-                      <button class=${"tl-pill-check" + (i.done ? " on" : "") + (burst && burst.key === i.key ? " falling" : "")} type="button" title="Выполнено"
+                      <button class=${"tl-pill-check" + (i.done ? " on" : "") + (fallKey === i.key ? " falling" : "")} type="button" title="Выполнено"
                         style=${`--drop:${Math.max(0, height - 34)}px;`}
                         onPointerDown=${e => e.stopPropagation()}
                         onClick=${e => { e.stopPropagation(); completeToggle(i); }}>${Icon.check()}</button>
-                      ${burst && burst.key === i.key ? html`<span class="confetti">
-                        ${burst.bits.map((b, n) => html`<span class="confetti-bit" key=${n}
-                          style=${`--dx:${b.dx}px;--dy:${b.dy}px;--rot:${b.rot}deg;background:${b.color};animation-delay:${b.d}ms;`}></span>`)}
-                      </span>` : ""}
+                      ${confettiEl(i.key)}
                       ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
@@ -1176,7 +1188,7 @@ function Planner() {
                                   <div class=${"tl-subs-item" + (s.done ? " done" : "")} key=${s.id}>
                                     <button class=${"task-check sm" + (s.done ? " on" : "")} type="button"
                                       style=${`border-color:${colorOf(i)};${s.done ? `background:${colorOf(i)};` : ""}`}
-                                      onClick=${e => { e.stopPropagation(); store.actions.tasks.toggleSub(i.recurring ? i.templateId : i.id, s.id).catch(showErr); }}>${Icon.check()}</button>
+                                      onClick=${e => { e.stopPropagation(); if (!s.done) popConfetti("sub:" + i.key + s.id); store.actions.tasks.toggleSub(i.recurring ? i.templateId : i.id, s.id).catch(showErr); }}>${Icon.check()}${confettiEl("sub:" + i.key + s.id, "center")}</button>
                                     ${subEdit && subEdit.key === i.key && subEdit.subId === s.id
                                       ? html`<input class="tl-subs-edit" ref=${focusEnd} value=${subEdit.value}
                                           onInput=${e => setSubEdit({ key: i.key, subId: s.id, value: e.target.value })}

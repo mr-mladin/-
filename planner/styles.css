@@ -373,7 +373,7 @@ textarea.input { resize: vertical; }
 .tl-event.done .tl-pill-check { translate: -50% var(--drop, 0px); }
 /* Момент выполнения: сначала пульс (~0.5с) + конфетти, через ~1.9с — падение
    с высокими лёгкими отскоками (как резиновый мячик/баскетбольный). */
-.tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.6s linear 1.9s both; }
+.tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.2s linear 1.9s both; }
 @keyframes ballPulse {
   0% { scale: 1; }
   35% { scale: 1.45; }
@@ -393,14 +393,16 @@ textarea.input { resize: vertical; }
 .tl-event.compact .tl-pill-check, .tl-event.compact.done .tl-pill-check {
   top: 50%; translate: -50% -50%; animation: none; }
 
-/* Конфетти-хлопок при выполнении задачи — вокруг чекбокса (у верха капсулы). */
-.confetti { position: absolute; top: 17px; left: 50%; width: 0; height: 0; pointer-events: none; z-index: 6; }
-.confetti-bit { position: absolute; left: 0; top: 0; width: 8px; height: 8px; border-radius: 2px;
-  opacity: 0; transform: translate(-50%, -50%) scale(.2); animation: confettiPop .85s ease-out forwards; }
+/* Конфетти-хлопок при выполнении — частицы-полоски, сдержанная палитра. */
+.task-check, .allday-check { position: relative; }
+.confetti { position: absolute; top: 17px; left: 50%; width: 0; height: 0; pointer-events: none; z-index: 8; }
+.confetti.center { top: 50%; left: 50%; }
+.confetti-bit { position: absolute; left: 0; top: 0; width: 4px; height: 10px; border-radius: 1px;
+  opacity: 0; transform: translate(-50%, -50%) scale(.4) rotate(0deg); animation: confettiPop .9s ease-out forwards; }
 @keyframes confettiPop {
-  0%   { opacity: 1; transform: translate(-50%, -50%) scale(.3); }
-  35%  { opacity: 1; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(.6) rotate(var(--rot)); }
+  0%   { opacity: 1; transform: translate(-50%, -50%) scale(.5) rotate(0deg); }
+  30%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1) rotate(var(--rot)); }
 }
 @media (prefers-reduced-motion: reduce) {
   .tl-pill-check.falling { animation: none !important; }
