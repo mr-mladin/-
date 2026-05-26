@@ -232,6 +232,7 @@ function recurItem(tmpl, ov, occDate, off, keyDate) {
     color: ov ? pick(ov.color, tmpl.color) : tmpl.color,
     list_id: ov ? pick(ov.list_id, tmpl.list_id) : tmpl.list_id,
     start_min: start, duration_min: dur,
+    subtasks: Array.isArray(tmpl.subtasks) ? tmpl.subtasks : [],
     vTop: sg.vTop, vEnd: sg.vEnd, spanTop: sg.spanTop, spanBottom: sg.spanBottom, cont: sg.cont,
   };
 }

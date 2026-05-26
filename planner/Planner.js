@@ -54,6 +54,8 @@ function Planner() {
   const [editing, setEditing] = useState(null);
   const [drag, setDrag] = useState(null);
   const [dnd, setDnd] = useState(null);
+  const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
+  const toggleSubs = (key) => setOpenSubs(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
@@ -1057,7 +1059,7 @@ function Planner() {
                   const ttl = i.icon ? i.title : (text || i.title);
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
-                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
+                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
@@ -1074,7 +1076,27 @@ function Planner() {
                           <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                             onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                         </div>
-                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})${(i.subtasks && i.subtasks.length) ? html` · <span class="tl-sub">${Icon.check()}${i.subtasks.filter(s => s.done).length}/${i.subtasks.length}</span>` : ""}</div>
+                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
+                        ${(i.subtasks && i.subtasks.length && !spanning) ? html`
+                          <div class="tl-subs" onPointerDown=${e => e.stopPropagation()}>
+                            <button class=${"tl-subs-chip" + (openSubs.has(i.key) ? " open" : "")} type="button"
+                              onClick=${e => { e.stopPropagation(); toggleSubs(i.key); }}>
+                              <span class=${"tl-subs-box" + (i.subtasks.some(s => s.done) ? " on" : "")}>${Icon.check()}</span>
+                              <span class="tl-subs-count">${i.subtasks.filter(s => s.done).length}/${i.subtasks.length}</span>
+                              <span class="tl-subs-chev">${Icon.right()}</span>
+                            </button>
+                            <div class=${"tl-subs-wrap" + (openSubs.has(i.key) ? " open" : "")}>
+                              <div class="tl-subs-list">
+                                ${i.subtasks.map(s => html`
+                                  <div class=${"tl-subs-item" + (s.done ? " done" : "")} key=${s.id}>
+                                    <button class=${"task-check sm" + (s.done ? " on" : "")} type="button"
+                                      style=${`border-color:${colorOf(i)};${s.done ? `background:${colorOf(i)};` : ""}`}
+                                      onClick=${e => { e.stopPropagation(); store.actions.tasks.toggleSub(i.recurring ? i.templateId : i.id, s.id).catch(showErr); }}>${Icon.check()}</button>
+                                    <span class="tl-subs-title">${s.title}</span>
+                                  </div>`)}
+                              </div>
+                            </div>
+                          </div>` : ""}
                       </div>
                     </div>
                   </div>`;

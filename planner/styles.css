@@ -644,3 +644,31 @@ textarea.input { resize: vertical; }
 .ed-confirm { display: flex; flex-direction: column; gap: 8px; background: rgba(239,68,68,0.08);
   border-radius: var(--radius-sm); padding: 10px; font-size: 13px; }
 .ed-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+/* ---- Подзадачи на пилюле в сетке (раскрытие/сворачивание) ---- */
+.tl-event.subs-open { z-index: 7; }
+.tl-event.compact .tl-subs, .tl-event.mini .tl-subs { display: none; }
+.tl-subs { margin-top: 5px; }
+.tl-subs-chip { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; border: 0;
+  font-family: inherit; font-size: 12px; color: var(--text-soft); padding: 3px 9px 3px 4px; border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 8%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+.tl-subs-chip:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
+.tl-subs-box { width: 17px; height: 17px; border-radius: 5px; flex: none; display: inline-flex;
+  align-items: center; justify-content: center; background: var(--text-mute); color: #fff; }
+.tl-subs-box .ico { width: 11px; height: 11px; opacity: 0; }
+.tl-subs-box.on { background: var(--text-soft); }
+.tl-subs-box.on .ico { opacity: 1; }
+.tl-subs-count { font-variant-numeric: tabular-nums; }
+.tl-subs-chev { display: inline-flex; color: var(--text-mute); transition: transform .5s cubic-bezier(.33,0,.2,1); }
+.tl-subs-chev .ico { width: 15px; height: 15px; }
+.tl-subs-chip.open .tl-subs-chev { transform: rotate(90deg); }
+/* Плавное раскрытие через grid-template-rows 0fr→1fr (без замеров высоты). */
+.tl-subs-wrap { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .5s cubic-bezier(.33,0,.2,1); }
+.tl-subs-wrap.open { grid-template-rows: 1fr; }
+.tl-subs-list { overflow: hidden; min-height: 0; display: flex; flex-direction: column; }
+.tl-subs-wrap.open .tl-subs-list { padding-top: 4px; }
+.tl-subs-item { display: flex; align-items: center; gap: 10px; padding: 7px 2px; border-top: 1px solid var(--border); }
+.tl-subs-item:first-child { border-top: 0; }
+.tl-subs-item .task-check { cursor: pointer; }
+.tl-subs-title { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-subs-item.done .tl-subs-title { text-decoration: line-through; color: var(--text-mute); }

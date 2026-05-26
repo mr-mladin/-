@@ -391,6 +391,13 @@ export function StoreProvider({ children }) {
         () => deleteRow("tasks", id, "tasks"));
       return deleteRow("tasks", id, "tasks");
     },
+    // Отметить/снять подзадачу прямо в сетке (без открытия редактора).
+    toggleSub: (taskId, subId) => {
+      const t = state.tasks.find(x => x.id === taskId);
+      if (!t) return Promise.resolve();
+      const subs = (Array.isArray(t.subtasks) ? t.subtasks : []).map(s => s.id === subId ? { ...s, done: !s.done } : s);
+      return tasks.update(taskId, { subtasks: subs });
+    },
     toggleDone: (item) => {
       const next = !item.done;
       const patch = { done: next, done_at: next ? new Date().toISOString() : null };
