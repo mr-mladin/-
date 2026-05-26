@@ -582,6 +582,7 @@ function Planner() {
   function startTrayDrag(e, t) {
     if (e.button !== 0) return;
     const touch = e.pointerType === "touch";
+    if (!touch) e.preventDefault(); // не выделять текст названия при перетаскивании
     const sx = e.clientX, sy = e.clientY;
     let active = false, hold = null;
     const dur = 60;
