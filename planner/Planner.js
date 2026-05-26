@@ -1045,7 +1045,7 @@ function Planner() {
                           <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                             onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                         </div>
-                        <div class="tl-meta">${minRangeLabel(i.start_min, i.duration_min || 0)} (${durHuman(i.duration_min || 0)})</div>
+                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                       </div>
                     </div>
                   </div>`;
