@@ -63,10 +63,17 @@ export function StoreProvider({ children }) {
         dispatch({ type: "set", payload: { user, loading: false, ready: true } });
       }
     })();
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => {
+      // ВАЖНО: внутри этого колбэка нельзя синхронно обращаться к supabase.
+      // На событии TOKEN_REFRESHED библиотека держит внутреннюю блокировку, и
+      // запрос (loadAll → getSession) встаёт в реентрантную очередь, ожидая ту
+      // же блокировку — вечный deadlock (форма «Сохранение…» крутится без конца,
+      // задача не доезжает до сервера). Поэтому обновление токена игнорируем, а
+      // перезагрузку данных откладываем через setTimeout — уже вне блокировки.
+      if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       const user = session?.user || null;
       dispatch({ type: "set", payload: { user, loading: !!user } });
-      if (user) await loadAll();
+      if (user) setTimeout(loadAll, 0);
       else {
         loadEpoch.current++;
         dispatch({ type: "set", payload: { loading: false, ready: true, taskLists: [], tasks: [] } });
