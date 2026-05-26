@@ -220,6 +220,9 @@ function Planner() {
 
   const dayItems = useMemo(() => itemsForDate(tasks, date).filter(i => matches(i.list_id)), [tasks, date, filter]);
   const timed = dayItems.filter(i => i.start_min !== null && i.start_min !== undefined);
+  // Задачи этого дня без времени — показываем в зоне «весь день» над сеткой.
+  const allDay = dayItems.filter(i => i.start_min === null || i.start_min === undefined);
+  const allDayIds = new Set(allDay.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
   // id задач, уже стоящих блоком в сетке текущего дня (одиночные — по id,
   // повторяющиеся — по id шаблона). Их не показываем в боковой панели.
   const gridIds = new Set(timed.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
@@ -231,7 +234,7 @@ function Planner() {
       || ((a.date || "9999-99") < (b.date || "9999-99") ? -1 : (a.date || "9999-99") > (b.date || "9999-99") ? 1 : 0)
       || ((a.start_min ?? 1e9) - (b.start_min ?? 1e9))
       || ((a.sort_order || 0) - (b.sort_order || 0))), [tasks, filter]);
-  const trayTasks = projTasks.filter(t => !gridIds.has(t.id));
+  const trayTasks = projTasks.filter(t => !gridIds.has(t.id) && !allDayIds.has(t.id));
 
   const week = useMemo(() => {
     const base = fromISO(pendingDate || date);
@@ -1041,6 +1044,22 @@ function Planner() {
               class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
               onClick=${() => setDate(w.iso)}>
               <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
+          </div>`}
+
+          ${view === "day" && allDay.length > 0 && html`<div class="allday">
+            ${allDay.map(i => html`
+              <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
+                <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                  style=${`border-color:${colorOf(i)};${i.done ? `background:${colorOf(i)};` : ""}`}
+                  onClick=${() => toggleDone(i)}>${Icon.check()}</button>
+                ${titleEdit && titleEdit.key === i.key
+                  ? html`<input class="allday-edit" value=${titleEdit.value}
+                      ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
+                      onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
+                      onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
+                      onBlur=${() => commitTitle(i)} />`
+                  : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
+              </div>`)}
           </div>`}
 
           ${view === "day" && html`<div class="planner-body">

@@ -701,3 +701,19 @@ textarea.input { resize: vertical; }
 .tl-event.mini .tl-title-edit { font-size: 11px; }
 .tl-subs-edit { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-family: inherit;
   font-size: 11px; color: var(--text); padding: 0; }
+
+/* ---- Зона «весь день»: задачи с датой, но без времени, над сеткой ---- */
+.allday { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px;
+  padding: 8px 12px 10px 20px; border-bottom: 1px solid var(--border); }
+.allday-item { display: inline-flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.allday-check { flex: none; width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--text-mute);
+  background: transparent; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.allday-check .ico { width: 13px; height: 13px; color: #fff; opacity: 0; transition: opacity .2s ease; }
+.allday-check.on .ico { opacity: 1; }
+.allday-title { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat;
+  background-position: 0 58%; background-size: 0% 1.5px;
+  transition: background-size .7s cubic-bezier(.4,0,.2,1), color .7s ease; }
+.allday-item.done .allday-title { background-size: 100% 1.5px; color: var(--text-mute); }
+.allday-edit { min-width: 8ch; border: 0; background: none; outline: none; font-family: inherit;
+  font-size: 14px; color: var(--text); padding: 0; }
