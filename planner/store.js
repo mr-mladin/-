@@ -45,6 +45,12 @@ export function StoreProvider({ children }) {
   const redoStack = useRef([]);
   const batching = useRef(null);
   const writeAt = useRef(0); // время последнего изменения — защита от затирания перечиткой
+  // Незавершённые создания: tmp-id → { alive, patch }. Пока задача вставляется,
+  // правки по её временному id копятся в patch и докатываются после вставки.
+  const pendingCreates = useRef(new Map());
+  // Уже вставленные: tmp-id → настоящий uuid. Если форму открыли с временным id,
+  // а вставка успела завершиться, поздняя правка уходит по реальному id.
+  const tmpIdMap = useRef(new Map());
 
   useEffect(() => { applyTheme(state.theme); }, []);
 
@@ -267,6 +273,8 @@ export function StoreProvider({ children }) {
   function materializeOverride(item, patch, label) {
     const tmpl = state.tasks.find(t => t.id === item.templateId);
     if (!tmpl) return Promise.resolve(null);
+    // Шаблон ещё вставляется — recurrence_parent был бы временным id (uuid-ошибка).
+    if (typeof tmpl.id === "string" && tmpl.id.startsWith("tmp-")) return Promise.resolve(null);
     const row = {
       list_id: tmpl.list_id || null, title: tmpl.title, notes: tmpl.notes || null,
       color: tmpl.color || null, icon: tmpl.icon || null, date: item.occDate,
@@ -316,24 +324,56 @@ export function StoreProvider({ children }) {
         ...payload, id: tempId, user_id: state.user?.id,
       };
       dispatch({ type: "upsertOne", key: "tasks", item: optimistic });
-      const ref = { id: tempId, alive: true };
+      const ref = { id: tempId, alive: true, patch: null };
+      pendingCreates.current.set(tempId, ref);
       record("новая задача",
         () => { ref.alive = false; return deleteRow("tasks", ref.id, "tasks"); },
         () => { ref.alive = true; return supabase.from("tasks").insert(withUser(payload)).select().single()
           .then(({ data }) => { if (data) { dispatch({ type: "upsertOne", key: "tasks", item: data }); ref.id = data.id; } }); });
       return supabase.from("tasks").insert(withUser(payload)).select().single()
         .then(({ data, error }) => {
+          pendingCreates.current.delete(tempId);
           dispatch({ type: "removeOne", key: "tasks", id: tempId });
           if (error || !data) { pushToast("Не удалось сохранить задачу", "error"); return null; }
           // Создание уже отменили, пока шёл запрос — удаляем вставленную строку.
           if (!ref.alive) { supabase.from("tasks").delete().eq("id", data.id); return null; }
-          dispatch({ type: "upsertOne", key: "tasks", item: data });
           ref.id = data.id;
+          tmpIdMap.current.set(tempId, data.id);
+          setTimeout(() => tmpIdMap.current.delete(tempId), 30000);
+          // Правки, сделанные пока задача ещё вставлялась (id был временным),
+          // докатываем настоящим UPDATE по реальному id.
+          if (ref.patch) {
+            const patch = ref.patch; ref.patch = null;
+            dispatch({ type: "upsertOne", key: "tasks", item: { ...data, ...patch } });
+            supabase.from("tasks").update(patch).eq("id", data.id).select().single()
+              .then(({ data: d2 }) => { if (d2) dispatch({ type: "upsertOne", key: "tasks", item: d2 }); });
+            return { ...data, ...patch };
+          }
+          dispatch({ type: "upsertOne", key: "tasks", item: data });
           return data;
         })
-        .catch(() => { dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); return null; });
+        .catch(() => { pendingCreates.current.delete(tempId); dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); return null; });
     },
     update: (id, payload) => {
+      // UPDATE по временному id упал бы с ошибкой uuid.
+      if (typeof id === "string" && id.startsWith("tmp-")) {
+        const ref = pendingCreates.current.get(id);
+        if (ref) {
+          // Ещё вставляется — правим локально и копим патч (докатится после вставки).
+          const prev = state.tasks.find(t => t.id === id);
+          if (prev) dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...payload } });
+          ref.patch = { ...(ref.patch || {}), ...payload };
+          return Promise.resolve();
+        }
+        const real = tmpIdMap.current.get(id);
+        if (real) id = real; // уже вставилась — правим по настоящему id
+        else {
+          // Вставка не удалась (строки в базе нет) — применяем только локально.
+          const prev = state.tasks.find(t => t.id === id);
+          if (prev) dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...payload } });
+          return Promise.resolve();
+        }
+      }
       const prev = state.tasks.find(t => t.id === id);
       if (prev) {
         const restore = {};
@@ -354,6 +394,8 @@ export function StoreProvider({ children }) {
     toggleDone: (item) => {
       const next = !item.done;
       const patch = { done: next, done_at: next ? new Date().toISOString() : null };
+      // Ещё не вставленная задача (временный id) — через защищённый update.
+      if (typeof item.id === "string" && item.id.startsWith("tmp-")) return tasks.update(item.id, patch);
       if (!(item.kind === "concrete" || item.id)) {
         return materializeOverride(item, patch, "отметку");
       }
