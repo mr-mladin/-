@@ -398,6 +398,13 @@ export function StoreProvider({ children }) {
       const subs = (Array.isArray(t.subtasks) ? t.subtasks : []).map(s => s.id === subId ? { ...s, done: !s.done } : s);
       return tasks.update(taskId, { subtasks: subs });
     },
+    // Изменить поля подзадачи (напр. название) прямо в сетке.
+    updateSub: (taskId, subId, patch) => {
+      const t = state.tasks.find(x => x.id === taskId);
+      if (!t) return Promise.resolve();
+      const subs = (Array.isArray(t.subtasks) ? t.subtasks : []).map(s => s.id === subId ? { ...s, ...patch } : s);
+      return tasks.update(taskId, { subtasks: subs });
+    },
     toggleDone: (item) => {
       const next = !item.done;
       const patch = { done: next, done_at: next ? new Date().toISOString() : null };

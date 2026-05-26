@@ -56,6 +56,8 @@ function Planner() {
   const [dnd, setDnd] = useState(null);
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
   const toggleSubs = (key) => setOpenSubs(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
+  const [titleEdit, setTitleEdit] = useState(null); // { key, value } — встроенная правка названия в сетке
+  const [subEdit, setSubEdit] = useState(null);     // { key, subId, value } — встроенная правка подзадачи
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
@@ -296,6 +298,20 @@ function Planner() {
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
+  // Цель правки: у повтора — шаблон, иначе сама задача.
+  const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
+  function startTitleEdit(i) { setSubEdit(null); setTitleEdit({ key: i.key, value: i.title || "" }); }
+  function commitTitle(i) {
+    const e = titleEdit; if (!e || e.key !== i.key) return;
+    const v = e.value.trim(); setTitleEdit(null);
+    if (v && v !== (i.title || "")) store.actions.tasks.update(taskTargetId(i), { title: v }).catch(showErr);
+  }
+  function startSubEdit(i, s) { setTitleEdit(null); setSubEdit({ key: i.key, subId: s.id, value: s.title || "" }); }
+  function commitSubEdit(i) {
+    const e = subEdit; if (!e || e.key !== i.key) return;
+    const v = e.value.trim(); const sid = e.subId; setSubEdit(null);
+    if (v) store.actions.tasks.updateSub(taskTargetId(i), sid, { title: v }).catch(showErr);
+  }
 
   function startRangeSelect(e) {
     e.preventDefault();
@@ -1054,10 +1070,15 @@ function Planner() {
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>
-                    <div class="tl-body" onPointerDown=${down} onClick=${tap}>
+                    <div class="tl-body" onPointerDown=${e => e.stopPropagation()}>
                       <div class="tl-text">
                         <div class="tl-titlerow">
-                          <div class="tl-title">${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+                          ${titleEdit && titleEdit.key === i.key
+                            ? html`<input class="tl-title-edit" value=${titleEdit.value} autofocus
+                                onInput=${e => setTitleEdit({ key: i.key, value: e.target.value })}
+                                onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
+                                onBlur=${() => commitTitle(i)} />`
+                            : html`<div class="tl-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i); }}>${ttl}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
                           <button class=${"task-check sm" + (i.done ? " on" : "")} onPointerDown=${e => e.stopPropagation()}
                             onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
                         </div>
@@ -1077,7 +1098,12 @@ function Planner() {
                                     <button class=${"task-check sm" + (s.done ? " on" : "")} type="button"
                                       style=${`border-color:${colorOf(i)};${s.done ? `background:${colorOf(i)};` : ""}`}
                                       onClick=${e => { e.stopPropagation(); store.actions.tasks.toggleSub(i.recurring ? i.templateId : i.id, s.id).catch(showErr); }}>${Icon.check()}</button>
-                                    <span class="tl-subs-title">${s.title}</span>
+                                    ${subEdit && subEdit.key === i.key && subEdit.subId === s.id
+                                      ? html`<input class="tl-subs-edit" value=${subEdit.value} autofocus
+                                          onInput=${e => setSubEdit({ key: i.key, subId: s.id, value: e.target.value })}
+                                          onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitSubEdit(i); } else if (e.key === "Escape") { e.preventDefault(); setSubEdit(null); } }}
+                                          onBlur=${() => commitSubEdit(i)} />`
+                                      : html`<span class="tl-subs-title" onClick=${e => { e.stopPropagation(); startSubEdit(i, s); }}>${s.title}</span>`}
                                   </div>`)}
                               </div>
                             </div>
