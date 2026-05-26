@@ -373,7 +373,7 @@ textarea.input { resize: vertical; }
 .tl-event.done .tl-pill-check { translate: -50% var(--drop, 0px); }
 /* Момент выполнения: сначала пульс (~0.5с) + конфетти, через ~1.9с — падение
    с высокими лёгкими отскоками (как резиновый мячик/баскетбольный). */
-.tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.2s linear 1.9s both; }
+.tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.2s linear 1s both; }
 @keyframes ballPulse {
   0% { scale: 1; }
   35% { scale: 1.45; }

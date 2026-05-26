@@ -704,7 +704,7 @@ function Planner() {
     if (!item.done) {
       popConfetti(item.key);
       const k = item.key; setFallKey(k);
-      setTimeout(() => setFallKey(fk => fk === k ? null : fk), 4200);
+      setTimeout(() => setFallKey(fk => fk === k ? null : fk), 3300);
     }
     return toggleDone(item);
   }
