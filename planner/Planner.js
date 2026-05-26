@@ -286,7 +286,11 @@ function Planner() {
     const target = view === "day" && date === todayISO() ? now.getHours() * 60 + now.getMinutes() : 8 * 60;
     // Ставим позицию после раскладки (двойной rAF) — иначе на старте iOS высота
     // ещё не финальная и прокрутка встаёт криво (пустые места сверху/снизу).
-    const apply = () => { el.scrollTop = Math.max(0, (target / 60) * hourPx - 120); };
+    const apply = () => {
+      let off = 0; // высота зоны «весь день» + отступ сетки — чтобы «сейчас» вставало точно
+      if (view === "day" && innerRef.current) off = (innerRef.current.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop;
+      el.scrollTop = Math.max(0, off + (target / 60) * hourPx - 120);
+    };
     apply();
     const id = requestAnimationFrame(() => requestAnimationFrame(apply));
     return () => cancelAnimationFrame(id);
@@ -425,6 +429,7 @@ function Planner() {
   function dndZoneAt(x, y) {
     const el = document.elementFromPoint(x, y);
     if (!el) return null;
+    if (el.closest(".allday")) return "allday";
     if (el.closest(".planner-grid-scroll")) return "grid";
     if (el.closest(".planner-aside")) return "tray";
     return null;
@@ -561,7 +566,8 @@ function Planner() {
             if (ns !== g.start) store.actions.tasks.reschedule(g.item, { start_min: ns }).catch(showErr);
           }
         });
-      } else if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "tray") {
+      } else if (item.kind === "concrete" && (() => { const z = dndZoneAt(ev.clientX, ev.clientY); return z === "tray" || z === "allday"; })()) {
+        // В боковую панель или в зону «весь день» — снимаем время (день остаётся).
         store.actions.tasks.update(item.id, { start_min: null, duration_min: null }).catch(showErr);
       } else if (newStart !== item.start_min) {
         store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
@@ -1046,24 +1052,24 @@ function Planner() {
               <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
           </div>`}
 
-          ${view === "day" && allDay.length > 0 && html`<div class="allday">
-            ${allDay.map(i => html`
-              <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
-                <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
-                  style=${`border-color:${colorOf(i)};${i.done ? `background:${colorOf(i)};` : ""}`}
-                  onClick=${() => toggleDone(i)}>${Icon.check()}</button>
-                ${titleEdit && titleEdit.key === i.key
-                  ? html`<input class="allday-edit" value=${titleEdit.value}
-                      ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
-                      onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
-                      onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
-                      onBlur=${() => commitTitle(i)} />`
-                  : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
-              </div>`)}
-          </div>`}
-
           ${view === "day" && html`<div class="planner-body">
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+              ${allDay.length > 0 && html`<div class="allday">
+                ${allDay.map(i => html`
+                  <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}
+                    onPointerDown=${e => { if (i.id) startTrayDrag(e, i); }}>
+                    <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                      style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
+                      onClick=${() => { if (trayClickGuard.current) return; toggleDone(i); }}>${Icon.check()}</button>
+                    ${titleEdit && titleEdit.key === i.key
+                      ? html`<input class="allday-edit" value=${titleEdit.value}
+                          ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
+                          onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
+                          onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
+                          onBlur=${() => commitTitle(i)} />`
+                      : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
+                  </div>`)}
+              </div>`}
               <div class="tl-track" ref=${trackRef}>
               <div class="tl-pane">${peek ? dayStaticPane(prevDate) : null}</div>
               <div class="tl-pane">
