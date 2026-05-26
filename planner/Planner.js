@@ -55,6 +55,7 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [dnd, setDnd] = useState(null);
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
+  const [burst, setBurst] = useState(null); // { key, id, bits } — конфетти при выполнении задачи
   const toggleSubs = (key) => setOpenSubs(prev => { const n = new Set(prev); n.has(key) ? n.delete(key) : n.add(key); return n; });
   const [titleEdit, setTitleEdit] = useState(null); // { key, value } — встроенная правка названия в сетке
   const [subEdit, setSubEdit] = useState(null);     // { key, subId, value } — встроенная правка подзадачи
@@ -676,6 +677,23 @@ function Planner() {
     doneFeedback();
     return store.actions.tasks.toggleDone(item).catch(showErr);
   };
+  // Завершение задачи в сетке: конфетти-хлопок + падение шарика-чекбокса вниз.
+  const CONFETTI = ["#22c55e", "#0ea5e9", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316"];
+  function makeBits() {
+    return Array.from({ length: 13 }, () => {
+      const a = Math.random() * Math.PI * 2, dist = 16 + Math.random() * 24;
+      return { dx: Math.round(Math.cos(a) * dist), dy: Math.round(Math.sin(a) * dist - 6),
+        rot: (Math.random() * 360 - 180) | 0, color: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 70) | 0 };
+    });
+  }
+  function completeToggle(item) {
+    if (!item.done) {
+      const id = Date.now() + Math.random();
+      setBurst({ key: item.key, id, bits: makeBits() });
+      setTimeout(() => setBurst(b => (b && b.id === id) ? null : b), 1000);
+    }
+    return toggleDone(item);
+  }
   function taskMeta(t) {
     if (!t.date) return "без времени";
     const dd = fromISO(t.date);
@@ -960,7 +978,7 @@ function Planner() {
         const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
         return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
           style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
-          <div class="tl-pill"><span class=${"tl-pill-check" + (i.done ? " on" : "")}>${Icon.check()}</span></div>
+          <div class="tl-pill"><span class=${"tl-pill-check" + (i.done ? " on" : "")} style=${`--drop:${Math.max(0, height - 34)}px;`}>${Icon.check()}</span></div>
           <div class="tl-body"><div class="tl-text">
             <div class="tl-titlerow">
               <div class="tl-title">${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
@@ -1117,9 +1135,14 @@ function Planner() {
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
                       ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
-                      <button class=${"tl-pill-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                      <button class=${"tl-pill-check" + (i.done ? " on" : "") + (burst && burst.key === i.key ? " falling" : "")} type="button" title="Выполнено"
+                        style=${`--drop:${Math.max(0, height - 34)}px;`}
                         onPointerDown=${e => e.stopPropagation()}
-                        onClick=${e => { e.stopPropagation(); toggleDone(i); }}>${Icon.check()}</button>
+                        onClick=${e => { e.stopPropagation(); completeToggle(i); }}>${Icon.check()}</button>
+                      ${burst && burst.key === i.key ? html`<span class="confetti">
+                        ${burst.bits.map((b, n) => html`<span class="confetti-bit" key=${n}
+                          style=${`--dx:${b.dx}px;--dy:${b.dy}px;--rot:${b.rot}deg;background:${b.color};animation-delay:${b.d}ms;`}></span>`)}
+                      </span>` : ""}
                       ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
