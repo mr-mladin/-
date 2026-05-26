@@ -397,7 +397,7 @@ textarea.input { resize: vertical; }
 .task-check, .allday-check { position: relative; }
 .confetti { position: absolute; top: 17px; left: 50%; width: 0; height: 0; pointer-events: none; z-index: 8; }
 .confetti.center { top: 50%; left: 50%; }
-.confetti-bit { position: absolute; left: 0; top: 0; font-size: 16px; line-height: 1; white-space: nowrap;
+.confetti-bit { position: absolute; left: 0; top: 0; font-size: 11px; line-height: 1; white-space: nowrap;
   opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); animation: confettiPop .95s ease-out forwards; }
 @keyframes confettiPop {
   0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(0deg); }

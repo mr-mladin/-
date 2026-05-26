@@ -681,8 +681,8 @@ function Planner() {
   // Конфетти при выполнении задачи — эмодзи-частицы.
   const CONFETTI = ["✅", "🐝", "😎", "💸", "🤝", "🚀", "💬", "🙌🏻"];
   function makeBits() {
-    return Array.from({ length: 12 }, () => {
-      const a = Math.random() * Math.PI * 2, dist = 24 + Math.random() * 30;
+    return Array.from({ length: 15 }, () => {
+      const a = Math.random() * Math.PI * 2, dist = 22 + Math.random() * 34;
       return { dx: Math.round(Math.cos(a) * dist), dy: Math.round(Math.sin(a) * dist),
         rot: (Math.random() * 120 - 60) | 0, emoji: CONFETTI[(Math.random() * CONFETTI.length) | 0], d: (Math.random() * 80) | 0 };
     });
