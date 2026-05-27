@@ -576,6 +576,16 @@ textarea.input { resize: vertical; }
   .mobile-fab { right: calc(16px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
     width: 58px; height: 58px; }
   .mobile-fab .ico { width: 27px; height: 27px; }
+
+  /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
+  .allday { padding: 9px 10px 9px 12px; gap: 6px; }
+  .allday.empty { padding: 7px 10px 7px 12px; }
+  .allday.grid { column-gap: 8px; row-gap: 6px; }
+  .allday-item { gap: 7px; }
+  .allday-check { width: 20px; height: 20px; border-width: 4px; }
+  .allday-check .ico { width: 9px; height: 9px; }
+  .allday-title, .allday-edit, .allday-float .allday-title { font-size: 13px; }
+  .allday-float { padding: 5px 9px 5px 5px; gap: 7px; }
 }
 
 /* Настройки */
