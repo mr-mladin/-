@@ -201,20 +201,21 @@ function Planner() {
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
         return;
       }
-      // Горизонтальный свайп тачпадом — листание дней. Порог + блокировка инерции
-      // (после переключения глушим «хвост» momentum-событий, чтобы один свайп = один день).
+      // Горизонтальный свайп тачпадом — листание дней. Порог + короткая фиксированная
+      // пауза после переключения (инерция-momentum её НЕ продлевает) — чтобы можно
+      // было быстро листать дни подряд, но один резкий флик не прыгал на несколько.
       if (zoomingRef.current) return;
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
       e.preventDefault();
-      if (swipeLock) { clearTimeout(swipeEndTimer); swipeEndTimer = setTimeout(() => { swipeLock = false; swipeAccum = 0; }, 140); return; }
+      if (swipeLock) return; // в т.ч. хвост инерции — игнорируем, паузу не продлеваем
       swipeAccum += e.deltaX;
       clearTimeout(swipeEndTimer);
-      swipeEndTimer = setTimeout(() => { swipeAccum = 0; }, 140);
-      if (Math.abs(swipeAccum) > 42) {
+      swipeEndTimer = setTimeout(() => { swipeAccum = 0; }, 120);
+      if (Math.abs(swipeAccum) > 36) {
         const dir = swipeAccum > 0 ? 1 : -1;
         swipeAccum = 0; swipeLock = true;
         clearTimeout(swipeEndTimer);
-        swipeEndTimer = setTimeout(() => { swipeLock = false; }, 160);
+        swipeEndTimer = setTimeout(() => { swipeLock = false; }, 240);
         animateDay(dir);
       }
     };
@@ -977,7 +978,7 @@ function Planner() {
       track.style.transition = "none";
       track.style.transform = "translateX(-100%)";
       void track.offsetWidth;
-      track.style.transition = "transform 460ms cubic-bezier(.25,.46,.45,.94)";
+      track.style.transition = "transform 480ms cubic-bezier(.16,1,.3,1)";
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
     }));
