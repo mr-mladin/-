@@ -486,8 +486,9 @@ textarea.input { resize: vertical; }
 
 
 /* Недельный вид */
-.week-scroll { flex: 1; min-width: 0; overflow-y: auto; background: var(--surface);
-  border: 1px solid var(--border); border-radius: var(--radius-lg); position: relative; }
+.week-scroll { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--radius-lg); position: relative; touch-action: pan-y; }
+.week-pane { position: relative; }
 .week-head { display: flex; position: sticky; top: 0; z-index: 6; background: var(--surface); border-bottom: 1px solid var(--border); }
 .week-gutter-cell { width: 56px; flex: none; }
 .week-gutter-cell.small { font-size: 9px; line-height: 1.05; color: var(--text-mute); text-align: right;
@@ -521,7 +522,11 @@ textarea.input { resize: vertical; }
 
 /* Месячный вид */
 .month { flex: 1; min-height: 0; display: flex; flex-direction: column; background: var(--surface);
-  border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+  border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; touch-action: pan-y; }
+/* Месяц-карусель: лента из трёх месяцев заполняет высоту по вертикали. */
+.month > .tl-track { flex: 1; min-height: 0; }
+.month .tl-pane { display: flex; flex-direction: column; min-height: 0; }
+.month-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .month-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
 .month-weekdays > div { text-align: center; padding: 8px 0; font-size: 11px; text-transform: uppercase; color: var(--text-mute); }
 .month-weeks { flex: 1; display: flex; flex-direction: column; min-height: 0; }

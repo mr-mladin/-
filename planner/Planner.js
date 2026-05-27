@@ -278,27 +278,50 @@ function Planner() {
     };
   }, [view]);
 
-  // Свайп тачпадом (горизонтальное колёсико) в режимах неделя/месяц — листание
-  // периода. Ось защёлкивается; один жест = один период (инерция не пролистывает
-  // лишнее: после срабатывания держим «занято» до затухания событий).
+  // Свайп тачпадом (горизонтальное колёсико) в режимах неделя/месяц — «живая лента»
+  // за пальцем, как у дня: тянем карусель за жестом, на отпускании — доезд или
+  // возврат. Ось защёлкивается. Логика повторяет дневное колесо (см. ниже).
   useEffect(() => {
     if (view !== "week" && view !== "month") return;
     const el = view === "week" ? weekScrollRef.current : monthRef.current;
     if (!el) return;
-    let axis = null, accum = 0, locked = false, idle = null;
+    let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
+    const widthOf = () => el.getBoundingClientRect().width || window.innerWidth;
+    const decideSwipe = () => {
+      if (phase !== "drag") return;
+      phase = "done";
+      const W = widthOf();
+      const far = Math.abs(dragDx) > W * 0.4;
+      const fling = Math.abs(dragVel) > 7 && (dragVel < 0) === (dragDx < 0) && Math.abs(dragDx) > 36;
+      if (far || fling) daySwipeCommit(dragDx < 0 ? 1 : -1);
+      else daySwipeSnapBack();
+    };
+    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; };
     const onWheel = (e) => {
       if (e.ctrlKey) return;
-      if (axis === null) axis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
-      clearTimeout(idle);
-      idle = setTimeout(() => { axis = null; accum = 0; locked = false; }, 140);
-      if (axis !== "h") return;
+      if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(resetSwipe, 150);
+      if (gestureAxis !== "h") return;
       e.preventDefault();
-      if (locked) return;
-      accum += e.deltaX;
-      if (Math.abs(accum) > 40) { const dir = accum > 0 ? 1 : -1; accum = 0; locked = true; animatePeriodShift(dir); }
+      if (phase === "done") return;
+      const track = trackRef.current;
+      if (!track) return;
+      const W = widthOf();
+      if (phase === "idle") {
+        if (commitFinalizeRef.current) commitFinalizeRef.current();
+        clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
+        phase = "drag"; dragDx = 0; dragVel = 0;
+      }
+      const dxw = -e.deltaX;
+      dragDx = clamp(dragDx + dxw, -W, W);
+      dragVel = dragVel * 0.6 + dxw * 0.4;
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
+      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 90); }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => { clearTimeout(idle); el.removeEventListener("wheel", onWheel); };
+    return () => { clearTimeout(decideTimer); clearTimeout(resetTimer); el.removeEventListener("wheel", onWheel); };
   }, [view]);
 
   const lists = useMemo(() => [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [taskLists]);
@@ -1007,44 +1030,38 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
-  // Свайп между неделями/месяцами: лёгкая анимация «уехал-приехал» + сдвиг периода.
-  // Карусели с тремя панелями (как у дня) тут нет — делаем кросс-слайд по контейнеру.
-  function animatePeriodShift(dir) {
-    const el = view === "week" ? weekScrollRef.current : view === "month" ? monthRef.current : null;
-    if (!el) { shift(dir); return; }
-    haptic();
-    el.style.transition = "transform .2s ease, opacity .2s ease";
-    el.style.transform = `translateX(${dir > 0 ? -34 : 34}px)`;
-    el.style.opacity = "0";
-    setTimeout(() => {
-      shift(dir);
-      requestAnimationFrame(() => {
-        el.style.transition = "none";
-        el.style.transform = `translateX(${dir > 0 ? 34 : -34}px)`;
-        el.style.opacity = "0";
-        requestAnimationFrame(() => {
-          el.style.transition = "transform .24s ease, opacity .24s ease";
-          el.style.transform = "";
-          el.style.opacity = "";
-        });
-      });
-    }, 200);
-  }
-  // Горизонтальный свайп пальцем в режиме неделя/месяц → предыдущий/следующий период.
-  function onPeriodSwipeStart(e) {
+  // Живой свайп пальцем для недели/месяца — карусель за пальцем, как у дня:
+  // тянем ленту, на отпускании доезжаем к соседнему периоду или возвращаемся.
+  function onCarouselSwipeStart(e) {
     if (e.touches.length !== 1) return;
+    if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; } // от левого края — шторка
+    const track = trackRef.current;
+    if (!track) return;
+    if (commitFinalizeRef.current) commitFinalizeRef.current();
+    const sc = view === "week" ? weekScrollRef.current : monthRef.current;
+    const W = sc ? sc.getBoundingClientRect().width : window.innerWidth;
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
-    let horiz = null, dx = 0;
+    let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0, peeked = false;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
       dx = t.clientX - sx; const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
-        horiz = Math.abs(dx) > Math.abs(dy);
+      if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
+        horiz = Math.abs(dx) > Math.abs(dy) * 0.7;
         if (!horiz) { cleanup(); return; }
       }
-      if (horiz) ev.preventDefault();
+      if (!horiz) return;
+      ev.preventDefault();
+      if (!peeked) { peeked = true; clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true; }
+      const now = performance.now(); if (now > lastT) vx = (t.clientX - lastX) / (now - lastT); lastX = t.clientX; lastT = now;
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
     };
-    const finish = () => { cleanup(); if (horiz && Math.abs(dx) > 50) animatePeriodShift(dx < 0 ? 1 : -1); };
+    const finish = () => {
+      cleanup(); swipingRef.current = false;
+      if (!horiz) return;
+      const commit = Math.abs(dx) > Math.min(60, W * 0.14) || Math.abs(vx) > 0.18;
+      if (commit) daySwipeCommit(dx < 0 ? 1 : -1); else daySwipeSnapBack();
+    };
     const cleanup = () => {
       document.removeEventListener("touchmove", move, { passive: false });
       document.removeEventListener("touchend", finish);
@@ -1060,7 +1077,7 @@ function Planner() {
   // новым днём. Видимый час сохраняем (keepGridTop) — чтобы сетка не прыгнула.
   function daySwipeCommit(dir) {
     const track = trackRef.current;
-    if (!track || view !== "day") return;
+    if (!track) return;
     const td = fromISO(dateRef.current); td.setDate(td.getDate() + dir);
     setPendingDate(toISO(td));
     haptic();
@@ -1329,6 +1346,95 @@ function Planner() {
     </div>`;
   }
 
+  // Данные недели/месяца для произвольной даты (для соседних панелей карусели).
+  function buildWeekDays(baseISO) {
+    const mon = weekStart(baseISO);
+    return Array.from({ length: 7 }, (_, k) => {
+      const dd = new Date(mon); dd.setDate(mon.getDate() + k);
+      const iso = toISO(dd);
+      const items = itemsForDate(tasks, iso).filter(i => matches(i.list_id));
+      const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
+      return { iso, day: dd.getDate(), short: WD_SHORT[k], isToday: iso === todayISO(),
+        timed: layoutColumns(t, null), untimed: items.filter(i => i.start_min === null || i.start_min === undefined) };
+    });
+  }
+  function buildMonth(baseISO) {
+    const weeks = monthMatrix(baseISO);
+    const items = {};
+    for (const wk of weeks) for (const c of wk)
+      items[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i.list_id))
+        .sort((a, b) => ((a.start_min ?? 1e9) - (b.start_min ?? 1e9)));
+    return { weeks, items };
+  }
+  // Панель недели (используется и для текущей, и для соседних в карусели).
+  function weekPane(wdays) {
+    return html`<div class="week-pane">
+      <div class="week-head">
+        <div class="week-gutter-cell"></div>
+        ${wdays.map(wd => html`<button key=${wd.iso}
+          class=${"week-day-head" + (wd.iso === todayISO() ? " today" : "")} onClick=${() => openDay(wd.iso)}>
+          <span class="week-day-name">${wd.short}</span>
+          <span class="week-day-num">${wd.day}</span></button>`)}
+      </div>
+      ${wdays.some(wd => wd.untimed.length) && html`<div class="week-allday">
+        <div class="week-gutter-cell small">весь<br/>день</div>
+        ${wdays.map(wd => html`<div class="week-allday-cell" key=${wd.iso}>
+          ${wd.untimed.slice(0, 3).map(i => html`<button class="week-chip" key=${i.key}
+            style=${`--c:${colorOf(i)};`} onClick=${() => openPreview(i)}>${i.title}</button>`)}
+          ${wd.untimed.length > 3 && html`<button class="week-more" onClick=${() => openDay(wd.iso)}>+${wd.untimed.length - 3}</button>`}
+        </div>`)}
+      </div>`}
+      <div class="week-grid" style=${`height:${24 * hourPx}px;`}>
+        ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
+          <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
+        ${wdays.map((wd, di) => html`<div class="week-col" key=${wd.iso}
+          style=${`left:calc(${GUTTER}px + (100% - ${GUTTER}px) / 7 * ${di});width:calc((100% - ${GUTTER}px) / 7);`}
+          onClick=${() => openDay(wd.iso)}>
+          ${wd.isToday && html`<div class="grid-now col" style=${`top:${(nowMin / 60) * hourPx}px;`}><span class="grid-now-dot"></span></div>`}
+          ${wd.timed.map(i => {
+            const top = (i._start / 60) * hourPx;
+            const height = Math.max(16, (i._dur / 60) * hourPx);
+            const sub = `100% / ${i._cols}`;
+            return html`<button class=${"week-block" + (i.done ? " done" : "")} key=${i.key}
+              style=${`top:${top}px;height:${height}px;left:calc((${sub}) * ${i._col});width:calc((${sub}) - 2px);--c:${colorOf(i)};`}
+              onClick=${e => { e.stopPropagation(); openPreview(i); }}>
+              <span class="week-block-title">${i.title}</span></button>`;
+          })}
+        </div>`)}
+      </div>
+    </div>`;
+  }
+  // Панель месяца.
+  function monthPane(m) {
+    return html`<div class="month-pane">
+      <div class="month-weekdays">
+        ${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(n => html`<div key=${n}>${n}</div>`)}
+      </div>
+      <div class="month-weeks">
+        ${m.weeks.map((wk, wi) => html`<div class="month-week" key=${wi}>
+          ${wk.map(c => {
+            const its = m.items[c.iso] || [];
+            return html`<div class=${"month-cell" + (c.inMonth ? "" : " out") + (c.iso === date ? " sel" : "")}
+              key=${c.iso} onClick=${() => openDay(c.iso)}>
+              <div class=${"month-cell-num" + (c.isToday ? " today" : "")}>${c.day}</div>
+              <div class="month-cell-items">
+                ${its.slice(0, 3).map(i => html`<button class=${"month-chip" + (i.done ? " done" : "")} key=${i.key}
+                  style=${`--c:${colorOf(i)};`} onClick=${e => { e.stopPropagation(); openPreview(i); }}>
+                  ${(i.start_min !== null && i.start_min !== undefined) ? html`<span class="month-chip-dot"></span>` : ""}
+                  <span class="month-chip-title">${i.title}</span></button>`)}
+                ${its.length > 3 && html`<div class="month-more">ещё ${its.length - 3}</div>`}
+              </div>
+            </div>`;
+          })}
+        </div>`)}
+      </div>
+    </div>`;
+  }
+  const weekPrevISO = (() => { const x = fromISO(date); x.setDate(x.getDate() - 7); return toISO(x); })();
+  const weekNextISO = (() => { const x = fromISO(date); x.setDate(x.getDate() + 7); return toISO(x); })();
+  const monthPrevISO = (() => { const x = fromISO(date); x.setDate(1); x.setMonth(x.getMonth() - 1); return toISO(x); })();
+  const monthNextISO = (() => { const x = fromISO(date); x.setDate(1); x.setMonth(x.getMonth() + 1); return toISO(x); })();
+
   return html`
     <div class="app">
       <div class=${"planner" + (asideOpen ? " aside-open" : "")}>
@@ -1570,63 +1676,19 @@ function Planner() {
             </div>
           </div>`}
 
-          ${view === "week" && html`<div class="week-scroll" ref=${weekScrollRef} onTouchStart=${onPeriodSwipeStart}>
-            <div class="week-head">
-              <div class="week-gutter-cell"></div>
-              ${weekDays.map(wd => html`<button key=${wd.iso}
-                class=${"week-day-head" + (wd.iso === todayISO() ? " today" : "")} onClick=${() => openDay(wd.iso)}>
-                <span class="week-day-name">${wd.short}</span>
-                <span class="week-day-num">${wd.day}</span></button>`)}
-            </div>
-            ${weekDays.some(wd => wd.untimed.length) && html`<div class="week-allday">
-              <div class="week-gutter-cell small">весь<br/>день</div>
-              ${weekDays.map(wd => html`<div class="week-allday-cell" key=${wd.iso}>
-                ${wd.untimed.slice(0, 3).map(i => html`<button class="week-chip" key=${i.key}
-                  style=${`--c:${colorOf(i)};`} onClick=${() => openPreview(i)}>${i.title}</button>`)}
-                ${wd.untimed.length > 3 && html`<button class="week-more" onClick=${() => openDay(wd.iso)}>+${wd.untimed.length - 3}</button>`}
-              </div>`)}
-            </div>`}
-            <div class="week-grid" style=${`height:${24 * hourPx}px;`}>
-              ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
-                <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
-              ${weekDays.map((wd, di) => html`<div class="week-col" key=${wd.iso}
-                style=${`left:calc(${GUTTER}px + (100% - ${GUTTER}px) / 7 * ${di});width:calc((100% - ${GUTTER}px) / 7);`}
-                onClick=${() => openDay(wd.iso)}>
-                ${wd.isToday && html`<div class="grid-now col" style=${`top:${(nowMin / 60) * hourPx}px;`}><span class="grid-now-dot"></span></div>`}
-                ${wd.timed.map(i => {
-                  const top = (i._start / 60) * hourPx;
-                  const height = Math.max(16, (i._dur / 60) * hourPx);
-                  const sub = `100% / ${i._cols}`;
-                  return html`<button class=${"week-block" + (i.done ? " done" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;left:calc((${sub}) * ${i._col});width:calc((${sub}) - 2px);--c:${colorOf(i)};`}
-                    onClick=${e => { e.stopPropagation(); openPreview(i); }}>
-                    <span class="week-block-title">${i.title}</span></button>`;
-                })}
-              </div>`)}
+          ${view === "week" && html`<div class="week-scroll" ref=${weekScrollRef} onTouchStart=${onCarouselSwipeStart}>
+            <div class="tl-track" ref=${trackRef}>
+              <div class="tl-pane">${peek ? weekPane(buildWeekDays(weekPrevISO)) : null}</div>
+              <div class="tl-pane">${weekPane(weekDays)}</div>
+              <div class="tl-pane">${peek ? weekPane(buildWeekDays(weekNextISO)) : null}</div>
             </div>
           </div>`}
 
-          ${view === "month" && html`<div class="month" ref=${monthRef} onTouchStart=${onPeriodSwipeStart}>
-            <div class="month-weekdays">
-              ${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(n => html`<div key=${n}>${n}</div>`)}
-            </div>
-            <div class="month-weeks">
-              ${monthWeeks.map((wk, wi) => html`<div class="month-week" key=${wi}>
-                ${wk.map(c => {
-                  const its = monthItems[c.iso] || [];
-                  return html`<div class=${"month-cell" + (c.inMonth ? "" : " out") + (c.iso === date ? " sel" : "")}
-                    key=${c.iso} onClick=${() => openDay(c.iso)}>
-                    <div class=${"month-cell-num" + (c.isToday ? " today" : "")}>${c.day}</div>
-                    <div class="month-cell-items">
-                      ${its.slice(0, 3).map(i => html`<button class=${"month-chip" + (i.done ? " done" : "")} key=${i.key}
-                        style=${`--c:${colorOf(i)};`} onClick=${e => { e.stopPropagation(); openPreview(i); }}>
-                        ${(i.start_min !== null && i.start_min !== undefined) ? html`<span class="month-chip-dot"></span>` : ""}
-                        <span class="month-chip-title">${i.title}</span></button>`)}
-                      ${its.length > 3 && html`<div class="month-more">ещё ${its.length - 3}</div>`}
-                    </div>
-                  </div>`;
-                })}
-              </div>`)}
+          ${view === "month" && html`<div class="month" ref=${monthRef} onTouchStart=${onCarouselSwipeStart}>
+            <div class="tl-track" ref=${trackRef}>
+              <div class="tl-pane">${peek ? monthPane(buildMonth(monthPrevISO)) : null}</div>
+              <div class="tl-pane">${monthPane({ weeks: monthWeeks, items: monthItems })}</div>
+              <div class="tl-pane">${peek ? monthPane(buildMonth(monthNextISO)) : null}</div>
             </div>
           </div>`}
         </div>
