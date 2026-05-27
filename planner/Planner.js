@@ -187,7 +187,7 @@ function Planner() {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
-    let swipeAccum = 0, swipeArmed = true, swipeLastDir = 0, swipeEma = 0, swipeValley = 0, swipeEndTimer = null;
+    let wheelActive = false, wheelDx = 0, swipeEndTimer = null;
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -201,39 +201,31 @@ function Planner() {
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
         return;
       }
-      // Горизонтальный свайп тачпадом — листание дней. Жёсткое правило: ОДИН свайп =
-      // ОДИН день. Скорость инерции (momentum) тачпада всегда только затухает —
-      // монотонно вниз, поэтому сама лишний день не перелистнёт. Новый свайп — это
-      // СКАЧОК скорости вверх. Сглаживаем скорость (EMA) и ловим именно рост:
-      //  • первый день за жест — по накоплению пути (работает и для медленных свайпов);
-      //  • следующий — только при новом росте скорости (новый флик) или развороте.
+      // Свайп двумя пальцами (горизонтальное колёсико) — листание дней «лентой за
+      // пальцем», как на мобильном: лента едет за жестом, но не дальше соседнего дня
+      // (ограничение ±ширина). Когда жест с инерцией затих — фиксируем РОВНО один день
+      // или возвращаем назад. Ограничение одним днём = один свайп всегда даёт один день.
       if (zoomingRef.current) return;
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
       e.preventDefault();
-      const abs = Math.abs(e.deltaX);
-      const sign = e.deltaX > 0 ? 1 : -1;
-      swipeEma = swipeEma * 0.65 + abs * 0.35; // сглаженная скорость
-      clearTimeout(swipeEndTimer); // долгая пауза — полный сброс (новый жест с нуля)
-      swipeEndTimer = setTimeout(() => { swipeArmed = true; swipeAccum = 0; swipeEma = 0; swipeValley = 0; }, 130);
-      if (!swipeArmed) {
-        if (sign === -swipeLastDir && abs > 6) {                 // разворот — новый свайп
-          swipeArmed = true; swipeAccum = 0;
-        } else if (swipeEma > swipeValley * 1.4 + 2 && swipeEma > 11) {
-          // скорость снова выросла поверх затухающей инерции = новый флик → +1 день
-          swipeLastDir = sign; swipeValley = swipeEma;
-          animateDay(sign);
-          return;
-        } else {
-          swipeValley = Math.min(swipeValley, swipeEma);         // инерция затухает — следим за минимумом
-          return;
-        }
+      const track = trackRef.current;
+      if (!track) return;
+      const W = el.getBoundingClientRect().width;
+      if (!wheelActive) {
+        if (commitFinalizeRef.current) commitFinalizeRef.current();
+        clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
+        wheelActive = true; wheelDx = 0;
       }
-      swipeAccum += e.deltaX;
-      if (Math.abs(swipeAccum) > 26) {
-        const dir = swipeAccum > 0 ? 1 : -1;
-        swipeAccum = 0; swipeArmed = false; swipeLastDir = dir; swipeValley = swipeEma;
-        animateDay(dir);
-      }
+      wheelDx = clamp(wheelDx - e.deltaX, -W, W); // тащим влево (dx<0) → следующий день
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${wheelDx}px))`;
+      clearTimeout(swipeEndTimer);
+      swipeEndTimer = setTimeout(() => {
+        wheelActive = false;
+        if (Math.abs(wheelDx) > Math.min(60, W * 0.12)) daySwipeCommit(wheelDx < 0 ? 1 : -1, 0.4);
+        else daySwipeSnapBack();
+        wheelDx = 0;
+      }, 90);
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -480,7 +472,15 @@ function Planner() {
       if (!active) {
         const far = Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY);
         if (touch) { if (far > 14) finish(false); return; } // движение до долгого нажатия = прокрутка
-        if (far > 6) beginMouse(); else return;
+        if (far > 6) {
+          // Горизонтальный протяг мышью/трекпадом — листание дней (а не создание события).
+          if (Math.abs(ev.clientX - e.clientX) > Math.abs(ev.clientY - e.clientY)) {
+            finish(false);
+            beginDaySwipe(e.clientX, e.clientY);
+            return;
+          }
+          beginMouse();
+        } else return;
       }
       ev.preventDefault();
       if (touch) {
@@ -965,15 +965,12 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
-  // Программное листание дня (тачпад-свайп на десктопе): та же карусель, что и при
-  // касании — соседний день въезжает, затем лента мгновенно возвращается в центр.
-  function animateDay(dir) {
+  // Фиксация дня после свайпа: лента сейчас на позиции -100%+dx, доезжает до
+  // соседней панели, затем (по transitionend) мгновенно возвращается в центр с уже
+  // новым днём. Общая логика для тача, мышиного протяга и колёсика.
+  function daySwipeCommit(dir, vx) {
     const track = trackRef.current;
-    if (!track || view !== "day") return;
-    if (commitFinalizeRef.current) commitFinalizeRef.current();
-    clearTimeout(peekTimerRef.current);
-    setPeek(true);
-    swipingRef.current = true;
+    if (!track) return;
     const td = fromISO(dateRef.current); td.setDate(td.getDate() + dir);
     setPendingDate(toISO(td));
     haptic();
@@ -988,16 +985,55 @@ function Planner() {
       setPendingDate(null);
     };
     commitFinalizeRef.current = finalize;
-    // Два кадра — чтобы соседние дни (peek) успели отрисоваться до старта анимации.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (commitFinalizeRef.current !== finalize) return; // успели отменить/перебить
+    const durMs = Math.abs(vx) > 0.3 ? 440 : 560;
+    track.style.transition = `transform ${durMs}ms cubic-bezier(.22,1,.3,1)`;
+    void track.offsetWidth;
+    track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
+    track.addEventListener("transitionend", finalize);
+  }
+  // Свайпа не хватило — лента плавно возвращается в центр (день не меняется).
+  function daySwipeSnapBack() {
+    const track = trackRef.current;
+    if (!track) return;
+    swipingRef.current = false;
+    track.style.transition = "transform .25s cubic-bezier(.16,1,.3,1)";
+    void track.offsetWidth;
+    track.style.transform = "translateX(-100%)";
+    const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; schedulePeekOff(); };
+    track.addEventListener("transitionend", onBack);
+  }
+  // Листание дня мышью/трекпадом: зажал и тащишь по горизонтали — лента едет за
+  // курсором, на отпускании коммитим один день (или возвращаем). Чистый конец жеста
+  // (pointerup) и отсутствие инерции → один протяг = один день, можно сразу подряд.
+  function beginDaySwipe(sx, sy) {
+    const track = trackRef.current;
+    if (!track || view !== "day") return;
+    if (commitFinalizeRef.current) commitFinalizeRef.current();
+    clearTimeout(peekTimerRef.current);
+    setPeek(true);
+    swipingRef.current = true;
+    const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
+    let dx = 0, lastX = sx, lastT = performance.now(), vx = 0;
+    const apply = (clientX) => {
+      dx = clamp(clientX - sx, -W, W);
+      const now = performance.now();
+      if (now > lastT) vx = (clientX - lastX) / (now - lastT);
+      lastX = clientX; lastT = now;
       track.style.transition = "none";
-      track.style.transform = "translateX(-100%)";
-      void track.offsetWidth;
-      track.style.transition = "transform 480ms cubic-bezier(.16,1,.3,1)";
-      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
-      track.addEventListener("transitionend", finalize);
-    }));
+      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
+    };
+    const move = (ev) => { ev.preventDefault(); apply(ev.clientX); };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", up);
+      if (Math.abs(dx) > Math.min(60, W * 0.12) || Math.abs(vx) > 0.18) daySwipeCommit(dx < 0 ? 1 : -1, vx);
+      else daySwipeSnapBack();
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+    apply(sx); // показать соседние дни сразу
   }
 
   // Шторка проектов: тянем за пальцем от края экрана. От левого края — открываем,
