@@ -187,7 +187,7 @@ function Planner() {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
-    let swipeAccum = 0, swipeArmed = true, swipeLastDir = 0, swipeMin = 0, swipeEndTimer = null;
+    let swipeAccum = 0, swipeArmed = true, swipeLastDir = 0, swipeEndTimer = null;
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -201,27 +201,27 @@ function Planner() {
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
         return;
       }
-      // Горизонтальный свайп тачпадом — листание дней. Один жест = один день.
-      // Инерция (momentum) после флика всегда ТОЛЬКО затухает; новый свайп даёт рост
-      // скорости. Поэтому после срабатывания ждём либо разворот, либо новый толчок
-      // (скорость снова выросла) — это и есть «следующий свайп». Так длинный свайп не
-      // перескакивает через день, но быстрые флики подряд листают по одному дню.
+      // Горизонтальный свайп тачпадом — листание дней. Жёсткое правило: ОДИН свайп =
+      // ОДИН день. Инерция (momentum) тачпада всегда только затухает и сама лишний
+      // день не перелистнёт. Готовность к новому дню возвращается, когда:
+      //  • свайп пошёл в ДРУГУЮ сторону (однозначно новый жест) — сразу, либо
+      //  • заметные события прекратились (инерция стихла) на ~90мс — затем новый свайп.
       if (zoomingRef.current) return;
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
       e.preventDefault();
       const abs = Math.abs(e.deltaX);
       const sign = e.deltaX > 0 ? 1 : -1;
-      clearTimeout(swipeEndTimer); // пауза = жест с инерцией закончился → готов к новому
-      swipeEndTimer = setTimeout(() => { swipeAccum = 0; swipeArmed = true; }, 80);
+      // Пока идут ЗАМЕТНЫЕ события (свайп или сильная инерция) — держим «занято».
+      // Мелкий хвост инерции (<5) игнорируем, чтобы не ждать её полного нуля.
+      if (abs > 5) { clearTimeout(swipeEndTimer); swipeEndTimer = setTimeout(() => { swipeArmed = true; swipeAccum = 0; }, 90); }
       if (!swipeArmed) {
-        if (sign === -swipeLastDir && abs > 4) { swipeArmed = true; swipeAccum = 0; }       // разворот = новый свайп
-        else if (abs > swipeMin + 7 && abs > 12) { swipeArmed = true; swipeAccum = 0; }      // новый толчок поверх затухающей инерции
-        else { if (abs < swipeMin) swipeMin = abs; return; }                                 // та же инерция — игнорируем
+        if (sign === -swipeLastDir && abs > 5) { swipeArmed = true; swipeAccum = 0; } // разворот — новый свайп сразу
+        else return; // та же сторона: продолжение свайпа или инерция — игнорируем
       }
       swipeAccum += e.deltaX;
       if (Math.abs(swipeAccum) > 26) {
         const dir = swipeAccum > 0 ? 1 : -1;
-        swipeAccum = 0; swipeArmed = false; swipeLastDir = dir; swipeMin = abs;
+        swipeAccum = 0; swipeArmed = false; swipeLastDir = dir;
         animateDay(dir);
       }
     };
