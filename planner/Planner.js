@@ -86,6 +86,7 @@ function Planner() {
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
   const weekScrollRef = useRef(null);
+  const monthRef = useRef(null);
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
   const zoomAnchor = useRef(null);
@@ -275,6 +276,29 @@ function Planner() {
       el.removeEventListener("gesturechange", onGChange);
       el.removeEventListener("gestureend", onGEnd);
     };
+  }, [view]);
+
+  // Свайп тачпадом (горизонтальное колёсико) в режимах неделя/месяц — листание
+  // периода. Ось защёлкивается; один жест = один период (инерция не пролистывает
+  // лишнее: после срабатывания держим «занято» до затухания событий).
+  useEffect(() => {
+    if (view !== "week" && view !== "month") return;
+    const el = view === "week" ? weekScrollRef.current : monthRef.current;
+    if (!el) return;
+    let axis = null, accum = 0, locked = false, idle = null;
+    const onWheel = (e) => {
+      if (e.ctrlKey) return;
+      if (axis === null) axis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
+      clearTimeout(idle);
+      idle = setTimeout(() => { axis = null; accum = 0; locked = false; }, 140);
+      if (axis !== "h") return;
+      e.preventDefault();
+      if (locked) return;
+      accum += e.deltaX;
+      if (Math.abs(accum) > 40) { const dir = accum > 0 ? 1 : -1; accum = 0; locked = true; animatePeriodShift(dir); }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => { clearTimeout(idle); el.removeEventListener("wheel", onWheel); };
   }, [view]);
 
   const lists = useMemo(() => [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [taskLists]);
@@ -983,6 +1007,54 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
+  // Свайп между неделями/месяцами: лёгкая анимация «уехал-приехал» + сдвиг периода.
+  // Карусели с тремя панелями (как у дня) тут нет — делаем кросс-слайд по контейнеру.
+  function animatePeriodShift(dir) {
+    const el = view === "week" ? weekScrollRef.current : view === "month" ? monthRef.current : null;
+    if (!el) { shift(dir); return; }
+    haptic();
+    el.style.transition = "transform .2s ease, opacity .2s ease";
+    el.style.transform = `translateX(${dir > 0 ? -34 : 34}px)`;
+    el.style.opacity = "0";
+    setTimeout(() => {
+      shift(dir);
+      requestAnimationFrame(() => {
+        el.style.transition = "none";
+        el.style.transform = `translateX(${dir > 0 ? 34 : -34}px)`;
+        el.style.opacity = "0";
+        requestAnimationFrame(() => {
+          el.style.transition = "transform .24s ease, opacity .24s ease";
+          el.style.transform = "";
+          el.style.opacity = "";
+        });
+      });
+    }, 200);
+  }
+  // Горизонтальный свайп пальцем в режиме неделя/месяц → предыдущий/следующий период.
+  function onPeriodSwipeStart(e) {
+    if (e.touches.length !== 1) return;
+    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    let horiz = null, dx = 0;
+    const move = ev => {
+      const t = ev.touches[0]; if (!t) return;
+      dx = t.clientX - sx; const dy = t.clientY - sy;
+      if (horiz === null && (Math.abs(dx) > 6 || Math.abs(dy) > 6)) {
+        horiz = Math.abs(dx) > Math.abs(dy);
+        if (!horiz) { cleanup(); return; }
+      }
+      if (horiz) ev.preventDefault();
+    };
+    const finish = () => { cleanup(); if (horiz && Math.abs(dx) > 50) animatePeriodShift(dx < 0 ? 1 : -1); };
+    const cleanup = () => {
+      document.removeEventListener("touchmove", move, { passive: false });
+      document.removeEventListener("touchend", finish);
+      document.removeEventListener("touchcancel", finish);
+    };
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", finish);
+    document.addEventListener("touchcancel", finish);
+  }
+
   // Лента сейчас на позиции -100%+dx (её тянули пальцами) — плавно доводим до
   // соседней панели, затем (на transitionend) мгновенно возвращаем в центр уже с
   // новым днём. Видимый час сохраняем (keepGridTop) — чтобы сетка не прыгнула.
@@ -1498,7 +1570,7 @@ function Planner() {
             </div>
           </div>`}
 
-          ${view === "week" && html`<div class="week-scroll" ref=${weekScrollRef}>
+          ${view === "week" && html`<div class="week-scroll" ref=${weekScrollRef} onTouchStart=${onPeriodSwipeStart}>
             <div class="week-head">
               <div class="week-gutter-cell"></div>
               ${weekDays.map(wd => html`<button key=${wd.iso}
@@ -1534,7 +1606,7 @@ function Planner() {
             </div>
           </div>`}
 
-          ${view === "month" && html`<div class="month">
+          ${view === "month" && html`<div class="month" ref=${monthRef} onTouchStart=${onPeriodSwipeStart}>
             <div class="month-weekdays">
               ${["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map(n => html`<div key=${n}>${n}</div>`)}
             </div>

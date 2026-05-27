@@ -576,7 +576,11 @@ textarea.input { resize: vertical; }
   .week-day-num { font-size: 14px; }
   .month-cell { padding: 2px; }
   .month-cell-num { font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; }
-  .month-chip-title { font-size: 10px; }
+  .month-chip-title { font-size: 11px; }
+  .month-chip { padding: 2px 5px; }
+  .week-chip, .week-more, .week-block-title { font-size: 12px; }
+  /* День недели вверху — палец попадает увереннее. */
+  .week-day-head { padding: 6px 0; }
 
   /* На мобильном «+» чуть крупнее и ближе к краю. */
   .mobile-fab { right: calc(16px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom));
