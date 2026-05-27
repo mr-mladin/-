@@ -578,14 +578,14 @@ textarea.input { resize: vertical; }
   .mobile-fab .ico { width: 27px; height: 27px; }
 
   /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
-  .allday { padding: 9px 10px 9px 12px; gap: 6px; }
-  .allday.empty { padding: 7px 10px 7px 12px; }
-  .allday.grid { column-gap: 8px; row-gap: 6px; }
+  .allday { padding: 8px 10px 8px 12px; gap: 6px; }
+  .allday.empty { padding: 6px 10px 6px 12px; }
+  .allday.grid { column-gap: 10px; row-gap: 6px; }
   .allday-item { gap: 7px; }
-  .allday-check { width: 20px; height: 20px; border-width: 4px; }
+  .allday-check { width: 17px; height: 17px; border-width: 2px; }
   .allday-check .ico { width: 9px; height: 9px; }
   .allday-title, .allday-edit, .allday-float .allday-title { font-size: 13px; }
-  .allday-float { padding: 5px 9px 5px 5px; gap: 7px; }
+  .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
 }
 
 /* Настройки */
@@ -757,14 +757,14 @@ textarea.input { resize: vertical; }
   font-size: 11px; color: var(--text); padding: 0; }
 
 /* ---- Зона «весь день»: задачи с датой, но без времени — сверху внутри сетки ---- */
-.allday { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 14px 20px;
+.allday { display: flex; flex-direction: column; gap: 7px; padding: 11px 16px 11px 20px;
   border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1), padding .25s ease; }
-.allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 14px; row-gap: 8px; position: relative; }
-.allday.empty { padding: 9px 16px 9px 20px; }
+.allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; row-gap: 7px; position: relative; }
+.allday.empty { padding: 8px 16px 8px 20px; }
 .allday.drop { background: var(--accent-soft); }
 .allday-hint { font-size: 12px; color: var(--text-mute); transition: color .25s ease; }
 .allday.drop .allday-hint { color: var(--accent); }
-.allday-item { display: flex; align-items: center; gap: 11px; min-width: 0; cursor: grab;
+.allday-item { display: flex; align-items: center; gap: 9px; min-width: 0; cursor: grab;
   user-select: none; -webkit-user-select: none; will-change: transform; }
 .allday-item:active { cursor: grabbing; }
 .allday.grid .allday-item { touch-action: none; }
@@ -773,19 +773,19 @@ textarea.input { resize: vertical; }
   border: 1.5px dashed var(--accent); opacity: .5; cursor: default; }
 /* Плавающая карточка под пальцем: приподнята, со скидкой на тень. */
 .allday-float { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none;
-  display: flex; align-items: center; gap: 11px; padding: 6px 12px 6px 6px; border-radius: 12px;
+  display: flex; align-items: center; gap: 9px; padding: 6px 12px 6px 7px; border-radius: 11px;
   background: var(--surface); box-shadow: 0 12px 30px rgba(15, 23, 42, .22);
   transform: translate(-9999px, 0); transform-origin: left center;
   animation: ad-pop .18s ease both; }
 @keyframes ad-pop { from { opacity: .4; } to { opacity: 1; } }
-.allday-float .allday-title { font-size: 15px; font-weight: 600; color: var(--text);
+.allday-float .allday-title { font-size: 14px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* Жирное кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
-.allday-check { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 6px solid currentColor;
-  background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
-.allday-check .ico { width: 13px; height: 13px; opacity: 0; transition: opacity .25s ease; }
+/* Тонкое кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
+.allday-check { flex: none; width: 19px; height: 19px; border-radius: 50%; border: 2px solid currentColor;
+  background: var(--surface); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.allday-check .ico { width: 11px; height: 11px; opacity: 0; transition: opacity .25s ease; }
 .allday-check.on .ico { opacity: 1; }
-.allday-title { font-size: 15px; font-weight: 600; color: var(--text);
+.allday-title { font-size: 14px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat;
   background-position: 0 58%; background-size: 0% 1.5px;
