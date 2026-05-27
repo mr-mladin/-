@@ -187,7 +187,7 @@ function Planner() {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
-    let velEma = 0, velAbove = false, velLastSign = 0, swipeEndTimer = null;
+    let velEma = 0, velPhase = 0, velPeak = 0, velValley = 0, velLastSign = 0, swipeEndTimer = null;
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -202,12 +202,13 @@ function Planner() {
         return;
       }
       // Свайп двумя пальцами (горизонтальное колёсико) — листание дней. Один свайп =
-      // один день, и листать можно сразу подряд. Ключ: реагируем на ФРОНТ нарастания
-      // скорости (начало свайпа), а не на конец жеста. Инерция (momentum) всегда
-      // только затухает, поэтому второй день за один свайп невозможен. Гистерезис:
-      // флик засчитывается, когда сглаженная скорость переходит порог ВВЕРХ; следующий
-      // флик — только после того, как скорость упала ниже нижнего порога (инерция стихла
-      // или пауза), либо при смене направления.
+      // один день, и листать можно сразу подряд. Каждый свайп — это «разгон → пик →
+      // спад». Инерция (momentum) после пика только ЗАТУХАЕТ (вверх не растёт), поэтому
+      // второй день за один свайп невозможен. Новый свайп = новый разгон поверх
+      // затухания — его и ловим, не дожидаясь, пока инерция полностью уляжется.
+      //   фаза 0 — готов: флик по фронту скорости;
+      //   фаза 1 — флик засчитан, ждём прохождения пика этого же свайпа;
+      //   фаза 2 — спад/инерция: ловим новый разгон (re-acceleration) или полную остановку.
       if (zoomingRef.current) return;
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
       e.preventDefault();
@@ -215,10 +216,18 @@ function Planner() {
       const sign = e.deltaX > 0 ? 1 : -1;
       velEma = velEma * 0.6 + abs * 0.4; // сглаженная скорость
       clearTimeout(swipeEndTimer);
-      swipeEndTimer = setTimeout(() => { velEma = 0; velAbove = false; }, 120); // пауза — сброс
-      if (sign !== velLastSign) { velAbove = false; velLastSign = sign; } // смена направления = новый свайп
-      if (!velAbove && velEma > 9) { velAbove = true; flipDay(sign); }      // фронт скорости вверх = начало свайпа
-      else if (velAbove && velEma < 4) { velAbove = false; }                // скорость упала = готов к следующему
+      swipeEndTimer = setTimeout(() => { velEma = 0; velPhase = 0; }, 120); // пауза — полный сброс
+      if (sign !== velLastSign) { velPhase = 0; velLastSign = sign; }       // смена направления = новый свайп
+      if (velPhase === 0) {
+        if (velEma > 9) { flipDay(sign); velPhase = 1; velPeak = velEma; }  // фронт скорости = начало свайпа
+      } else if (velPhase === 1) {
+        velPeak = Math.max(velPeak, velEma);
+        if (velEma < velPeak * 0.6) { velPhase = 2; velValley = velEma; }   // прошли пик → спад
+      } else {
+        velValley = Math.min(velValley, velEma);                            // следим за дном затухания
+        if (velEma > velValley + 6 && velEma > 8) { flipDay(sign); velPhase = 1; velPeak = velEma; } // новый разгон = новый свайп
+        else if (velEma < 4) velPhase = 0;                                  // остановка → готов
+      }
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
