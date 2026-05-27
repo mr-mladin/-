@@ -15,9 +15,13 @@
   --accent: #38bdf8; --accent-soft: rgba(56, 189, 248, 0.16);
 }
 
-* { box-sizing: border-box; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; }
-body { font-family: var(--font); background: var(--surface); color: var(--text); -webkit-font-smoothing: antialiased; }
+body { font-family: var(--font); background: var(--surface); color: var(--text); -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* На сенсорных элементах гасим долгое нажатие → выделение текста / iOS-меню. */
+button, .tray-task-wrap, .tray-task, .tl-event, .tl-pill, .allday-item, .wday, .seg-btn, .icon-btn {
+  -webkit-touch-callout: none; }
 #app { height: 100%; }
 
 /* Полоса прокрутки видна только во время прокрутки.
@@ -154,8 +158,8 @@ textarea.input { resize: vertical; }
 }
 
 /* Тосты */
-.toasts { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-  display: flex; flex-direction: column; gap: 8px; z-index: 60; }
+.toasts { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 8px; z-index: 60; max-width: calc(100vw - 32px); }
 .toast { padding: 10px 16px; border-radius: var(--radius); background: var(--surface);
   border: 1px solid var(--border-strong); box-shadow: 0 6px 24px rgba(0,0,0,0.16); font-size: 14px; }
 .toast.success { border-color: #16a34a; }
@@ -290,7 +294,8 @@ textarea.input { resize: vertical; }
 .planner-tray-head { display: flex; align-items: center; gap: 8px; font-size: 12px; text-transform: uppercase;
   letter-spacing: 0.05em; color: var(--text-mute); margin-bottom: 8px; }
 .planner-tray-head .ico { width: 16px; height: 16px; }
-.tray-task-wrap { cursor: grab; touch-action: pan-y; border-radius: var(--radius); }
+.tray-task-wrap { cursor: grab; touch-action: pan-y; border-radius: var(--radius);
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .tray-task-wrap:active { cursor: grabbing; }
 .tray-task { display: flex; align-items: center; gap: 7px; padding: 6px 10px; border-radius: var(--radius);
   background: var(--surface); border: 1px solid transparent; box-shadow: 0 1px 2px rgba(15,23,42,0.04);
@@ -409,6 +414,7 @@ textarea.input { resize: vertical; }
   .tl-pill-check.falling { animation: none !important; }
   .tl-pill-check { transition: none !important; }
   .confetti { display: none; }
+  .mobile-fab { animation: none !important; }
 }
 .tl-handle { position: absolute; left: 0; right: 0; height: 11px; cursor: ns-resize; touch-action: pan-y; z-index: 2; }
 .tl-handle.top { top: 0; }
@@ -577,6 +583,11 @@ textarea.input { resize: vertical; }
     width: 58px; height: 58px; }
   .mobile-fab .ico { width: 27px; height: 27px; }
 
+  /* iOS зумит страницу при фокусе на поле со шрифтом < 16px. Поэтому все поля
+     ввода на мобильном — ровно 16px: масштаб больше не скачет при наборе текста. */
+  .input, .select, textarea.input, .ed-notes, .ed-sub-input, .ed-input,
+  .tl-title-edit, .tl-subs-edit, .allday-edit, .search-input { font-size: 16px; }
+
   /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
   .allday { padding: 8px 10px 8px 12px; gap: 6px; }
   .allday.empty { padding: 6px 10px 6px 12px; }
@@ -584,7 +595,7 @@ textarea.input { resize: vertical; }
   .allday-item { gap: 7px; }
   .allday-check { width: 17px; height: 17px; border-width: 2px; }
   .allday-check .ico { width: 9px; height: 9px; }
-  .allday-title, .allday-edit, .allday-float .allday-title { font-size: 13px; }
+  .allday-title, .allday-float .allday-title { font-size: 13px; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
 }
 
@@ -627,12 +638,13 @@ textarea.input { resize: vertical; }
 .ed-anchor { position: absolute; left: 20px; right: 8px; z-index: 30; }
 /* Плавающий вариант (другой день / не «День»). */
 .ed-float-back { position: fixed; inset: 0; z-index: 60; background: rgba(2, 6, 23, 0.35);
-  display: flex; align-items: flex-start; justify-content: center; padding: 64px 16px 24px; overflow-y: auto; }
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: 48px 16px calc(24px + env(safe-area-inset-bottom)); overflow-y: auto; }
 
 .ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
   background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
   box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28); padding: 12px 14px 14px;
-  max-height: 72vh; overflow-y: auto; animation: edPop .16s cubic-bezier(.2,.7,.3,1); }
+  max-height: 80dvh; overflow-y: auto; animation: edPop .16s cubic-bezier(.2,.7,.3,1); }
 .ed-anchor .ed-card { max-width: none; }
 @keyframes edPop { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
 

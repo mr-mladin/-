@@ -1571,7 +1571,7 @@ function Planner() {
       ${dnd.zone === "tray" ? html`<span class="dnd-ghost-hint">снять время</span>` : ""}
     </div>`}
     ${ctx && html`<div class="ctx-back" onPointerDown=${() => setCtx(null)} onContextMenu=${e => { e.preventDefault(); setCtx(null); }}>
-      <div class="ctx-menu" style=${`left:${ctx.x}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
+      <div class="ctx-menu" style=${`left:${Math.min(ctx.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 176)}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
         <button class="ctx-item" onClick=${() => { setListModal(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
         <button class="ctx-item danger" onClick=${() => { setDelList(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.trash()} Удалить</button>
       </div>
