@@ -188,7 +188,7 @@ function Planner() {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
-    let velEma = 0, velPhase = 0, velPeak = 0, velValley = 0, velLastSign = 0, swipeEndTimer = null;
+    let dragActive = false, dragDx = 0, dragVx = 0, dragLastT = 0, swipeEndTimer = null;
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -202,33 +202,34 @@ function Planner() {
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
         return;
       }
-      // Свайп двумя пальцами (горизонтальное колёсико) — листание дней. Один свайп =
-      // один день, и листать можно сразу подряд. Каждый свайп — это «разгон → пик →
-      // спад». Инерция (momentum) после пика только ЗАТУХАЕТ (вверх не растёт), поэтому
-      // второй день за один свайп невозможен. Новый свайп = новый разгон поверх
-      // затухания — его и ловим, не дожидаясь, пока инерция полностью уляжется.
-      //   фаза 0 — готов: флик по фронту скорости;
-      //   фаза 1 — флик засчитан, ждём прохождения пика этого же свайпа;
-      //   фаза 2 — спад/инерция: ловим новый разгон (re-acceleration) или полную остановку.
+      // Свайп двумя пальцами — «лента за пальцами», как на мобильном: сетка едет
+      // прямо за жестом в реальном времени (туда-обратно), не дальше соседнего дня.
+      // Когда жест с инерцией затих (нет событий ~70мс) — если протянули достаточно,
+      // соседний день плавно доезжает; если мало — лента возвращается назад.
       if (zoomingRef.current) return;
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
       e.preventDefault();
-      const abs = Math.abs(e.deltaX);
-      const sign = e.deltaX > 0 ? 1 : -1;
-      velEma = velEma * 0.6 + abs * 0.4; // сглаженная скорость
-      clearTimeout(swipeEndTimer);
-      swipeEndTimer = setTimeout(() => { velEma = 0; velPhase = 0; }, 120); // пауза — полный сброс
-      if (sign !== velLastSign) { velPhase = 0; velLastSign = sign; }       // смена направления = новый свайп
-      if (velPhase === 0) {
-        if (velEma > 9) { flipDay(sign); velPhase = 1; velPeak = velEma; }  // фронт скорости = начало свайпа
-      } else if (velPhase === 1) {
-        velPeak = Math.max(velPeak, velEma);
-        if (velEma < velPeak * 0.6) { velPhase = 2; velValley = velEma; }   // прошли пик → спад
-      } else {
-        velValley = Math.min(velValley, velEma);                            // следим за дном затухания
-        if (velEma > velValley + 6 && velEma > 8) { flipDay(sign); velPhase = 1; velPeak = velEma; } // новый разгон = новый свайп
-        else if (velEma < 4) velPhase = 0;                                  // остановка → готов
+      const track = trackRef.current;
+      if (!track) return;
+      const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
+      if (!dragActive) {
+        if (commitFinalizeRef.current) commitFinalizeRef.current(); // мгновенно завершить предыдущий переход
+        clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
+        dragActive = true; dragDx = 0; dragLastT = performance.now();
       }
+      dragDx = clamp(dragDx - e.deltaX, -W, W); // тянем влево (dx<0) → следующий день
+      const now = performance.now();
+      if (now > dragLastT) dragVx = (-e.deltaX) / (now - dragLastT);
+      dragLastT = now;
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
+      clearTimeout(swipeEndTimer);
+      swipeEndTimer = setTimeout(() => {
+        dragActive = false;
+        if (Math.abs(dragDx) > Math.min(80, W * 0.18) || Math.abs(dragVx) > 0.45) daySwipeCommit(dragDx < 0 ? 1 : -1);
+        else daySwipeSnapBack();
+        dragDx = 0;
+      }, 70);
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -969,16 +970,12 @@ function Planner() {
   }
   function openDay(iso) { setDate(iso); setView("day"); }
 
-  // Листание на один день с анимацией-каруселью (соседний день въезжает, затем
-  // лента мгновенно возвращается в центр уже с новым днём). Новый вызов мгновенно
-  // завершает предыдущий переход — поэтому свайпы подряд листаются без задержки.
-  function flipDay(dir) {
+  // Лента сейчас на позиции -100%+dx (её тянули пальцами) — плавно доводим до
+  // соседней панели, затем (на transitionend) мгновенно возвращаем в центр уже с
+  // новым днём. Видимый час сохраняем (keepGridTop) — чтобы сетка не прыгнула.
+  function daySwipeCommit(dir) {
     const track = trackRef.current;
     if (!track || view !== "day") return;
-    if (commitFinalizeRef.current) commitFinalizeRef.current(); // мгновенно завершить предыдущий переход
-    clearTimeout(peekTimerRef.current);
-    setPeek(true);
-    swipingRef.current = true;
     const td = fromISO(dateRef.current); td.setDate(td.getDate() + dir);
     setPendingDate(toISO(td));
     haptic();
@@ -987,8 +984,6 @@ function Planner() {
       commitFinalizeRef.current = null;
       track.removeEventListener("transitionend", finalize);
       swipingRef.current = false;
-      // Запоминаем позицию сетки относительно вьюпорта, чтобы видимый час не прыгнул
-      // из-за другой высоты зоны «весь день» у нового дня.
       const cont = scrollRef.current, gridEl = innerRef.current;
       keepGridTopRef.current = (cont && gridEl) ? gridEl.getBoundingClientRect().top - cont.getBoundingClientRect().top : null;
       keepScrollRef.current = true;
@@ -997,16 +992,21 @@ function Planner() {
       setPendingDate(null);
     };
     commitFinalizeRef.current = finalize;
-    // Два кадра — чтобы соседние дни (peek) успели отрисоваться до старта анимации.
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      if (commitFinalizeRef.current !== finalize) return;
-      track.style.transition = "none";
-      track.style.transform = "translateX(-100%)";
-      void track.offsetWidth;
-      track.style.transition = "transform 500ms cubic-bezier(.32,.72,0,1)";
-      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
-      track.addEventListener("transitionend", finalize);
-    }));
+    track.style.transition = "transform 340ms cubic-bezier(.22,.61,.36,1)";
+    void track.offsetWidth;
+    track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
+    track.addEventListener("transitionend", finalize);
+  }
+  // Свайпа не хватило — лента плавно возвращается в центр (день не меняется).
+  function daySwipeSnapBack() {
+    const track = trackRef.current;
+    if (!track) return;
+    swipingRef.current = false;
+    track.style.transition = "transform .28s cubic-bezier(.22,.61,.36,1)";
+    void track.offsetWidth;
+    track.style.transform = "translateX(-100%)";
+    const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; schedulePeekOff(); };
+    track.addEventListener("transitionend", onBack);
   }
 
   // Шторка проектов: тянем за пальцем от края экрана. От левого края — открываем,
