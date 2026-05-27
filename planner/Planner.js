@@ -187,17 +187,36 @@ function Planner() {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
+    let swipeAccum = 0, swipeLock = false, swipeEndTimer = null;
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
       clsTimer = setTimeout(() => el.classList.remove("zooming"), 180);
     };
     const onWheel = (e) => {
-      if (!e.ctrlKey) return;
+      if (e.ctrlKey) {
+        e.preventDefault();
+        markZooming();
+        zoomAnchorAt(e.clientY);
+        setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
+        return;
+      }
+      // Горизонтальный свайп тачпадом — листание дней. Порог + блокировка инерции
+      // (после переключения глушим «хвост» momentum-событий, чтобы один свайп = один день).
+      if (zoomingRef.current) return;
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
       e.preventDefault();
-      markZooming();
-      zoomAnchorAt(e.clientY);
-      setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
+      if (swipeLock) { clearTimeout(swipeEndTimer); swipeEndTimer = setTimeout(() => { swipeLock = false; swipeAccum = 0; }, 140); return; }
+      swipeAccum += e.deltaX;
+      clearTimeout(swipeEndTimer);
+      swipeEndTimer = setTimeout(() => { swipeAccum = 0; }, 140);
+      if (Math.abs(swipeAccum) > 42) {
+        const dir = swipeAccum > 0 ? 1 : -1;
+        swipeAccum = 0; swipeLock = true;
+        clearTimeout(swipeEndTimer);
+        swipeEndTimer = setTimeout(() => { swipeLock = false; }, 160);
+        animateDay(dir);
+      }
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -224,6 +243,7 @@ function Planner() {
     el.addEventListener("gestureend", onGEnd);
     return () => {
       clearTimeout(clsTimer);
+      clearTimeout(swipeEndTimer);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("gesturestart", onGStart);
       el.removeEventListener("gesturechange", onGChange);
@@ -927,6 +947,41 @@ function Planner() {
     setDate(dateRef.current);
   }
   function openDay(iso) { setDate(iso); setView("day"); }
+
+  // Программное листание дня (тачпад-свайп на десктопе): та же карусель, что и при
+  // касании — соседний день въезжает, затем лента мгновенно возвращается в центр.
+  function animateDay(dir) {
+    const track = trackRef.current;
+    if (!track || view !== "day") return;
+    if (commitFinalizeRef.current) commitFinalizeRef.current();
+    clearTimeout(peekTimerRef.current);
+    setPeek(true);
+    swipingRef.current = true;
+    const td = fromISO(dateRef.current); td.setDate(td.getDate() + dir);
+    setPendingDate(toISO(td));
+    haptic();
+    const finalize = () => {
+      if (commitFinalizeRef.current !== finalize) return;
+      commitFinalizeRef.current = null;
+      track.removeEventListener("transitionend", finalize);
+      swipingRef.current = false;
+      keepScrollRef.current = true;
+      pendingRecenterRef.current = true;
+      shift(dir);
+      setPendingDate(null);
+    };
+    commitFinalizeRef.current = finalize;
+    // Два кадра — чтобы соседние дни (peek) успели отрисоваться до старта анимации.
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (commitFinalizeRef.current !== finalize) return; // успели отменить/перебить
+      track.style.transition = "none";
+      track.style.transform = "translateX(-100%)";
+      void track.offsetWidth;
+      track.style.transition = "transform 460ms cubic-bezier(.25,.46,.45,.94)";
+      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
+      track.addEventListener("transitionend", finalize);
+    }));
+  }
 
   // Шторка проектов: тянем за пальцем от края экрана. От левого края — открываем,
   // от правого (когда открыта) — закрываем. Лента едет вместе с пальцем, после
