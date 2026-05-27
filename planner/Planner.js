@@ -188,7 +188,11 @@ function Planner() {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
-    let dragActive = false, dragDx = 0, dragVx = 0, dragLastT = 0, swipeEndTimer = null;
+    let dragActive = false, dragDx = 0, dragCommitted = false, gestureAxis = null, swipeEndTimer = null;
+    const endWheelGesture = () => {
+      if (dragActive && !dragCommitted) daySwipeSnapBack();
+      dragActive = false; dragDx = 0; dragCommitted = false; gestureAxis = null;
+    };
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -204,32 +208,33 @@ function Planner() {
       }
       // Свайп двумя пальцами — «лента за пальцами», как на мобильном: сетка едет
       // прямо за жестом в реальном времени (туда-обратно), не дальше соседнего дня.
-      // Когда жест с инерцией затих (нет событий ~70мс) — если протянули достаточно,
-      // соседний день плавно доезжает; если мало — лента возвращается назад.
+      // Жест «защёлкивается» на ось: горизонталь = свайп (вертикальный скролл при
+      // этом заблокирован), вертикаль = обычный скролл (свайп заблокирован) — чтобы
+      // действия не смешивались. Как только протянул достаточно, соседний день
+      // доезжает СРАЗУ (не дожидаясь затухания инерции — без «зависания»); мало —
+      // на отпускании лента плавно возвращается.
       if (zoomingRef.current) return;
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — обычная прокрутка
-      e.preventDefault();
+      if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
+      clearTimeout(swipeEndTimer);
+      swipeEndTimer = setTimeout(endWheelGesture, 80); // конец жеста (с инерцией)
+      if (gestureAxis !== "h") return; // вертикальный жест — обычная прокрутка, свайп заблокирован
+      e.preventDefault();                // горизонтальный жест — блокируем вертикальный скролл
       const track = trackRef.current;
       if (!track) return;
       const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
       if (!dragActive) {
         if (commitFinalizeRef.current) commitFinalizeRef.current(); // мгновенно завершить предыдущий переход
         clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-        dragActive = true; dragDx = 0; dragLastT = performance.now();
+        dragActive = true; dragDx = 0; dragCommitted = false;
       }
+      if (dragCommitted) return; // уже доезжаем — хвост инерции глушим
       dragDx = clamp(dragDx - e.deltaX, -W, W); // тянем влево (dx<0) → следующий день
-      const now = performance.now();
-      if (now > dragLastT) dragVx = (-e.deltaX) / (now - dragLastT);
-      dragLastT = now;
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      clearTimeout(swipeEndTimer);
-      swipeEndTimer = setTimeout(() => {
-        dragActive = false;
-        if (Math.abs(dragDx) > Math.min(80, W * 0.18) || Math.abs(dragVx) > 0.45) daySwipeCommit(dragDx < 0 ? 1 : -1);
-        else daySwipeSnapBack();
-        dragDx = 0;
-      }, 70);
+      if (Math.abs(dragDx) > Math.min(70, W * 0.16)) { // протянули достаточно → докат сразу
+        dragCommitted = true;
+        daySwipeCommit(dragDx < 0 ? 1 : -1);
+      }
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -992,7 +997,7 @@ function Planner() {
       setPendingDate(null);
     };
     commitFinalizeRef.current = finalize;
-    track.style.transition = "transform 340ms cubic-bezier(.22,.61,.36,1)";
+    track.style.transition = "transform 480ms cubic-bezier(.22,.61,.36,1)";
     void track.offsetWidth;
     track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
     track.addEventListener("transitionend", finalize);
