@@ -749,13 +749,27 @@ textarea.input { resize: vertical; }
 /* ---- Зона «весь день»: задачи с датой, но без времени — сверху внутри сетки ---- */
 .allday { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 14px 20px;
   border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1), padding .25s ease; }
+.allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 14px; row-gap: 8px; position: relative; }
 .allday.empty { padding: 9px 16px 9px 20px; }
 .allday.drop { background: var(--accent-soft); }
 .allday-hint { font-size: 12px; color: var(--text-mute); transition: color .25s ease; }
 .allday.drop .allday-hint { color: var(--accent); }
 .allday-item { display: flex; align-items: center; gap: 11px; min-width: 0; cursor: grab;
-  user-select: none; -webkit-user-select: none; }
+  user-select: none; -webkit-user-select: none; will-change: transform; }
 .allday-item:active { cursor: grabbing; }
+.allday.grid .allday-item { touch-action: none; }
+/* Пустое место, куда встанет перетаскиваемая карточка. */
+.ad-placeholder { border-radius: 12px; background: var(--accent-soft);
+  border: 1.5px dashed var(--accent); opacity: .5; cursor: default; }
+/* Плавающая карточка под пальцем: приподнята, со скидкой на тень. */
+.allday-float { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none;
+  display: flex; align-items: center; gap: 11px; padding: 6px 12px 6px 6px; border-radius: 12px;
+  background: var(--surface); box-shadow: 0 12px 30px rgba(15, 23, 42, .22);
+  transform: translate(-9999px, 0); transform-origin: left center;
+  animation: ad-pop .18s ease both; }
+@keyframes ad-pop { from { opacity: .4; } to { opacity: 1; } }
+.allday-float .allday-title { font-size: 15px; font-weight: 600; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Жирное кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
 .allday-check { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 6px solid currentColor;
   background: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }

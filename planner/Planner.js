@@ -16,6 +16,7 @@ function readView() {
   catch (e) { return "day"; }
 }
 
+const ALLDAY_COLS = 3;
 const HOUR_DEFAULT = 80;
 const HOUR_MIN = 14;
 const HOUR_MAX = 220;
@@ -54,6 +55,7 @@ function Planner() {
   const [editing, setEditing] = useState(null);
   const [drag, setDrag] = useState(null);
   const [dnd, setDnd] = useState(null);
+  const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
   const [confetti, setConfetti] = useState(null); // { key, id, bits } — хлопок конфетти при выполнении
   const [fallKey, setFallKey] = useState(null);   // ключ задачи в сетке, чей шарик сейчас падает
@@ -93,6 +95,9 @@ function Planner() {
   const asideRef = useRef(null);
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
+  const adGridRef = useRef(null);   // контейнер зоны «весь день»
+  const adChipRef = useRef(null);   // плавающая карточка при перестановке
+  const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
 
   useEffect(() => {
@@ -232,8 +237,18 @@ function Planner() {
 
   const dayItems = useMemo(() => itemsForDate(tasks, date).filter(i => matches(i.list_id)), [tasks, date, filter]);
   const timed = dayItems.filter(i => i.start_min !== null && i.start_min !== undefined);
+  // Порядок задач «весь день» задаётся sort_order строки; на drag перезаписываем его.
+  const sortOrderById = useMemo(() => {
+    const m = new Map();
+    for (const t of tasks) m.set(t.id, t.sort_order ?? 0);
+    return m;
+  }, [tasks]);
+  const rowIdOf = (i) => (i.kind === "occurrence" ? i.templateId : i.id);
   // Задачи этого дня без времени — показываем в зоне «весь день» над сеткой.
-  const allDay = dayItems.filter(i => i.start_min === null || i.start_min === undefined);
+  const allDay = dayItems
+    .filter(i => i.start_min === null || i.start_min === undefined)
+    .sort((a, b) => ((sortOrderById.get(rowIdOf(a)) ?? 0) - (sortOrderById.get(rowIdOf(b)) ?? 0))
+      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   const allDayIds = new Set(allDay.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
   // id задач, уже стоящих блоком в сетке текущего дня (одиночные — по id,
   // повторяющиеся — по id шаблона). Их не показываем в боковой панели.
@@ -326,6 +341,35 @@ function Planner() {
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
+
+  // FLIP: карточки «весь день» плавно доезжают на новые места при перестановке,
+  // добавлении и удалении. До перерисовки помним позиции, после — анимируем разницу.
+  useLayoutEffect(() => {
+    const grid = adGridRef.current;
+    if (!grid) { adRects.current.clear(); return; }
+    const cells = grid.querySelectorAll("[data-adkey]");
+    const seen = new Set();
+    cells.forEach(cell => {
+      const key = cell.dataset.adkey;
+      seen.add(key);
+      if (cell.classList.contains("lifted")) return; // плавающую карточку не двигаем
+      const r = cell.getBoundingClientRect();
+      const prev = adRects.current.get(key);
+      if (prev) {
+        const dx = prev.left - r.left, dy = prev.top - r.top;
+        if (dx || dy) {
+          cell.style.transition = "none";
+          cell.style.transform = `translate(${dx}px, ${dy}px)`;
+          requestAnimationFrame(() => {
+            cell.style.transition = "transform .34s cubic-bezier(.2,.9,.25,1)";
+            cell.style.transform = "";
+          });
+        }
+      }
+      adRects.current.set(key, r);
+    });
+    for (const k of [...adRects.current.keys()]) if (!seen.has(k)) adRects.current.delete(k);
+  }, [allDay.map(i => i.key).join(",") + "|" + (adDrag ? adDrag.key + ":" + adDrag.overIndex : ""), view]);
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
   // Цель правки: у повтора — шаблон, иначе сама задача.
   const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
@@ -633,6 +677,121 @@ function Planner() {
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
     if (touch) hold = setTimeout(() => begin(), HOLD_MS);
+  }
+
+  // Сохранить новый порядок задач «весь день»: переставленную задачу вставляем на
+  // позицию overIndex, всем строкам присваиваем sort_order по новому порядку.
+  function persistAllDayOrder(draggedKey, overIndex) {
+    const keys = allDay.map(i => i.key);
+    const order = keys.filter(k => k !== draggedKey);
+    order.splice(clamp(overIndex, 0, order.length), 0, draggedKey);
+    store.batch("порядок", () => {
+      order.forEach((k, idx) => {
+        const it = allDay.find(x => x.key === k);
+        if (!it) return;
+        const rid = rowIdOf(it);
+        if ((sortOrderById.get(rid) ?? 0) !== idx) store.actions.tasks.update(rid, { sort_order: idx }).catch(showErr);
+      });
+    });
+  }
+
+  // Перетаскивание карточки «весь день»: внутри зоны — перестановка (3 столбца),
+  // вниз в сетку — назначить время (как из боковой панели).
+  function startAllDayDrag(e, item) {
+    if (e.pointerType !== "touch" && e.button !== 0) return;
+    const touch = e.pointerType === "touch";
+    const srcEl = e.target.closest(".allday-item");
+    const fromIndex = allDay.findIndex(x => x.key === item.key);
+    if (fromIndex < 0 || !srcEl) return;
+    const sx = e.clientX, sy = e.clientY;
+    const dur = 60;
+    let active = false, mode = null, hold = null, overIndex = fromIndex;
+    let grab = { dx: 0, dy: 0 }, metrics = null;
+
+    const measure = (ev) => {
+      const r = srcEl.getBoundingClientRect();
+      grab = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
+      const first = adGridRef.current.querySelector(".allday-item") || srcEl;
+      const fr = first.getBoundingClientRect();
+      const cs = getComputedStyle(adGridRef.current);
+      metrics = { left: fr.left, top: fr.top, cw: r.width, ch: r.height,
+        gx: parseFloat(cs.columnGap) || 0, gy: parseFloat(cs.rowGap) || 0, w: r.width, h: r.height };
+    };
+    const floatTo = (ev) => { const el = adChipRef.current; if (el) el.style.transform = `translate(${ev.clientX - grab.dx}px, ${ev.clientY - grab.dy}px) scale(1.04)`; };
+    const idxAt = (ev) => {
+      const col = clamp(Math.floor((ev.clientX - metrics.left) / (metrics.cw + metrics.gx)), 0, ALLDAY_COLS - 1);
+      const row = Math.max(0, Math.floor((ev.clientY - metrics.top) / (metrics.ch + metrics.gy)));
+      return clamp(row * ALLDAY_COLS + col, 0, allDay.length - 1);
+    };
+    const beginReorder = (ev) => {
+      active = true; mode = "reorder"; trayClickGuard.current = true;
+      measure(ev);
+      overIndex = fromIndex;
+      setDnd(null);
+      setAdDrag({ key: item.key, fromIndex, overIndex, w: metrics.w, h: metrics.h,
+        title: item.title, color: colorOf(item), done: item.done, icon: item.icon });
+      requestAnimationFrame(() => floatTo(ev));
+    };
+    const move = (ev) => {
+      if (!active) {
+        if (touch) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(hold); cleanup(); } return; }
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
+        beginReorder(ev);
+      }
+      ev.preventDefault();
+      const zone = dndZoneAt(ev.clientX, ev.clientY);
+      if (zone === "grid" && item.kind === "concrete" && innerRef.current) {
+        if (mode !== "schedule") { mode = "schedule"; setAdDrag(null); }
+        const gridMin = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
+        setDnd({ source: "tray", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "grid", gridMin, dur });
+        return;
+      }
+      if (mode !== "reorder") {
+        mode = "reorder"; setDnd(null);
+        setAdDrag({ key: item.key, fromIndex, overIndex, w: metrics.w, h: metrics.h,
+          title: item.title, color: colorOf(item), done: item.done, icon: item.icon });
+      }
+      floatTo(ev);
+      const ni = idxAt(ev);
+      if (ni !== overIndex) { overIndex = ni; haptic(); setAdDrag(d => d ? { ...d, overIndex: ni } : d); }
+    };
+    const up = (ev) => {
+      clearTimeout(hold); cleanup();
+      if (!active) return;
+      const zone = dndZoneAt(ev.clientX, ev.clientY);
+      const releaseGuard = () => setTimeout(() => { trayClickGuard.current = false; }, 0);
+      if (mode === "schedule" && zone === "grid" && innerRef.current) {
+        const start = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
+        store.actions.tasks.update(item.id, { date, start_min: start, duration_min: dur }).catch(showErr);
+        setAdDrag(null); setDnd(null); releaseGuard();
+        return;
+      }
+      setDnd(null);
+      const moved = mode === "reorder" && overIndex !== fromIndex;
+      // Плавная посадка: карточка доезжает до своего места, затем фиксируем порядок.
+      const ph = adGridRef.current && adGridRef.current.querySelector('[data-adkey="__adph"]');
+      const el = adChipRef.current;
+      if (el && ph) {
+        const r = ph.getBoundingClientRect();
+        el.style.transition = "transform .26s cubic-bezier(.2,.9,.25,1), box-shadow .26s ease";
+        el.style.boxShadow = "0 2px 8px rgba(15,23,42,.10)";
+        el.style.transform = `translate(${r.left}px, ${r.top}px) scale(1)`;
+        setTimeout(() => { if (moved) persistAllDayOrder(item.key, overIndex); setAdDrag(null); }, 270);
+      } else {
+        if (moved) persistAllDayOrder(item.key, overIndex);
+        setAdDrag(null);
+      }
+      releaseGuard();
+    };
+    const cleanup = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", up);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+    if (touch) hold = setTimeout(() => beginReorder({ clientX: sx, clientY: sy }), HOLD_MS);
   }
 
   function onResizePointerDown(e, item) {
@@ -1100,21 +1259,35 @@ function Planner() {
           ${view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
-              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")}>
-                ${allDay.map(i => html`
-                  <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}
-                    onPointerDown=${e => { if (i.id) startTrayDrag(e, i); }}>
-                    <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
-                      style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
-                      onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>
-                    ${titleEdit && titleEdit.key === i.key
-                      ? html`<input class="allday-edit" value=${titleEdit.value}
-                          ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
-                          onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
-                          onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
-                          onBlur=${() => commitTitle(i)} />`
-                      : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
-                  </div>`)}
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef}>
+                ${(() => {
+                  const cell = (i) => html`
+                    <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key} data-adkey=${i.key}
+                      onPointerDown=${e => { if (i.id) startAllDayDrag(e, i); }}>
+                      <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                        style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
+                        onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>
+                      ${titleEdit && titleEdit.key === i.key
+                        ? html`<input class="allday-edit" value=${titleEdit.value}
+                            ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
+                            onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
+                            onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
+                            onBlur=${() => commitTitle(i)} />`
+                        : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
+                    </div>`;
+                  if (!adDrag) return allDay.map(cell);
+                  const rest = allDay.filter(i => i.key !== adDrag.key);
+                  const slots = rest.slice(0, adDrag.overIndex).map(cell);
+                  slots.push(html`<div class="allday-item ad-placeholder" key="__adph" data-adkey="__adph" style=${`height:${adDrag.h}px;`}></div>`);
+                  rest.slice(adDrag.overIndex).forEach(i => slots.push(cell(i)));
+                  const dragged = allDay.find(i => i.key === adDrag.key);
+                  slots.push(html`<div class="allday-float" key="__adfloat" ref=${adChipRef} style=${`width:${adDrag.w}px;`}>
+                    <button class=${"allday-check" + (adDrag.done ? " on" : "")} type="button"
+                      style=${`border-color:${adDrag.color};color:${adDrag.color};`}>${Icon.check()}</button>
+                    <span class="allday-title">${dragged ? dragged.title : adDrag.title}</span>
+                  </div>`);
+                  return slots;
+                })()}
                 ${allDay.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
               </div>
               <div class="tl-track" ref=${trackRef}>
