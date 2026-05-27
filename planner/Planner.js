@@ -81,6 +81,7 @@ function Planner() {
   const scrollRef = useRef(null);
   const trackRef = useRef(null);
   const keepScrollRef = useRef(false);
+  const keepGridTopRef = useRef(null); // позиция сетки относительно вьюпорта — чтобы час под глазами не прыгал при смене дня
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
@@ -337,7 +338,8 @@ function Planner() {
   }, [view, date, tasks, filter]);
 
   useEffect(() => {
-    if (keepScrollRef.current) { keepScrollRef.current = false; return; } // свайп дня — оставляем позицию
+    // Свайп дня — позицию сетки восстанавливает useLayoutEffect ниже (до отрисовки).
+    if (keepScrollRef.current) { keepScrollRef.current = false; return; }
     const el = view === "day" ? scrollRef.current : view === "week" ? weekScrollRef.current : null;
     if (!el) return;
     const now = new Date();
@@ -366,6 +368,14 @@ function Planner() {
       void track.offsetWidth;
       track.style.transition = "";
       track.style.transform = "";
+    }
+    // До отрисовки возвращаем сетку на ту же позицию относительно вьюпорта — чтобы
+    // другая высота зоны «весь день» у нового дня не сдвинула видимый диапазон часов.
+    const cont = scrollRef.current, grid = innerRef.current, want = keepGridTopRef.current;
+    keepGridTopRef.current = null;
+    if (cont && grid && want != null) {
+      const cur = grid.getBoundingClientRect().top - cont.getBoundingClientRect().top;
+      cont.scrollTop += (cur - want);
     }
     schedulePeekOff(); // соседние дни прячем с задержкой (для листания подряд)
   }, [date]);
@@ -977,6 +987,10 @@ function Planner() {
       commitFinalizeRef.current = null;
       track.removeEventListener("transitionend", finalize);
       swipingRef.current = false;
+      // Запоминаем позицию сетки относительно вьюпорта, чтобы видимый час не прыгнул
+      // из-за другой высоты зоны «весь день» у нового дня.
+      const cont = scrollRef.current, gridEl = innerRef.current;
+      keepGridTopRef.current = (cont && gridEl) ? gridEl.getBoundingClientRect().top - cont.getBoundingClientRect().top : null;
       keepScrollRef.current = true;
       pendingRecenterRef.current = true;
       shift(dir);
@@ -989,7 +1003,7 @@ function Planner() {
       track.style.transition = "none";
       track.style.transform = "translateX(-100%)";
       void track.offsetWidth;
-      track.style.transition = "transform 340ms cubic-bezier(.22,1,.3,1)";
+      track.style.transition = "transform 500ms cubic-bezier(.32,.72,0,1)";
       track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
       track.addEventListener("transitionend", finalize);
     }));
