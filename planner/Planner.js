@@ -82,6 +82,7 @@ function Planner() {
   const trackRef = useRef(null);
   const keepScrollRef = useRef(false);
   const keepGridTopRef = useRef(null); // позиция сетки относительно вьюпорта — чтобы час под глазами не прыгал при смене дня
+  const cancelSnapRef = useRef(null);  // отменить текущую анимацию snap (для смены даты извне)
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
@@ -237,32 +238,81 @@ function Planner() {
     };
   }, [view]);
 
-  // Слушатель snap-точки: когда браузер завершил снап (по событию scrollend или
-  // через дебаунс scroll), смотрим на каком слайде остановились — и меняем дату.
-  // Дальше useLayoutEffect ниже мгновенно вернёт scrollLeft к центру.
+  // Свой плавный snap (вместо нативного CSS): браузер ведёт скролл за пальцем,
+  // а когда пользователь отпустил — мы сами анимируем доезд до ближайшей панели
+  // с управляемой скоростью и ease-out. Новый свайп прерывает анимацию (можно
+  // листать подряд, не дожидаясь конца предыдущего доезда).
   useEffect(() => {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let snapTimer = null;
-    const handleSnap = () => {
+    let animFrame = null;
+    let animating = false;
+    const cancelAnim = () => {
+      if (animFrame) cancelAnimationFrame(animFrame);
+      animFrame = null;
+      animating = false;
+      clearTimeout(snapTimer);
+    };
+    cancelSnapRef.current = cancelAnim;
+    const commitIfNeeded = (snapLeft) => {
       const w = el.clientWidth;
-      if (!w) return;
-      const idx = Math.round(el.scrollLeft / w);
-      const dir = idx - 1; // -1 (вчера), 0 (сегодня), +1 (завтра)
+      const idx = Math.round(snapLeft / w);
+      const dir = idx - 1; // -1 (вчера), 0 (центр), +1 (завтра)
       if (dir === 0) return;
-      keepScrollRef.current = true; // сохраняем вертикальную прокрутку при смене дня
+      keepScrollRef.current = true;
       const d = fromISO(dateRef.current); d.setDate(d.getDate() + dir);
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
-    const onScroll = () => { clearTimeout(snapTimer); snapTimer = setTimeout(handleSnap, 110); };
-    const useScrollEnd = "onscrollend" in el;
-    if (useScrollEnd) el.addEventListener("scrollend", handleSnap);
-    else el.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
+    const animateScrollTo = (target) => {
+      cancelAnim();
+      const start = el.scrollLeft;
+      const diff = target - start;
+      if (Math.abs(diff) < 1) { el.scrollLeft = target; commitIfNeeded(target); return; }
+      const t0 = performance.now();
+      const duration = 520; // мс — плавная, видимая анимация (медленнее нативного снапа)
+      animating = true;
+      const step = (now) => {
+        if (!animating) return;
+        const t = Math.min((now - t0) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic — мягкий доезд
+        el.scrollLeft = start + diff * ease;
+        if (t < 1) animFrame = requestAnimationFrame(step);
+        else { animating = false; animFrame = null; commitIfNeeded(target); }
+      };
+      animFrame = requestAnimationFrame(step);
+    };
+    const triggerSnap = () => {
+      const w = el.clientWidth;
+      if (!w) return;
+      const idx = Math.round(el.scrollLeft / w);
+      animateScrollTo(idx * w);
+    };
+    // Жест пальцев/тачпада начался — отменяем текущую анимацию (можно прервать
+    // прошлый доезд новым свайпом).
+    const onUserStart = () => { if (animating) cancelAnim(); clearTimeout(snapTimer); };
+    // Скролл закончился (нативный scrollend или дебаунс) — запускаем доезд.
+    const onSettled = () => { if (animating) return; triggerSnap(); };
+    const onScrollFallback = () => {
+      if (animating) return;
       clearTimeout(snapTimer);
-      if (useScrollEnd) el.removeEventListener("scrollend", handleSnap);
-      else el.removeEventListener("scroll", onScroll);
+      snapTimer = setTimeout(onSettled, 100);
+    };
+    const useScrollEnd = "onscrollend" in el;
+    if (useScrollEnd) el.addEventListener("scrollend", onSettled);
+    else el.addEventListener("scroll", onScrollFallback, { passive: true });
+    el.addEventListener("wheel", onUserStart, { passive: true });
+    el.addEventListener("touchstart", onUserStart, { passive: true });
+    el.addEventListener("pointerdown", onUserStart, { passive: true });
+    return () => {
+      cancelSnapRef.current = null;
+      cancelAnim();
+      if (useScrollEnd) el.removeEventListener("scrollend", onSettled);
+      else el.removeEventListener("scroll", onScrollFallback);
+      el.removeEventListener("wheel", onUserStart);
+      el.removeEventListener("touchstart", onUserStart);
+      el.removeEventListener("pointerdown", onUserStart);
     };
   }, [view]);
 
@@ -271,7 +321,9 @@ function Planner() {
   useLayoutEffect(() => {
     if (view !== "day") return;
     const el = scrollRef.current;
-    if (el) el.scrollLeft = el.clientWidth;
+    if (!el) return;
+    cancelSnapRef.current?.(); // отменяем текущую анимацию, если идёт
+    el.scrollLeft = el.clientWidth;
   }, [date, view]);
 
   // Свайп тачпадом (горизонтальное колёсико) в режимах неделя/месяц — «живая лента»
