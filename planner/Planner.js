@@ -198,11 +198,15 @@ function Planner() {
       const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
       const dir = dragDx < 0 ? 1 : -1;
       const veloMatch = (dragVel > 0) === (dragDx > 0);
-      // Либеральные пороги: даже короткий свайп с движением в сторону = коммит.
-      const enough = (Math.abs(dragDx) > 18 && veloMatch) || Math.abs(dragDx) > W * 0.3;
+      // Очень либеральные пороги: любой свайп в чёткую сторону = доводим.
+      const enough = (Math.abs(dragDx) > 14 && veloMatch) || Math.abs(dragDx) > W * 0.25;
       if (enough) daySwipeCommit(dir);
       else daySwipeSnapBack();
     };
+    // Долгое отсутствие событий — это либо пользователь ушёл, либо отпустил без
+    // инерции. День НЕ меняем (это не «отпустил после свайпа»), просто возвращаем
+    // ленту в центр, чтобы интерфейс не висел в полу-состоянии.
+    const idleSnapBack = () => { if (phase === "drag") { phase = "done"; daySwipeSnapBack(); } };
     const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = 1e9; };
     const markZooming = () => {
       el.classList.add("zooming");
@@ -227,16 +231,24 @@ function Planner() {
       if (zoomingRef.current) return;
       if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 250); // полный конец жеста (включая хвост инерции)
+      resetTimer = setTimeout(resetSwipe, 300); // полный конец жеста (включая хвост инерции)
       if (gestureAxis !== "h") return; // вертикальный жест — обычная прокрутка, свайп заблокирован
       e.preventDefault();                // горизонтальный жест — блокируем вертикальный скролл
       const abs = Math.abs(e.deltaX);
       if (phase === "done") {
-        // Поверх затухающей инерции прилетел НОВЫЙ толчок (скорость снова выросла)
-        // → это уже следующий свайп. Сбрасываемся и начинаем заново — для быстрого
-        // листания подряд.
-        if (abs > lastAbsMin + 4 && abs > 6) { resetSwipe(); }
-        else { lastAbsMin = Math.min(lastAbsMin, abs); return; }
+        // Поверх затухающей инерции прилетел НОВЫЙ толчок — это следующий свайп.
+        // МГНОВЕННО фиксируем ещё один день в направлении толчка (для быстрого
+        // листания подряд, без накопления и ожидания).
+        if (abs > lastAbsMin + 4 && abs > 6) {
+          if (commitFinalizeRef.current) commitFinalizeRef.current();
+          clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
+          const newDir = e.deltaX > 0 ? 1 : -1;
+          daySwipeCommit(newDir);
+          lastAbsMin = abs;
+          return;
+        }
+        lastAbsMin = Math.min(lastAbsMin, abs);
+        return;
       }
       const track = trackRef.current;
       if (!track) return;
@@ -252,14 +264,16 @@ function Planner() {
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
       // Затухание скорости (несколько событий подряд с убыванием) = пальцы оторвали.
-      // Тогда решение принимаем БЫСТРО. Иначе — терпеливо ждём, чтобы остановка
-      // пальцев на тачпаде не считалась «отпустил».
+      // Тогда решение принимаем СРАЗУ, без задержки. Если же активная фаза (пальцы
+      // на тачпаде) — НЕ ставим таймер коммита: сетка стоит, пока пользователь не
+      // отпустит. Долгое молчание (5с) — лишь возврат к центру (день не меняется).
       if (abs < lastAbs - 0.5) decayCount++;
       else if (abs > lastAbs + 1) decayCount = 0;
       lastAbs = abs;
       const liftDetected = decayCount >= 2 || abs < 2;
       clearTimeout(decideTimer);
-      decideTimer = setTimeout(decideSwipe, liftDetected ? 90 : 1800);
+      if (liftDetected) decideSwipe();
+      else decideTimer = setTimeout(idleSnapBack, 5000);
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -303,7 +317,7 @@ function Planner() {
     const el = view === "week" ? weekScrollRef.current : monthRef.current;
     if (!el) return;
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
-    let lastAbs = 0, decayCount = 0, lastAbsMin = 1e9; // распознавание «отпустил» и нового свайпа поверх инерции
+    let lastAbs = 0, decayCount = 0, lastAbsMin = 1e9;
     const widthOf = () => el.getBoundingClientRect().width || window.innerWidth;
     const decideSwipe = () => {
       if (phase !== "drag") return;
@@ -311,22 +325,31 @@ function Planner() {
       const W = widthOf();
       const dir = dragDx < 0 ? 1 : -1;
       const veloMatch = (dragVel > 0) === (dragDx > 0);
-      const enough = (Math.abs(dragDx) > 18 && veloMatch) || Math.abs(dragDx) > W * 0.3;
+      const enough = (Math.abs(dragDx) > 14 && veloMatch) || Math.abs(dragDx) > W * 0.25;
       if (enough) daySwipeCommit(dir);
       else daySwipeSnapBack();
     };
+    const idleSnapBack = () => { if (phase === "drag") { phase = "done"; daySwipeSnapBack(); } };
     const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = 1e9; };
     const onWheel = (e) => {
       if (e.ctrlKey) return;
       if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 250);
+      resetTimer = setTimeout(resetSwipe, 300);
       if (gestureAxis !== "h") return;
       e.preventDefault();
       const abs = Math.abs(e.deltaX);
       if (phase === "done") {
-        if (abs > lastAbsMin + 4 && abs > 6) { resetSwipe(); }
-        else { lastAbsMin = Math.min(lastAbsMin, abs); return; }
+        if (abs > lastAbsMin + 4 && abs > 6) {
+          if (commitFinalizeRef.current) commitFinalizeRef.current();
+          clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
+          const newDir = e.deltaX > 0 ? 1 : -1;
+          daySwipeCommit(newDir);
+          lastAbsMin = abs;
+          return;
+        }
+        lastAbsMin = Math.min(lastAbsMin, abs);
+        return;
       }
       const track = trackRef.current;
       if (!track) return;
@@ -346,7 +369,8 @@ function Planner() {
       lastAbs = abs;
       const liftDetected = decayCount >= 2 || abs < 2;
       clearTimeout(decideTimer);
-      decideTimer = setTimeout(decideSwipe, liftDetected ? 90 : 1800);
+      if (liftDetected) decideSwipe();
+      else decideTimer = setTimeout(idleSnapBack, 5000);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { clearTimeout(decideTimer); clearTimeout(resetTimer); el.removeEventListener("wheel", onWheel); };
