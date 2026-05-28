@@ -273,14 +273,13 @@ function Planner() {
       dragVel = dragVel * 0.5 + dxw * 0.5; // сглаженная скорость
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      // Затухание скорости (несколько событий подряд с убыванием) = пальцы оторвали.
-      // Тогда решение принимаем СРАЗУ, без задержки. Если же активная фаза (пальцы
-      // на тачпаде) — НЕ ставим таймер коммита: сетка стоит, пока пользователь не
-      // отпустит. Долгое молчание (5с) — лишь возврат к центру (день не меняется).
+      // Распознавание «пальцы отпустили» = скорость упала почти до нуля. Хвост
+      // инерции тачпада уходит ниже 1, тогда как при активном касании скорость
+      // событий обычно ≥2. Так сетка едет ЗА пальцами и не уезжает сама.
       if (abs < lastAbs - 0.5) decayCount++;
       else if (abs > lastAbs + 1) decayCount = 0;
       lastAbs = abs;
-      const liftDetected = decayCount >= 2 || abs < 2;
+      const liftDetected = abs < 1;
       clearTimeout(decideTimer);
       if (liftDetected) { lastAbsMin = peakAbs; decideSwipe(); } // в done пойдём с инициализированным пиком
       else decideTimer = setTimeout(idleSnapBack, 5000);
@@ -384,7 +383,7 @@ function Planner() {
       if (abs < lastAbs - 0.5) decayCount++;
       else if (abs > lastAbs + 1) decayCount = 0;
       lastAbs = abs;
-      const liftDetected = decayCount >= 2 || abs < 2;
+      const liftDetected = abs < 1;
       clearTimeout(decideTimer);
       if (liftDetected) { lastAbsMin = peakAbs; decideSwipe(); }
       else decideTimer = setTimeout(idleSnapBack, 5000);
