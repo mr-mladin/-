@@ -191,7 +191,15 @@ function Planner() {
     let clsTimer = null;
     // Состояние свайпа дней: phase idle→drag→done; ось защёлкивается на гориз/верт.
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
-    let lastAbs = 0, decayCount = 0, lastAbsMin = 1e9; // распознавание «отпустил» (инерция) и нового свайпа поверх инерции
+    let lastAbs = 0, decayCount = 0, peakAbs = 0, lastAbsMin = 1e9; // пик и минимум скорости для отделения свайпов друг от друга
+    let lastCommitT = 0; // жёсткий лимит частоты коммитов (1 коммит = 1 день, не чаще одного раза в 320мс)
+    const tryCommit = (dir) => {
+      const now = Date.now();
+      if (now - lastCommitT < 320) return false;
+      lastCommitT = now;
+      daySwipeCommit(dir);
+      return true;
+    };
     const decideSwipe = () => {
       if (phase !== "drag") return;
       phase = "done";
@@ -200,14 +208,14 @@ function Planner() {
       const veloMatch = (dragVel > 0) === (dragDx > 0);
       // Очень либеральные пороги: любой свайп в чёткую сторону = доводим.
       const enough = (Math.abs(dragDx) > 14 && veloMatch) || Math.abs(dragDx) > W * 0.25;
-      if (enough) daySwipeCommit(dir);
+      if (enough) { if (!tryCommit(dir)) daySwipeSnapBack(); }
       else daySwipeSnapBack();
     };
     // Долгое отсутствие событий — это либо пользователь ушёл, либо отпустил без
     // инерции. День НЕ меняем (это не «отпустил после свайпа»), просто возвращаем
     // ленту в центр, чтобы интерфейс не висел в полу-состоянии.
     const idleSnapBack = () => { if (phase === "drag") { phase = "done"; daySwipeSnapBack(); } };
-    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = 1e9; };
+    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; peakAbs = 0; lastAbsMin = 1e9; };
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -231,22 +239,25 @@ function Planner() {
       if (zoomingRef.current) return;
       if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 300); // полный конец жеста (включая хвост инерции)
+      resetTimer = setTimeout(resetSwipe, 350); // полный конец жеста (включая хвост инерции)
       if (gestureAxis !== "h") return; // вертикальный жест — обычная прокрутка, свайп заблокирован
       e.preventDefault();                // горизонтальный жест — блокируем вертикальный скролл
       const abs = Math.abs(e.deltaX);
       if (phase === "done") {
-        // Поверх затухающей инерции прилетел НОВЫЙ толчок — это следующий свайп.
-        // МГНОВЕННО фиксируем ещё один день в направлении толчка (для быстрого
-        // листания подряд, без накопления и ожидания).
-        if (abs > lastAbsMin + 4 && abs > 6) {
+        // Поверх ИНЕРЦИИ ОТ ПРЕДЫДУЩЕГО свайпа может прилететь новый свайп. Чтобы
+        // отличить «свой хвост» от «нового толчка»: момент инерции должен быть явно
+        // затухшим (lastAbsMin упал ниже 4) И новое событие должно быть заметно
+        // больше. Иначе все события (включая активную фазу того же свайпа) считаем
+        // продолжением предыдущего и игнорируем. Плюс жёсткий лимит частоты —
+        // не чаще одного коммита в 320мс.
+        if (lastAbsMin < 4 && abs > lastAbsMin + 5 && abs > 10) {
           if (commitFinalizeRef.current) commitFinalizeRef.current();
           clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
           const newDir = e.deltaX > 0 ? 1 : -1;
-          daySwipeCommit(newDir);
-          lastAbsMin = abs;
+          if (tryCommit(newDir)) { peakAbs = abs; lastAbsMin = abs; }
           return;
         }
+        if (abs > peakAbs) peakAbs = abs;
         lastAbsMin = Math.min(lastAbsMin, abs);
         return;
       }
@@ -256,8 +267,9 @@ function Planner() {
       if (phase === "idle") {
         if (commitFinalizeRef.current) commitFinalizeRef.current(); // мгновенно завершить предыдущий переход
         clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = abs;
+        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; peakAbs = abs; lastAbsMin = 1e9;
       }
+      if (abs > peakAbs) peakAbs = abs;
       const dxw = -e.deltaX; // тянем влево (dxw<0) → следующий день
       dragDx = clamp(dragDx + dxw, -W, W);
       dragVel = dragVel * 0.5 + dxw * 0.5; // сглаженная скорость
@@ -272,7 +284,7 @@ function Planner() {
       lastAbs = abs;
       const liftDetected = decayCount >= 2 || abs < 2;
       clearTimeout(decideTimer);
-      if (liftDetected) decideSwipe();
+      if (liftDetected) { lastAbsMin = peakAbs; decideSwipe(); } // в done пойдём с инициализированным пиком
       else decideTimer = setTimeout(idleSnapBack, 5000);
     };
     let base = hourPxRef.current;
@@ -317,7 +329,15 @@ function Planner() {
     const el = view === "week" ? weekScrollRef.current : monthRef.current;
     if (!el) return;
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
-    let lastAbs = 0, decayCount = 0, lastAbsMin = 1e9;
+    let lastAbs = 0, decayCount = 0, peakAbs = 0, lastAbsMin = 1e9;
+    let lastCommitT = 0;
+    const tryCommit = (dir) => {
+      const now = Date.now();
+      if (now - lastCommitT < 320) return false;
+      lastCommitT = now;
+      daySwipeCommit(dir);
+      return true;
+    };
     const widthOf = () => el.getBoundingClientRect().width || window.innerWidth;
     const decideSwipe = () => {
       if (phase !== "drag") return;
@@ -326,28 +346,28 @@ function Planner() {
       const dir = dragDx < 0 ? 1 : -1;
       const veloMatch = (dragVel > 0) === (dragDx > 0);
       const enough = (Math.abs(dragDx) > 14 && veloMatch) || Math.abs(dragDx) > W * 0.25;
-      if (enough) daySwipeCommit(dir);
+      if (enough) { if (!tryCommit(dir)) daySwipeSnapBack(); }
       else daySwipeSnapBack();
     };
     const idleSnapBack = () => { if (phase === "drag") { phase = "done"; daySwipeSnapBack(); } };
-    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = 1e9; };
+    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; peakAbs = 0; lastAbsMin = 1e9; };
     const onWheel = (e) => {
       if (e.ctrlKey) return;
       if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 300);
+      resetTimer = setTimeout(resetSwipe, 350);
       if (gestureAxis !== "h") return;
       e.preventDefault();
       const abs = Math.abs(e.deltaX);
       if (phase === "done") {
-        if (abs > lastAbsMin + 4 && abs > 6) {
+        if (lastAbsMin < 4 && abs > lastAbsMin + 5 && abs > 10) {
           if (commitFinalizeRef.current) commitFinalizeRef.current();
           clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
           const newDir = e.deltaX > 0 ? 1 : -1;
-          daySwipeCommit(newDir);
-          lastAbsMin = abs;
+          if (tryCommit(newDir)) { peakAbs = abs; lastAbsMin = abs; }
           return;
         }
+        if (abs > peakAbs) peakAbs = abs;
         lastAbsMin = Math.min(lastAbsMin, abs);
         return;
       }
@@ -357,8 +377,9 @@ function Planner() {
       if (phase === "idle") {
         if (commitFinalizeRef.current) commitFinalizeRef.current();
         clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = abs;
+        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; peakAbs = abs; lastAbsMin = 1e9;
       }
+      if (abs > peakAbs) peakAbs = abs;
       const dxw = -e.deltaX;
       dragDx = clamp(dragDx + dxw, -W, W);
       dragVel = dragVel * 0.5 + dxw * 0.5;
@@ -369,7 +390,7 @@ function Planner() {
       lastAbs = abs;
       const liftDetected = decayCount >= 2 || abs < 2;
       clearTimeout(decideTimer);
-      if (liftDetected) decideSwipe();
+      if (liftDetected) { lastAbsMin = peakAbs; decideSwipe(); }
       else decideTimer = setTimeout(idleSnapBack, 5000);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
