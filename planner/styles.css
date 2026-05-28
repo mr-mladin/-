@@ -780,7 +780,7 @@ textarea.input { resize: vertical; }
 
 /* ---- Зона «весь день»: задачи с датой, но без времени — сверху внутри сетки ---- */
 .allday { display: flex; flex-direction: column; gap: 7px; padding: 11px 16px 11px 20px;
-  border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1), padding .25s ease; }
+  border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1); }
 .allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; row-gap: 7px; position: relative; }
 .allday.empty { padding: 8px 16px 8px 20px; }
 .allday.drop { background: var(--accent-soft); }
