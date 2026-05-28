@@ -185,37 +185,15 @@ function Planner() {
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.
+  // Сетка дня: горизонтальный свайп между днями обрабатывает САМ браузер через
+  // CSS scroll-snap — лента из 3 панелей (вчера/сегодня/завтра) с обязательным
+  // снапом по горизонтали. Браузер знает, когда пальцы на тачпаде, а когда нет,
+  // даёт нативную инерцию и плавный снап. Мы только: (а) держим зум по Ctrl+
+  // колесо и Safari-pinch, (б) слушаем когда снап завершился и обновляем дату.
   useEffect(() => {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     let clsTimer = null;
-    // Состояние свайпа дней: phase idle→drag→done; ось защёлкивается на гориз/верт.
-    let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
-    let lastAbs = 0, decayCount = 0, peakAbs = 0, lastAbsMin = 1e9; // пик и минимум скорости для отделения свайпов друг от друга
-    let lastCommitT = 0; // жёсткий лимит частоты коммитов (1 коммит = 1 день, не чаще одного раза в 320мс)
-    const tryCommit = (dir) => {
-      const now = Date.now();
-      if (now - lastCommitT < 320) return false;
-      lastCommitT = now;
-      daySwipeCommit(dir);
-      return true;
-    };
-    const decideSwipe = () => {
-      if (phase !== "drag") return;
-      phase = "done";
-      const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
-      const dir = dragDx < 0 ? 1 : -1;
-      const veloMatch = (dragVel > 0) === (dragDx > 0);
-      // Очень либеральные пороги: любой свайп в чёткую сторону = доводим.
-      const enough = (Math.abs(dragDx) > 14 && veloMatch) || Math.abs(dragDx) > W * 0.25;
-      if (enough) { if (!tryCommit(dir)) daySwipeSnapBack(); }
-      else daySwipeSnapBack();
-    };
-    // Долгое отсутствие событий — это либо пользователь ушёл, либо отпустил без
-    // инерции. День НЕ меняем (это не «отпустил после свайпа»), просто возвращаем
-    // ленту в центр, чтобы интерфейс не висел в полу-состоянии.
-    const idleSnapBack = () => { if (phase === "drag") { phase = "done"; daySwipeSnapBack(); } };
-    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; peakAbs = 0; lastAbsMin = 1e9; };
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -229,75 +207,18 @@ function Planner() {
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
         return;
       }
-      // Свайп двумя пальцами — «лента за пальцами», как на мобильном: сетка едет
-      // прямо за жестом в реальном времени (туда-обратно). Можно передумать: вернул
-      // к центру и отпустил — день не сменится. Жест «защёлкивается» на ось:
-      // горизонталь = свайп (вертикальный скролл заблокирован), вертикаль = скролл
-      // (свайп заблокирован). Решение «доехать или вернуть» принимаем через ~90мс
-      // после последнего ЗАМЕТНОГО движения — мелкий хвост инерции не ждём (без
-      // «зависания»).
-      if (zoomingRef.current) return;
-      if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
-      clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 350); // полный конец жеста (включая хвост инерции)
-      if (gestureAxis !== "h") return; // вертикальный жест — обычная прокрутка, свайп заблокирован
-      e.preventDefault();                // горизонтальный жест — блокируем вертикальный скролл
-      const abs = Math.abs(e.deltaX);
-      if (phase === "done") {
-        // Поверх ИНЕРЦИИ предыдущего свайпа прилетел новый свайп? Чтобы отличить
-        // «свой хвост» от «нового толчка»: инерция должна быть явно затухшей
-        // (lastAbsMin упал ниже 4) И новое событие — заметно больше. Тогда
-        // СБРАСЫВАЕМ состояние и обрабатываем это событие как НАЧАЛО нового
-        // драга (сетка пойдёт за пальцами). Коммит произойдёт уже на отпускании,
-        // как у обычного свайпа.
-        if (lastAbsMin < 4 && abs > lastAbsMin + 5 && abs > 10) {
-          resetSwipe();
-          // продолжаем выполнение — попадём в ветку phase === "idle" ниже
-        } else {
-          if (abs > peakAbs) peakAbs = abs;
-          lastAbsMin = Math.min(lastAbsMin, abs);
-          return;
-        }
-      }
-      const track = trackRef.current;
-      if (!track) return;
-      const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
-      if (phase === "idle") {
-        if (commitFinalizeRef.current) commitFinalizeRef.current(); // мгновенно завершить предыдущий переход
-        clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; peakAbs = abs; lastAbsMin = 1e9;
-      }
-      if (abs > peakAbs) peakAbs = abs;
-      const dxw = -e.deltaX; // тянем влево (dxw<0) → следующий день
-      dragDx = clamp(dragDx + dxw, -W, W);
-      dragVel = dragVel * 0.5 + dxw * 0.5; // сглаженная скорость
-      track.style.transition = "none";
-      track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      // Распознавание «пальцы отпустили» = скорость упала почти до нуля. Хвост
-      // инерции тачпада уходит ниже 1, тогда как при активном касании скорость
-      // событий обычно ≥2. Так сетка едет ЗА пальцами и не уезжает сама.
-      if (abs < lastAbs - 0.5) decayCount++;
-      else if (abs > lastAbs + 1) decayCount = 0;
-      lastAbs = abs;
-      const liftDetected = abs < 1;
-      clearTimeout(decideTimer);
-      if (liftDetected) { lastAbsMin = peakAbs; decideSwipe(); } // в done пойдём с инициализированным пиком
-      else decideTimer = setTimeout(idleSnapBack, 5000);
+      // Любое другое колёсико (вертикальное/горизонтальное) — браузер сам.
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
       e.preventDefault();
-      if (swipingRef.current) return; // идёт свайп — зум не начинаем
       zoomingRef.current = true;
       base = hourPxRef.current;
-      clearTimeout(peekTimerRef.current); setPeek(false); // зум — без соседних дней (легче)
     };
     const onGChange = (e) => {
       e.preventDefault();
-      if (swipingRef.current || !zoomingRef.current) return;
+      if (!zoomingRef.current) return;
       markZooming();
-      // Фиксируем точку под пальцами (захвачена в touchstart на два пальца);
-      // если её нет — масштабируем относительно центра видимой области.
       const r = el.getBoundingClientRect();
       zoomAnchor.current = zoomFocus.current || computeAnchor(r.top + el.clientHeight / 2);
       setHourPx(clamp(Math.round(base * e.scale), fitMinPx(), HOUR_MAX));
@@ -309,14 +230,49 @@ function Planner() {
     el.addEventListener("gestureend", onGEnd);
     return () => {
       clearTimeout(clsTimer);
-      clearTimeout(decideTimer);
-      clearTimeout(resetTimer);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("gesturestart", onGStart);
       el.removeEventListener("gesturechange", onGChange);
       el.removeEventListener("gestureend", onGEnd);
     };
   }, [view]);
+
+  // Слушатель snap-точки: когда браузер завершил снап (по событию scrollend или
+  // через дебаунс scroll), смотрим на каком слайде остановились — и меняем дату.
+  // Дальше useLayoutEffect ниже мгновенно вернёт scrollLeft к центру.
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (view !== "day" || !el) return;
+    let snapTimer = null;
+    const handleSnap = () => {
+      const w = el.clientWidth;
+      if (!w) return;
+      const idx = Math.round(el.scrollLeft / w);
+      const dir = idx - 1; // -1 (вчера), 0 (сегодня), +1 (завтра)
+      if (dir === 0) return;
+      keepScrollRef.current = true; // сохраняем вертикальную прокрутку при смене дня
+      const d = fromISO(dateRef.current); d.setDate(d.getDate() + dir);
+      dateRef.current = toISO(d);
+      setDate(dateRef.current);
+    };
+    const onScroll = () => { clearTimeout(snapTimer); snapTimer = setTimeout(handleSnap, 110); };
+    const useScrollEnd = "onscrollend" in el;
+    if (useScrollEnd) el.addEventListener("scrollend", handleSnap);
+    else el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      clearTimeout(snapTimer);
+      if (useScrollEnd) el.removeEventListener("scrollend", handleSnap);
+      else el.removeEventListener("scroll", onScroll);
+    };
+  }, [view]);
+
+  // После смены даты (от свайпа или клика по кнопке-дню) мгновенно возвращаем
+  // ленту к центральной панели (в которой теперь — новый текущий день).
+  useLayoutEffect(() => {
+    if (view !== "day") return;
+    const el = scrollRef.current;
+    if (el) el.scrollLeft = el.clientWidth;
+  }, [date, view]);
 
   // Свайп тачпадом (горизонтальное колёсико) в режимах неделя/месяц — «живая лента»
   // за пальцем, как у дня: тянем карусель за жестом, на отпускании — доезд или
@@ -1239,101 +1195,17 @@ function Planner() {
 
   // Свайп по сетке дня — карусель «как в Apple»: лента из трёх дней (вчера/
   // сегодня/завтра) едет за пальцем с лёгким сопротивлением, соседний день виден
-  // сразу. Переключение — по короткому свайпу или быстрому флику. Можно листать
-  // дни подряд: новый свайп мгновенно завершает предыдущий переход.
+  // Сетка дня: касаниями карусель листает САМ браузер (CSS scroll-snap). Здесь
+  // обрабатываем только: (а) свайп от левого края — открыть шторку проектов,
+  // (б) два пальца — зафиксировать точку для зум-якоря.
   function onDaySwipeStart(e) {
-    // Два пальца — это зум: фиксируем точку под пальцами и не начинаем свайп.
     if (e.touches.length === 2) {
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       zoomFocus.current = computeAnchor(midY);
       return;
     }
-    if (e.touches.length !== 1 || drag || zoomingRef.current) return;
-    // Свайп от левого края → выезжает шторка проектов (свайп в центре — дни).
-    if (!asideOpen && e.touches[0].clientX < 26) {
-      edgeSwipe(e, "open");
-      return;
-    }
-    const track = trackRef.current;
-    if (!track) return;
-    // Идёт анимация прошлого перехода — мгновенно её завершаем (листание подряд).
-    if (commitFinalizeRef.current) commitFinalizeRef.current();
-    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
-    const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
-    let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0, peeked = false;
-    const move = ev => {
-      // Появился второй палец или начался зум — прерываем свайп.
-      if (ev.touches.length > 1 || zoomingRef.current) { swipingRef.current = false; cancelBack(); return; }
-      const t = ev.touches[0]; if (!t) return;
-      dx = t.clientX - sx;
-      const dy = t.clientY - sy;
-      if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) {
-        horiz = Math.abs(dx) > Math.abs(dy) * 0.7;
-        if (!horiz) { cleanup(); return; } // вертикаль — отдаём прокрутке, снимаем слушатель
-      }
-      if (!horiz) return;
-      ev.preventDefault(); // жёстко гасим вертикальную прокрутку — никакой диагонали
-      if (!peeked) { peeked = true; clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true; } // показать соседние дни
-      const now = performance.now();
-      if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
-      lastX = t.clientX; lastT = now;
-      track.style.transition = "none";
-      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
-    };
-    const cleanup = () => {
-      document.removeEventListener("touchmove", move, { passive: false });
-      document.removeEventListener("touchend", finish);
-      document.removeEventListener("touchcancel", finish);
-    };
-    // Прервать свайп (начался зум/второй палец) — вернуть ленту в центр.
-    const cancelBack = () => {
-      cleanup();
-      setPeek(false);
-      track.style.transition = "transform .2s cubic-bezier(.16,1,.3,1)";
-      void track.offsetWidth;
-      track.style.transform = "translateX(-100%)";
-      const onB = () => { track.removeEventListener("transitionend", onB); track.style.transition = ""; track.style.transform = ""; };
-      track.addEventListener("transitionend", onB);
-    };
-    const finish = () => {
-      cleanup();
-      swipingRef.current = false;
-      if (!horiz) return;
-      const commit = Math.abs(dx) > Math.min(42, W * 0.11) || Math.abs(vx) > 0.18;
-      if (!commit) {
-        track.style.transition = "transform .25s cubic-bezier(.16,1,.3,1)";
-        void track.offsetWidth; // reflow — чтобы возврат анимировался, а не прыгал
-        track.style.transform = "translateX(-100%)";
-        const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; schedulePeekOff(); };
-        track.addEventListener("transitionend", onBack);
-        return;
-      }
-      const dir = dx < 0 ? 1 : -1; // влево → следующий день
-      // Подсветку дня вверху и вибрацию даём сразу — «попал в другой день».
-      const td = fromISO(dateRef.current); td.setDate(td.getDate() + dir);
-      setPendingDate(toISO(td));
-      haptic();
-      const finalize = () => {
-        if (commitFinalizeRef.current !== finalize) return;
-        commitFinalizeRef.current = null;
-        track.removeEventListener("transitionend", finalize);
-        keepScrollRef.current = true;
-        pendingRecenterRef.current = true;
-        shift(dir);
-        setPendingDate(null);
-      };
-      commitFinalizeRef.current = finalize;
-      // Быстрый флик — короткая «снаппи» анимация (для быстрого листания подряд),
-      // медленный осознанный свайп — плавнее.
-      const durMs = Math.abs(vx) > 0.3 ? 440 : 600;
-      track.style.transition = `transform ${durMs}ms cubic-bezier(.25,.46,.45,.94)`;
-      void track.offsetWidth; // reflow — иначе Safari прыгает мгновенно вместо анимации
-      track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
-      track.addEventListener("transitionend", finalize);
-    };
-    document.addEventListener("touchmove", move, { passive: false });
-    document.addEventListener("touchend", finish);
-    document.addEventListener("touchcancel", finish);
+    if (e.touches.length !== 1) return;
+    if (!asideOpen && e.touches[0].clientX < 26) edgeSwipe(e, "open");
   }
   function rowToItem(row) {
     return {
@@ -1616,8 +1488,7 @@ function Planner() {
           ${view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
-              <div class="tl-track" ref=${trackRef}>
-              <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
+              <div class="tl-pane">${dayPeekPane(prevDate)}</div>
               <div class="tl-pane">
               <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef}>
                 ${(() => {
@@ -1756,8 +1627,7 @@ function Planner() {
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
               </div>
-              <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
-              </div>
+              <div class="tl-pane">${dayPeekPane(nextDate)}</div>
             </div>
           </div>`}
 
