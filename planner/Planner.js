@@ -83,6 +83,7 @@ function Planner() {
   const keepScrollRef = useRef(false);
   const keepGridTopRef = useRef(null); // позиция сетки относительно вьюпорта — чтобы час под глазами не прыгал при смене дня
   const cancelSnapRef = useRef(null);  // отменить текущую анимацию snap (для смены даты извне)
+  const daySwipeStateRef = useRef(null); // управление каруселью дня извне (reset)
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
@@ -238,57 +239,91 @@ function Planner() {
     };
   }, [view]);
 
-  // Свайп дней через нативный scroll + плавный snap через scrollTo({smooth}).
-  // Браузер сам ведёт скролл за пальцами/тачпадом (нативная инерция), а на конце
-  // жеста (scrollend) мы плавно докатываемся до ближайшей панели его же smooth
-  // механизмом — без своих rAF-битв за scrollLeft. Прерывание новым свайпом
-  // обрабатывает сам браузер (любой пользовательский ввод отменяет programmatic
-  // smooth scroll и отдаёт скролл пользователю).
+  // Свайп дней — карусель на CSS transform (ручное управление, без нативного скролла
+  // по горизонтали). Браузер не вмешивается → можем дать живой драг, низкий порог
+  // коммита и мгновенное прерывание новым свайпом.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (view !== "day" || !el) return;
-    let debounceTimer = null;
-    const onSettled = () => {
-      const w = el.clientWidth;
-      if (!w) return;
-      const idx = Math.round(el.scrollLeft / w);
-      const target = idx * w;
-      if (Math.abs(el.scrollLeft - target) > 1) {
-        // Не на снап-точке → плавно доедем туда (браузерный smooth scroll).
-        el.scrollTo({ left: target, behavior: "smooth" });
-        return; // следующий scrollend разберётся
-      }
-      // На снап-точке — если соседний день, меняем дату.
-      const dir = idx - 1;
-      if (dir === 0) return;
+    const el = scrollRef.current, track = trackRef.current;
+    if (view !== "day" || !el || !track) return;
+    let dx = 0;             // текущее смещение ленты в пикселях (минус = ушли влево, видно следующий день)
+    let lastInputT = 0;     // время последнего пользовательского события
+    let endTimer = null;    // таймер «жест с инерцией закончился»
+    let animFrame = null;
+    let animating = false;
+    const apply = () => { track.style.transition = "none"; track.style.transform = `translateX(calc(-100% + ${dx}px))`; };
+    const cancelAnim = () => { if (animFrame) cancelAnimationFrame(animFrame); animFrame = null; animating = false; };
+    const animateTo = (target, duration = 320) => {
+      cancelAnim();
+      if (Math.abs(target - dx) < 0.5) { dx = target; apply(); finishCommit(target); return; }
+      const start = dx, diff = target - dx, t0 = performance.now();
+      animating = true;
+      const step = (now) => {
+        if (!animating) return;
+        const t = Math.min((now - t0) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        dx = start + diff * ease;
+        apply();
+        if (t < 1) animFrame = requestAnimationFrame(step);
+        else { animating = false; animFrame = null; finishCommit(target); }
+      };
+      animFrame = requestAnimationFrame(step);
+    };
+    const finishCommit = (target) => {
+      if (Math.abs(target) < 1) return; // вернулись в центр — день не меняем
+      const dir = target < 0 ? 1 : -1;
       keepScrollRef.current = true;
       const d = fromISO(dateRef.current); d.setDate(d.getDate() + dir);
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
-    const useScrollEnd = "onscrollend" in el;
-    let onScroll = null;
-    if (useScrollEnd) {
-      el.addEventListener("scrollend", onSettled);
-    } else {
-      onScroll = () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(onSettled, 120); };
-      el.addEventListener("scroll", onScroll, { passive: true });
-    }
+    const triggerSnap = () => {
+      const w = el.clientWidth;
+      if (!w) return;
+      const threshold = w * 0.12; // низкий порог — даже короткий свайп листает
+      let target = 0;
+      if (dx < -threshold) target = -w;
+      else if (dx > threshold) target = w;
+      animateTo(target);
+    };
+    daySwipeStateRef.current = {
+      reset: () => { cancelAnim(); dx = 0; track.style.transition = "none"; track.style.transform = "translateX(-100%)"; },
+      getDx: () => dx,
+      setDx: (v) => { cancelAnim(); const w = el.clientWidth; dx = Math.max(-w, Math.min(w, v)); apply(); },
+      snap: () => { clearTimeout(endTimer); triggerSnap(); },
+      cancel: () => { cancelAnim(); clearTimeout(endTimer); },
+    };
+    const onWheel = (e) => {
+      if (e.ctrlKey) return; // зум обрабатывает другой effect
+      // Горизонтальный жест ведёт нас, вертикальный — нативный скролл
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      e.preventDefault();
+      const now = performance.now();
+      const gap = now - lastInputT;
+      // Новый жест поверх анимации (большой gap от прошлого ввода) — отменяем доезд
+      // и начинаем драгать с того места, где была анимация.
+      if (animating && gap > 130) cancelAnim();
+      lastInputT = now;
+      const w = el.clientWidth;
+      dx = Math.max(-w, Math.min(w, dx - e.deltaX));
+      apply();
+      clearTimeout(endTimer);
+      // ~80мс после последнего события (инерция тачпада тоже сюда падает) → snap.
+      endTimer = setTimeout(triggerSnap, 80);
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
-      clearTimeout(debounceTimer);
-      if (useScrollEnd) el.removeEventListener("scrollend", onSettled);
-      else if (onScroll) el.removeEventListener("scroll", onScroll);
+      daySwipeStateRef.current = null;
+      cancelAnim();
+      clearTimeout(endTimer);
+      el.removeEventListener("wheel", onWheel);
     };
   }, [view]);
 
-  // После смены даты (от свайпа или клика по кнопке-дню) мгновенно возвращаем
-  // ленту к центральной панели (в которой теперь — новый текущий день).
+  // После смены даты (от свайпа или клика по дню) сбрасываем смещение карусели
+  // в 0: новая «текущая» панель уже в центре, dx должен быть 0.
   useLayoutEffect(() => {
     if (view !== "day") return;
-    const el = scrollRef.current;
-    if (!el) return;
-    cancelSnapRef.current?.(); // отменяем текущую анимацию, если идёт
-    el.scrollLeft = el.clientWidth;
+    daySwipeStateRef.current?.reset();
   }, [date, view]);
 
   // Свайп тачпадом (горизонтальное колёсико) в режимах неделя/месяц — «живая лента»
@@ -1222,7 +1257,34 @@ function Planner() {
       return;
     }
     if (e.touches.length !== 1) return;
-    if (!asideOpen && e.touches[0].clientX < 26) edgeSwipe(e, "open");
+    if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; }
+    // Тач-драг карусели дня — тянем сетку под пальцем через тот же transform.
+    const st = daySwipeStateRef.current;
+    if (view !== "day" || !st) return;
+    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    const startDx = st.getDx();
+    st.cancel();
+    let horiz = null;
+    const move = (ev) => {
+      const t = ev.touches[0]; if (!t) return;
+      const dxF = t.clientX - sx, dyF = t.clientY - sy;
+      if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
+        horiz = Math.abs(dxF) > Math.abs(dyF) * 0.7;
+        if (!horiz) { cleanup(); return; }
+      }
+      if (!horiz) return;
+      ev.preventDefault();
+      st.setDx(startDx + dxF);
+    };
+    const end = () => { cleanup(); if (horiz === true) st.snap(); };
+    const cleanup = () => {
+      document.removeEventListener("touchmove", move, { passive: false });
+      document.removeEventListener("touchend", end);
+      document.removeEventListener("touchcancel", end);
+    };
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", end);
+    document.addEventListener("touchcancel", end);
   }
   function rowToItem(row) {
     return {
@@ -1505,8 +1567,9 @@ function Planner() {
           ${view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
-              <div class="tl-pane">${dayPeekPane(prevDate)}</div>
-              <div class="tl-pane">
+              <div class="tl-track" ref=${trackRef}>
+                <div class="tl-pane">${dayPeekPane(prevDate)}</div>
+                <div class="tl-pane">
               <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef}>
                 ${(() => {
                   const cell = (i) => html`
@@ -1645,6 +1708,7 @@ function Planner() {
               </div>
               </div>
               <div class="tl-pane">${dayPeekPane(nextDate)}</div>
+              </div>
             </div>
           </div>`}
 
