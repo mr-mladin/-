@@ -238,81 +238,46 @@ function Planner() {
     };
   }, [view]);
 
-  // Свой плавный snap (вместо нативного CSS): браузер ведёт скролл за пальцем,
-  // а когда пользователь отпустил — мы сами анимируем доезд до ближайшей панели
-  // с управляемой скоростью и ease-out. Новый свайп прерывает анимацию (можно
-  // листать подряд, не дожидаясь конца предыдущего доезда).
+  // Свайп дней через нативный scroll + плавный snap через scrollTo({smooth}).
+  // Браузер сам ведёт скролл за пальцами/тачпадом (нативная инерция), а на конце
+  // жеста (scrollend) мы плавно докатываемся до ближайшей панели его же smooth
+  // механизмом — без своих rAF-битв за scrollLeft. Прерывание новым свайпом
+  // обрабатывает сам браузер (любой пользовательский ввод отменяет programmatic
+  // smooth scroll и отдаёт скролл пользователю).
   useEffect(() => {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
-    let snapTimer = null;
-    let animFrame = null;
-    let animating = false;
-    const cancelAnim = () => {
-      if (animFrame) cancelAnimationFrame(animFrame);
-      animFrame = null;
-      animating = false;
-      clearTimeout(snapTimer);
-    };
-    cancelSnapRef.current = cancelAnim;
-    const commitIfNeeded = (snapLeft) => {
+    let debounceTimer = null;
+    const onSettled = () => {
       const w = el.clientWidth;
-      const idx = Math.round(snapLeft / w);
-      const dir = idx - 1; // -1 (вчера), 0 (центр), +1 (завтра)
+      if (!w) return;
+      const idx = Math.round(el.scrollLeft / w);
+      const target = idx * w;
+      if (Math.abs(el.scrollLeft - target) > 1) {
+        // Не на снап-точке → плавно доедем туда (браузерный smooth scroll).
+        el.scrollTo({ left: target, behavior: "smooth" });
+        return; // следующий scrollend разберётся
+      }
+      // На снап-точке — если соседний день, меняем дату.
+      const dir = idx - 1;
       if (dir === 0) return;
       keepScrollRef.current = true;
       const d = fromISO(dateRef.current); d.setDate(d.getDate() + dir);
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
-    const animateScrollTo = (target) => {
-      cancelAnim();
-      const start = el.scrollLeft;
-      const diff = target - start;
-      if (Math.abs(diff) < 1) { el.scrollLeft = target; commitIfNeeded(target); return; }
-      const t0 = performance.now();
-      const duration = 520; // мс — плавная, видимая анимация (медленнее нативного снапа)
-      animating = true;
-      const step = (now) => {
-        if (!animating) return;
-        const t = Math.min((now - t0) / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic — мягкий доезд
-        el.scrollLeft = start + diff * ease;
-        if (t < 1) animFrame = requestAnimationFrame(step);
-        else { animating = false; animFrame = null; commitIfNeeded(target); }
-      };
-      animFrame = requestAnimationFrame(step);
-    };
-    const triggerSnap = () => {
-      const w = el.clientWidth;
-      if (!w) return;
-      const idx = Math.round(el.scrollLeft / w);
-      animateScrollTo(idx * w);
-    };
-    // Жест пальцев/тачпада начался — отменяем текущую анимацию (можно прервать
-    // прошлый доезд новым свайпом).
-    const onUserStart = () => { if (animating) cancelAnim(); clearTimeout(snapTimer); };
-    // Скролл закончился (нативный scrollend или дебаунс) — запускаем доезд.
-    const onSettled = () => { if (animating) return; triggerSnap(); };
-    const onScrollFallback = () => {
-      if (animating) return;
-      clearTimeout(snapTimer);
-      snapTimer = setTimeout(onSettled, 100);
-    };
     const useScrollEnd = "onscrollend" in el;
-    if (useScrollEnd) el.addEventListener("scrollend", onSettled);
-    else el.addEventListener("scroll", onScrollFallback, { passive: true });
-    el.addEventListener("wheel", onUserStart, { passive: true });
-    el.addEventListener("touchstart", onUserStart, { passive: true });
-    el.addEventListener("pointerdown", onUserStart, { passive: true });
+    let onScroll = null;
+    if (useScrollEnd) {
+      el.addEventListener("scrollend", onSettled);
+    } else {
+      onScroll = () => { clearTimeout(debounceTimer); debounceTimer = setTimeout(onSettled, 120); };
+      el.addEventListener("scroll", onScroll, { passive: true });
+    }
     return () => {
-      cancelSnapRef.current = null;
-      cancelAnim();
+      clearTimeout(debounceTimer);
       if (useScrollEnd) el.removeEventListener("scrollend", onSettled);
-      else el.removeEventListener("scroll", onScrollFallback);
-      el.removeEventListener("wheel", onUserStart);
-      el.removeEventListener("touchstart", onUserStart);
-      el.removeEventListener("pointerdown", onUserStart);
+      else if (onScroll) el.removeEventListener("scroll", onScroll);
     };
   }, [view]);
 
