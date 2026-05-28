@@ -91,6 +91,8 @@ html[data-theme="dark"].is-scrolling .proj-tasks::-webkit-scrollbar-thumb, html[
 .btn.danger { color: var(--danger); border-color: transparent; }
 .btn.danger:hover { background: rgba(239, 68, 68, 0.1); }
 .btn.sm { padding: 6px 10px; font-size: 13px; }
+/* «Невидимый, но место сохранено» — чтобы появление/исчезание не дёргало шапку. */
+.hidden-keep { visibility: hidden; pointer-events: none; }
 .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
 .btn .ico { width: 16px; height: 16px; }
 .btn-mini { display: inline-flex; align-items: center; justify-content: center;

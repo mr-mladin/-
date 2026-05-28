@@ -1529,7 +1529,7 @@ function Planner() {
               ${view !== "day" ? html`<span class="planner-date-main">${headLabel}</span>` : ""}
             </div>
             <div class="planner-head-actions">
-              ${!isToday ? html`<button class="btn sm ghost" onClick=${() => setDate(todayISO())}>Сегодня</button>` : ""}
+              <button class=${"btn sm ghost" + (isToday ? " hidden-keep" : "")} onClick=${() => setDate(todayISO())}>Сегодня</button>
               <button class="btn sm ghost view-cycle" title="Сменить режим"
                 onClick=${() => { const i = VIEWS.findIndex(([v]) => v === view); setView(VIEWS[(i + 1) % VIEWS.length][0]); }}>
                 ${(VIEWS.find(([v]) => v === view) || VIEWS[0])[1]}</button>
