@@ -16,10 +16,20 @@
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; height: 100%; }
+html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+/* Поведение «как приложение»: глушим случайное выделение, iOS-меню по долгому
+   нажатию, перетаскивание картинок и двойной тап-масштаб. Поля ввода ниже
+   отдельно получают разрешение на выделение текста. */
 body { font-family: var(--font); background: var(--surface); color: var(--text); -webkit-font-smoothing: antialiased;
-  -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-/* На сенсорных элементах гасим долгое нажатие → выделение текста / iOS-меню. */
+  -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
+  -webkit-user-select: none; user-select: none;
+  -webkit-touch-callout: none; touch-action: manipulation; }
+input, textarea, [contenteditable], [contenteditable="true"] {
+  -webkit-user-select: text; user-select: text;
+  -webkit-touch-callout: default; }
+img, button { -webkit-user-drag: none; user-drag: none; }
+/* Сенсорные интерактивные элементы — глушим iOS-меню (на случай если кто-то
+   наследует callout). */
 button, .tray-task-wrap, .tray-task, .tl-event, .tl-pill, .allday-item, .wday, .seg-btn, .icon-btn {
   -webkit-touch-callout: none; }
 #app { height: 100%; }
