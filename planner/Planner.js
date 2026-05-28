@@ -191,17 +191,19 @@ function Planner() {
     let clsTimer = null;
     // Состояние свайпа дней: phase idle→drag→done; ось защёлкивается на гориз/верт.
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
-    let lastAbs = 0, decayCount = 0; // распознавание момента «пальцы оторвали» по затухающей скорости
+    let lastAbs = 0, decayCount = 0, lastAbsMin = 1e9; // распознавание «отпустил» (инерция) и нового свайпа поверх инерции
     const decideSwipe = () => {
       if (phase !== "drag") return;
       phase = "done";
       const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
-      const far = Math.abs(dragDx) > W * 0.4;                                   // протянул почти на полдня
-      const fling = Math.abs(dragVel) > 7 && (dragVel < 0) === (dragDx < 0) && Math.abs(dragDx) > 36; // быстрый флик
-      if (far || fling) daySwipeCommit(dragDx < 0 ? 1 : -1);
+      const dir = dragDx < 0 ? 1 : -1;
+      const veloMatch = (dragVel > 0) === (dragDx > 0);
+      // Либеральные пороги: даже короткий свайп с движением в сторону = коммит.
+      const enough = (Math.abs(dragDx) > 18 && veloMatch) || Math.abs(dragDx) > W * 0.3;
+      if (enough) daySwipeCommit(dir);
       else daySwipeSnapBack();
     };
-    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; };
+    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = 1e9; };
     const markZooming = () => {
       el.classList.add("zooming");
       clearTimeout(clsTimer);
@@ -225,33 +227,39 @@ function Planner() {
       if (zoomingRef.current) return;
       if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 150); // полный конец жеста (включая хвост инерции)
+      resetTimer = setTimeout(resetSwipe, 250); // полный конец жеста (включая хвост инерции)
       if (gestureAxis !== "h") return; // вертикальный жест — обычная прокрутка, свайп заблокирован
       e.preventDefault();                // горизонтальный жест — блокируем вертикальный скролл
-      if (phase === "done") return;      // решение уже принято — хвост инерции глушим
+      const abs = Math.abs(e.deltaX);
+      if (phase === "done") {
+        // Поверх затухающей инерции прилетел НОВЫЙ толчок (скорость снова выросла)
+        // → это уже следующий свайп. Сбрасываемся и начинаем заново — для быстрого
+        // листания подряд.
+        if (abs > lastAbsMin + 4 && abs > 6) { resetSwipe(); }
+        else { lastAbsMin = Math.min(lastAbsMin, abs); return; }
+      }
       const track = trackRef.current;
       if (!track) return;
       const W = scrollRef.current ? scrollRef.current.getBoundingClientRect().width : window.innerWidth;
       if (phase === "idle") {
         if (commitFinalizeRef.current) commitFinalizeRef.current(); // мгновенно завершить предыдущий переход
         clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-        phase = "drag"; dragDx = 0; dragVel = 0;
+        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = abs;
       }
       const dxw = -e.deltaX; // тянем влево (dxw<0) → следующий день
       dragDx = clamp(dragDx + dxw, -W, W);
-      dragVel = dragVel * 0.6 + dxw * 0.4; // сглаженная скорость для распознавания флика
+      dragVel = dragVel * 0.5 + dxw * 0.5; // сглаженная скорость
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      // Пока пальцы активно двигают — события идут хаотично (скорость скачет).
-      // Когда пальцы отпустили — начинается ИНЕРЦИЯ: скорость монотонно затухает.
-      // Считаем это сигналом «отпустил» и тогда принимаем решение быстро. Иначе ждём
-      // длиннее — чтобы остановка пальцев на тачпаде не возвращала сетку обратно.
-      const abs = Math.abs(e.deltaX);
-      if (abs < lastAbs - 0.5) decayCount++; else decayCount = 0;
+      // Затухание скорости (несколько событий подряд с убыванием) = пальцы оторвали.
+      // Тогда решение принимаем БЫСТРО. Иначе — терпеливо ждём, чтобы остановка
+      // пальцев на тачпаде не считалась «отпустил».
+      if (abs < lastAbs - 0.5) decayCount++;
+      else if (abs > lastAbs + 1) decayCount = 0;
       lastAbs = abs;
-      const liftDetected = decayCount >= 3 || abs < 2;
+      const liftDetected = decayCount >= 2 || abs < 2;
       clearTimeout(decideTimer);
-      decideTimer = setTimeout(decideSwipe, liftDetected ? 120 : 1200);
+      decideTimer = setTimeout(decideSwipe, liftDetected ? 90 : 1800);
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -295,45 +303,50 @@ function Planner() {
     const el = view === "week" ? weekScrollRef.current : monthRef.current;
     if (!el) return;
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
-    let lastAbs = 0, decayCount = 0; // распознавание момента «пальцы оторвали» по затухающей скорости
+    let lastAbs = 0, decayCount = 0, lastAbsMin = 1e9; // распознавание «отпустил» и нового свайпа поверх инерции
     const widthOf = () => el.getBoundingClientRect().width || window.innerWidth;
     const decideSwipe = () => {
       if (phase !== "drag") return;
       phase = "done";
       const W = widthOf();
-      const far = Math.abs(dragDx) > W * 0.4;
-      const fling = Math.abs(dragVel) > 7 && (dragVel < 0) === (dragDx < 0) && Math.abs(dragDx) > 36;
-      if (far || fling) daySwipeCommit(dragDx < 0 ? 1 : -1);
+      const dir = dragDx < 0 ? 1 : -1;
+      const veloMatch = (dragVel > 0) === (dragDx > 0);
+      const enough = (Math.abs(dragDx) > 18 && veloMatch) || Math.abs(dragDx) > W * 0.3;
+      if (enough) daySwipeCommit(dir);
       else daySwipeSnapBack();
     };
-    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; };
+    const resetSwipe = () => { phase = "idle"; gestureAxis = null; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = 1e9; };
     const onWheel = (e) => {
       if (e.ctrlKey) return;
       if (gestureAxis === null) gestureAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
       clearTimeout(resetTimer);
-      resetTimer = setTimeout(resetSwipe, 150);
+      resetTimer = setTimeout(resetSwipe, 250);
       if (gestureAxis !== "h") return;
       e.preventDefault();
-      if (phase === "done") return;
+      const abs = Math.abs(e.deltaX);
+      if (phase === "done") {
+        if (abs > lastAbsMin + 4 && abs > 6) { resetSwipe(); }
+        else { lastAbsMin = Math.min(lastAbsMin, abs); return; }
+      }
       const track = trackRef.current;
       if (!track) return;
       const W = widthOf();
       if (phase === "idle") {
         if (commitFinalizeRef.current) commitFinalizeRef.current();
         clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-        phase = "drag"; dragDx = 0; dragVel = 0;
+        phase = "drag"; dragDx = 0; dragVel = 0; lastAbs = 0; decayCount = 0; lastAbsMin = abs;
       }
       const dxw = -e.deltaX;
       dragDx = clamp(dragDx + dxw, -W, W);
-      dragVel = dragVel * 0.6 + dxw * 0.4;
+      dragVel = dragVel * 0.5 + dxw * 0.5;
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      const abs = Math.abs(e.deltaX);
-      if (abs < lastAbs - 0.5) decayCount++; else decayCount = 0;
+      if (abs < lastAbs - 0.5) decayCount++;
+      else if (abs > lastAbs + 1) decayCount = 0;
       lastAbs = abs;
-      const liftDetected = decayCount >= 3 || abs < 2;
+      const liftDetected = decayCount >= 2 || abs < 2;
       clearTimeout(decideTimer);
-      decideTimer = setTimeout(decideSwipe, liftDetected ? 120 : 1200);
+      decideTimer = setTimeout(decideSwipe, liftDetected ? 90 : 1800);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { clearTimeout(decideTimer); clearTimeout(resetTimer); el.removeEventListener("wheel", onWheel); };
