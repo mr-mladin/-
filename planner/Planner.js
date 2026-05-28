@@ -191,6 +191,7 @@ function Planner() {
     let clsTimer = null;
     // Состояние свайпа дней: phase idle→drag→done; ось защёлкивается на гориз/верт.
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
+    let lastAbs = 0, decayCount = 0; // распознавание момента «пальцы оторвали» по затухающей скорости
     const decideSwipe = () => {
       if (phase !== "drag") return;
       phase = "done";
@@ -241,16 +242,16 @@ function Planner() {
       dragVel = dragVel * 0.6 + dxw * 0.4; // сглаженная скорость для распознавания флика
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      // Уверенный коммит «на ходу»: уже протянули достаточно И скорость идёт в ту же
-      // сторону → сразу доводим до конца, не дожидаясь паузы (без зависания посередине).
-      if (Math.abs(dragDx) > W * 0.45 && (dragVel > 0) === (dragDx > 0) && Math.abs(dragVel) > 2) {
-        phase = "done";
-        daySwipeCommit(dragDx < 0 ? 1 : -1);
-        return;
-      }
-      // Иначе ждём более длинную паузу — чтобы остановка пальцев на тачпаде НЕ
-      // считалась «отпустил» и сетка не возвращалась обратно сама по себе.
-      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 500); }
+      // Пока пальцы активно двигают — события идут хаотично (скорость скачет).
+      // Когда пальцы отпустили — начинается ИНЕРЦИЯ: скорость монотонно затухает.
+      // Считаем это сигналом «отпустил» и тогда принимаем решение быстро. Иначе ждём
+      // длиннее — чтобы остановка пальцев на тачпаде не возвращала сетку обратно.
+      const abs = Math.abs(e.deltaX);
+      if (abs < lastAbs - 0.5) decayCount++; else decayCount = 0;
+      lastAbs = abs;
+      const liftDetected = decayCount >= 3 || abs < 2;
+      clearTimeout(decideTimer);
+      decideTimer = setTimeout(decideSwipe, liftDetected ? 120 : 1200);
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -294,6 +295,7 @@ function Planner() {
     const el = view === "week" ? weekScrollRef.current : monthRef.current;
     if (!el) return;
     let phase = "idle", dragDx = 0, dragVel = 0, gestureAxis = null, decideTimer = null, resetTimer = null;
+    let lastAbs = 0, decayCount = 0; // распознавание момента «пальцы оторвали» по затухающей скорости
     const widthOf = () => el.getBoundingClientRect().width || window.innerWidth;
     const decideSwipe = () => {
       if (phase !== "drag") return;
@@ -326,12 +328,12 @@ function Planner() {
       dragVel = dragVel * 0.6 + dxw * 0.4;
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      if (Math.abs(dragDx) > W * 0.45 && (dragVel > 0) === (dragDx > 0) && Math.abs(dragVel) > 2) {
-        phase = "done";
-        daySwipeCommit(dragDx < 0 ? 1 : -1);
-        return;
-      }
-      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 500); }
+      const abs = Math.abs(e.deltaX);
+      if (abs < lastAbs - 0.5) decayCount++; else decayCount = 0;
+      lastAbs = abs;
+      const liftDetected = decayCount >= 3 || abs < 2;
+      clearTimeout(decideTimer);
+      decideTimer = setTimeout(decideSwipe, liftDetected ? 120 : 1200);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { clearTimeout(decideTimer); clearTimeout(resetTimer); el.removeEventListener("wheel", onWheel); };
