@@ -353,7 +353,7 @@ textarea.input { resize: vertical; }
 
 /* Лента дня в стиле Structured: часы слева, цветная пилюля-иконка на линии,
    текст справа от пилюли. */
-.tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 18px; user-select: none; -webkit-user-select: none; }
+.tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 0; user-select: none; -webkit-user-select: none; }
 .tl-spine { display: none; }
 .tl-event.sel .tl-pill { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); }
 .tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
@@ -583,7 +583,7 @@ textarea.input { resize: vertical; }
   .planner-grid-scroll { border: none; border-radius: 0; box-shadow: none;
     margin-left: calc(-10px - env(safe-area-inset-left));
     margin-right: calc(-10px - env(safe-area-inset-right));
-    padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+    padding-bottom: env(safe-area-inset-bottom); }
   .tl { left: 0; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
   .planner-week { padding: 0 4px; margin-bottom: 8px; }
