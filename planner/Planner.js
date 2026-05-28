@@ -1086,8 +1086,6 @@ function Planner() {
       commitFinalizeRef.current = null;
       track.removeEventListener("transitionend", finalize);
       swipingRef.current = false;
-      const cont = scrollRef.current, gridEl = innerRef.current;
-      keepGridTopRef.current = (cont && gridEl) ? gridEl.getBoundingClientRect().top - cont.getBoundingClientRect().top : null;
       keepScrollRef.current = true;
       pendingRecenterRef.current = true;
       shift(dir);
