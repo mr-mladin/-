@@ -244,22 +244,20 @@ function Planner() {
       e.preventDefault();                // горизонтальный жест — блокируем вертикальный скролл
       const abs = Math.abs(e.deltaX);
       if (phase === "done") {
-        // Поверх ИНЕРЦИИ ОТ ПРЕДЫДУЩЕГО свайпа может прилететь новый свайп. Чтобы
-        // отличить «свой хвост» от «нового толчка»: момент инерции должен быть явно
-        // затухшим (lastAbsMin упал ниже 4) И новое событие должно быть заметно
-        // больше. Иначе все события (включая активную фазу того же свайпа) считаем
-        // продолжением предыдущего и игнорируем. Плюс жёсткий лимит частоты —
-        // не чаще одного коммита в 320мс.
+        // Поверх ИНЕРЦИИ предыдущего свайпа прилетел новый свайп? Чтобы отличить
+        // «свой хвост» от «нового толчка»: инерция должна быть явно затухшей
+        // (lastAbsMin упал ниже 4) И новое событие — заметно больше. Тогда
+        // СБРАСЫВАЕМ состояние и обрабатываем это событие как НАЧАЛО нового
+        // драга (сетка пойдёт за пальцами). Коммит произойдёт уже на отпускании,
+        // как у обычного свайпа.
         if (lastAbsMin < 4 && abs > lastAbsMin + 5 && abs > 10) {
-          if (commitFinalizeRef.current) commitFinalizeRef.current();
-          clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-          const newDir = e.deltaX > 0 ? 1 : -1;
-          if (tryCommit(newDir)) { peakAbs = abs; lastAbsMin = abs; }
+          resetSwipe();
+          // продолжаем выполнение — попадём в ветку phase === "idle" ниже
+        } else {
+          if (abs > peakAbs) peakAbs = abs;
+          lastAbsMin = Math.min(lastAbsMin, abs);
           return;
         }
-        if (abs > peakAbs) peakAbs = abs;
-        lastAbsMin = Math.min(lastAbsMin, abs);
-        return;
       }
       const track = trackRef.current;
       if (!track) return;
@@ -361,15 +359,13 @@ function Planner() {
       const abs = Math.abs(e.deltaX);
       if (phase === "done") {
         if (lastAbsMin < 4 && abs > lastAbsMin + 5 && abs > 10) {
-          if (commitFinalizeRef.current) commitFinalizeRef.current();
-          clearTimeout(peekTimerRef.current); setPeek(true); swipingRef.current = true;
-          const newDir = e.deltaX > 0 ? 1 : -1;
-          if (tryCommit(newDir)) { peakAbs = abs; lastAbsMin = abs; }
+          resetSwipe();
+          // продолжаем выполнение — попадём в ветку phase === "idle" ниже
+        } else {
+          if (abs > peakAbs) peakAbs = abs;
+          lastAbsMin = Math.min(lastAbsMin, abs);
           return;
         }
-        if (abs > peakAbs) peakAbs = abs;
-        lastAbsMin = Math.min(lastAbsMin, abs);
-        return;
       }
       const track = trackRef.current;
       if (!track) return;
@@ -1165,7 +1161,7 @@ function Planner() {
       setPendingDate(null);
     };
     commitFinalizeRef.current = finalize;
-    track.style.transition = "transform 480ms cubic-bezier(.22,.61,.36,1)";
+    track.style.transition = "transform 340ms cubic-bezier(.22,.61,.36,1)";
     void track.offsetWidth;
     track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
     track.addEventListener("transitionend", finalize);
