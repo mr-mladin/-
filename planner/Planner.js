@@ -1345,6 +1345,25 @@ function Planner() {
       })}
     </div>`;
   }
+  // Соседняя панель в карусели дня: статичные задачи «весь день» + статичная сетка.
+  // Чтобы зона «весь день» уезжала вместе со свайпом, она лежит внутри каждой панели.
+  function dayPeekPane(pd) {
+    const all = itemsForDate(tasks, pd)
+      .filter(i => (i.start_min === null || i.start_min === undefined) && matches(i.list_id));
+    const rowIdOfX = (i) => i.kind === "occurrence" ? i.templateId : i.id;
+    all.sort((a, b) => ((sortOrderById.get(rowIdOfX(a)) ?? 0) - (sortOrderById.get(rowIdOfX(b)) ?? 0))
+      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    return html`<div class="tl-peek">
+      <div class=${"allday" + (all.length === 0 ? " empty" : "") + (all.length ? " grid" : "")}>
+        ${all.map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
+          <span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>
+          <span class="allday-title">${i.title}</span>
+        </div>`)}
+        ${all.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
+      </div>
+      ${dayStaticPane(pd)}
+    </div>`;
+  }
 
   // Данные недели/месяца для произвольной даты (для соседних панелей карусели).
   function buildWeekDays(baseISO) {
@@ -1531,6 +1550,9 @@ function Planner() {
           ${view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+              <div class="tl-track" ref=${trackRef}>
+              <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
+              <div class="tl-pane">
               <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef}>
                 ${(() => {
                   const cell = (i) => html`
@@ -1562,9 +1584,6 @@ function Planner() {
                 })()}
                 ${allDay.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
               </div>
-              <div class="tl-track" ref=${trackRef}>
-              <div class="tl-pane">${peek ? dayStaticPane(prevDate) : null}</div>
-              <div class="tl-pane">
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
@@ -1671,7 +1690,7 @@ function Planner() {
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
               </div>
-              <div class="tl-pane">${peek ? dayStaticPane(nextDate) : null}</div>
+              <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
               </div>
             </div>
           </div>`}
