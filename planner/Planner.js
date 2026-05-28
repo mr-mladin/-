@@ -241,8 +241,16 @@ function Planner() {
       dragVel = dragVel * 0.6 + dxw * 0.4; // сглаженная скорость для распознавания флика
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      // решение принимаем спустя паузу после ЗАМЕТНОГО движения (мелкий хвост не считаем)
-      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 90); }
+      // Уверенный коммит «на ходу»: уже протянули достаточно И скорость идёт в ту же
+      // сторону → сразу доводим до конца, не дожидаясь паузы (без зависания посередине).
+      if (Math.abs(dragDx) > W * 0.45 && (dragVel > 0) === (dragDx > 0) && Math.abs(dragVel) > 2) {
+        phase = "done";
+        daySwipeCommit(dragDx < 0 ? 1 : -1);
+        return;
+      }
+      // Иначе ждём более длинную паузу — чтобы остановка пальцев на тачпаде НЕ
+      // считалась «отпустил» и сетка не возвращалась обратно сама по себе.
+      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 500); }
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
@@ -318,7 +326,12 @@ function Planner() {
       dragVel = dragVel * 0.6 + dxw * 0.4;
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dragDx}px))`;
-      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 90); }
+      if (Math.abs(dragDx) > W * 0.45 && (dragVel > 0) === (dragDx > 0) && Math.abs(dragVel) > 2) {
+        phase = "done";
+        daySwipeCommit(dragDx < 0 ? 1 : -1);
+        return;
+      }
+      if (Math.abs(e.deltaX) > 2) { clearTimeout(decideTimer); decideTimer = setTimeout(decideSwipe, 500); }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { clearTimeout(decideTimer); clearTimeout(resetTimer); el.removeEventListener("wheel", onWheel); };
