@@ -25,7 +25,8 @@ const SNAP = 5;
 const MIN_DUR = 15;
 const HOLD_MS = 350;
 const MIN_EVENT_PX = 14;
-const AD_COLLAPSED = 52; // свёрнутая высота зоны «весь день» (px) — постоянна, чтобы место под часы не «плавало»
+const AD_COLLAPSED = 52; // высота приоткрытой шторки «весь день» по умолчанию (px)
+const GRID_HEAD = 33;    // ручка (18+1) + верхний отступ сетки (.tl margin 14) — резерв над часами при закрытой шторке
 const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
@@ -158,16 +159,17 @@ function Planner() {
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
-  // Минимальный масштаб (предел сворачивания) — чтобы все 24 часа влезали в
-  // видимую высоту сетки без прокрутки. Меряем реальный отступ сверху до сетки
-  // часов (.tl): туда входят padding, СВЁРНУТАЯ зона «весь день» и ручка — всё
-  // постоянной высоты, поэтому «вписывание» одинаково на каждом дне (нет пустоты).
+  // Масштаб подбираем так, чтобы 24 часа влезали в экран при ЗАКРЫТОЙ зоне «весь
+  // день» (учитываем только ручку + верхний отступ сетки, GRID_HEAD). Тогда при
+  // ЛЮБОЙ высоте шторки контент = экран + высота шторки ≥ экрана → пустоты снизу
+  // быть не может в принципе; открытие шторки просто прокручивает день.
   function fitMinPx() {
-    const el = scrollRef.current, grid = innerRef.current;
-    if (!el || !grid) return HOUR_MIN;
-    const padB = parseFloat(getComputedStyle(el).paddingBottom) || 0;
-    const above = (grid.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop;
-    const h = el.clientHeight - above - padB;
+    const el = scrollRef.current;
+    if (!el) return HOUR_MIN;
+    const cs = getComputedStyle(el);
+    const padT = parseFloat(cs.paddingTop) || 0;
+    const padB = parseFloat(cs.paddingBottom) || 0;
+    const h = el.clientHeight - padT - padB - GRID_HEAD;
     return h > 0 ? Math.max(HOUR_MIN, h / 24) : HOUR_MIN;
   }
 
@@ -1281,12 +1283,12 @@ function Planner() {
   // обрабатываем только: (а) свайп от левого края — открыть шторку проектов,
   // (б) два пальца — зафиксировать точку для зум-якоря.
   // Ручка-шторка зоны «весь день»: тянем пальцем — высота меняется ровно за пальцем,
-  // от свёрнутой (AD_COLLAPSED) до половины экрана. Отпустил — осталось как есть.
+  // от полностью закрытой (0) до половины экрана. Отпустил — осталось как есть.
   function onAllDayHandleDown(e) {
     e.preventDefault();
     const startY = e.clientY, startH = adH;
     const maxH = Math.round((window.visualViewport?.height || window.innerHeight) * 0.5);
-    const move = (ev) => setAdH(clamp(Math.round(startH + (ev.clientY - startY)), AD_COLLAPSED, maxH));
+    const move = (ev) => setAdH(clamp(Math.round(startH + (ev.clientY - startY)), 0, maxH));
     const up = () => {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
@@ -1424,7 +1426,6 @@ function Planner() {
           <span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>
           <span class="allday-title">${i.title}</span>
         </div>`)}
-        ${all.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
       </div>
       <div class="allday-handle"><span class="allday-grip"></span></div>
       ${dayStaticPane(pd)}
@@ -1648,7 +1649,6 @@ function Planner() {
                   </div>`);
                   return slots;
                 })()}
-                ${allDay.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
               </div>
               <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
