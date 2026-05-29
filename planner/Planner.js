@@ -65,6 +65,7 @@ function Planner() {
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
+  const [dbg, setDbg] = useState(null); // ВРЕМЕННО: диагностика пустоты снизу
   // Соседние дни карусели рисуем только во время горизонтального свайпа —
   // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
   const [peek, setPeek] = useState(false);
@@ -211,6 +212,27 @@ function Planner() {
       window.removeEventListener("orientationchange", fitUp);
     };
   }, [view]);
+
+  // ВРЕМЕННО: собираем реальные размеры, чтобы понять причину пустоты снизу.
+  useEffect(() => {
+    if (view !== "day") { setDbg(null); return; }
+    const calc = () => {
+      const el = scrollRef.current, grid = innerRef.current;
+      if (!el) return;
+      const cs = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      const gr = grid ? grid.getBoundingClientRect() : null;
+      setDbg({
+        ch: el.clientHeight, sh: el.scrollHeight, st: Math.round(el.scrollTop),
+        hp: Math.round(hourPx * 10) / 10, fit: Math.round(fitMinPx() * 10) / 10,
+        padB: cs.paddingBottom, adH: el.querySelector(".allday")?.offsetHeight,
+        elBot: Math.round(r.bottom), winH: window.innerHeight,
+        tlBot: gr ? Math.round(gr.bottom) : null,
+      });
+    };
+    const id = requestAnimationFrame(() => requestAnimationFrame(calc));
+    return () => cancelAnimationFrame(id);
+  }, [view, date, hourPx]);
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.
@@ -1768,6 +1790,11 @@ function Planner() {
           ${Icon.plus()}</button>
       </div>
     </div>
+    ${dbg && html`<div style="position:fixed;left:6px;top:64px;z-index:99999;background:rgba(0,0,0,.82);color:#3f6;font:11px/1.4 ui-monospace,monospace;padding:7px 9px;border-radius:7px;white-space:pre;pointer-events:none;">DBG v5
+ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}
+hp=${dbg.hp} fit=${dbg.fit}
+padB=${dbg.padB} adH=${dbg.adH}
+elBot=${dbg.elBot} winH=${dbg.winH} tlBot=${dbg.tlBot}</div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
