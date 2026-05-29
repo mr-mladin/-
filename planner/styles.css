@@ -831,6 +831,11 @@ textarea.input { resize: vertical; }
   background-position: 0 58%; background-size: 0% 1.5px;
   transition: background-size .7s cubic-bezier(.4,0,.2,1), color .7s ease; }
 .allday-item.done .allday-title { background-size: 100% 1.5px; color: var(--text-mute); }
+/* «ещё N» / «свернуть» — занимает одну ячейку сетки «весь день». */
+.allday-more { display: flex; align-items: center; min-width: 0; border: none; background: none;
+  padding: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-mute);
+  cursor: pointer; text-align: left; white-space: nowrap; }
+.allday-more:hover { color: var(--accent); }
 .allday-edit { min-width: 8ch; border: 0; background: none; outline: none; font-family: inherit;
   font-size: 15px; font-weight: 600; color: var(--text); padding: 0; user-select: text; -webkit-user-select: text; }
 
