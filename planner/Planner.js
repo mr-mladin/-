@@ -303,7 +303,7 @@ function Planner() {
     const cancelAnim = () => { if (animFrame) cancelAnimationFrame(animFrame); animFrame = null; animating = false; };
     const animateTo = (target, duration) => {
       cancelAnim();
-      if (Math.abs(target - dx) < 0.5) { dx = target; apply(); finishCommit(target); return; }
+      if (Math.abs(target - dx) < 0.5) { dx = target; apply(); finishCommit(target); schedulePeekOff(); return; }
       // Длительность зависит от остатка пути: полноэкранный доезд плавный (как
       // переход недели/месяца), короткая дотяжка — быстрая. Жёсткие 320мс на любой
       // путь делали доезд от низкого порога слишком резким (большой путь за то же время).
@@ -318,7 +318,7 @@ function Planner() {
         dx = start + diff * ease;
         apply();
         if (t < 1) animFrame = requestAnimationFrame(step);
-        else { animating = false; animFrame = null; finishCommit(target); }
+        else { animating = false; animFrame = null; finishCommit(target); schedulePeekOff(); }
       };
       animFrame = requestAnimationFrame(step);
     };
@@ -352,6 +352,7 @@ function Planner() {
       // Горизонтальный жест ведёт нас, вертикальный — нативный скролл
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
+      clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни — только на время жеста
       const now = performance.now();
       const gap = now - lastInputT;
       // Новый жест поверх анимации (большой gap от прошлого ввода) — отменяем доезд
@@ -1326,6 +1327,7 @@ function Planner() {
       if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
         horiz = Math.abs(dxF) > Math.abs(dyF) * 0.7;
         if (!horiz) { cleanup(); return; }
+        clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни рисуем только на время свайпа
       }
       if (!horiz) return;
       ev.preventDefault();
@@ -1623,7 +1625,7 @@ function Planner() {
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class="tl-track" ref=${trackRef}>
-                <div class="tl-pane">${dayPeekPane(prevDate)}</div>
+                <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
               <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef}>
                 ${(() => {
@@ -1762,7 +1764,7 @@ function Planner() {
                   <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
               </div>
               </div>
-              <div class="tl-pane">${dayPeekPane(nextDate)}</div>
+              <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
               </div>
             </div>
           </div>`}
@@ -1791,7 +1793,7 @@ function Planner() {
       </div>
     </div>
     ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v6</div>
+      <div>DBG v7</div>
       <div>ch=${dbg.ch} sh=${dbg.sh}</div>
       <div>st=${dbg.st} (max=${dbg.sh - dbg.ch})</div>
       <div>hp=${dbg.hp} fit=${dbg.fit}</div>
