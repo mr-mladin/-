@@ -258,9 +258,14 @@ function Planner() {
     let animating = false;
     const apply = () => { track.style.transition = "none"; track.style.transform = `translateX(calc(-100% + ${dx}px))`; };
     const cancelAnim = () => { if (animFrame) cancelAnimationFrame(animFrame); animFrame = null; animating = false; };
-    const animateTo = (target, duration = 320) => {
+    const animateTo = (target, duration) => {
       cancelAnim();
       if (Math.abs(target - dx) < 0.5) { dx = target; apply(); finishCommit(target); return; }
+      // Длительность зависит от остатка пути: полноэкранный доезд плавный (как
+      // переход недели/месяца), короткая дотяжка — быстрая. Жёсткие 320мс на любой
+      // путь делали доезд от низкого порога слишком резким (большой путь за то же время).
+      const w = el.clientWidth || 1;
+      if (duration == null) duration = clamp(Math.round(280 + (Math.abs(target - dx) / w) * 180), 280, 460);
       const start = dx, diff = target - dx, t0 = performance.now();
       animating = true;
       const step = (now) => {
@@ -289,6 +294,7 @@ function Planner() {
       let target = 0;
       if (dx < -threshold) target = -w;
       else if (dx > threshold) target = w;
+      if (target !== 0) haptic(); // лёгкая вибрация в начале листания (как в неделе/месяце)
       animateTo(target);
     };
     daySwipeStateRef.current = {
