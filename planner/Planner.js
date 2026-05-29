@@ -162,7 +162,13 @@ function Planner() {
     const el = scrollRef.current;
     if (!el) return HOUR_MIN;
     const ad = el.querySelector(".allday");
-    const h = el.clientHeight - (ad ? ad.offsetHeight : 0) - 18; // минус зона «весь день» и отступ сетки
+    // Доступная высота для сетки = inner height минус paddings минус «весь день»
+    // минус верхний margin у .tl (14). Снизу у .tl сейчас 0.
+    const cs = getComputedStyle(el);
+    const padT = parseFloat(cs.paddingTop) || 0;
+    const padB = parseFloat(cs.paddingBottom) || 0;
+    const adH = ad ? ad.offsetHeight : 0;
+    const h = el.clientHeight - padT - padB - adH - 14;
     return h > 0 ? Math.max(HOUR_MIN, Math.floor(h / 24)) : HOUR_MIN;
   }
 
