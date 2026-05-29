@@ -66,6 +66,7 @@ function Planner() {
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
+  const [dbg, setDbg] = useState(null); // ВРЕМЕННО: диагностика пустоты снизу
   // Соседние дни карусели рисуем только во время горизонтального свайпа —
   // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
   const [peek, setPeek] = useState(false);
@@ -210,6 +211,36 @@ function Planner() {
       window.removeEventListener("orientationchange", fitUp);
     };
   }, [view]);
+
+  // ВРЕМЕННО: подсветка границ слоёв (красный — контейнер сетки, синий — часы) +
+  // числа, чтобы по скриншоту понять, какому слою принадлежит пустота снизу.
+  useEffect(() => {
+    if (view !== "day") { setDbg(null); return; }
+    const el = scrollRef.current, grid = innerRef.current;
+    if (el) el.style.outline = "2px solid rgba(255,0,0,.7)";
+    if (grid) grid.style.outline = "2px solid rgba(0,120,255,.85)";
+    const calc = () => {
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const gr = grid ? grid.getBoundingClientRect() : null;
+      const appEl = document.getElementById("app");
+      const ar = appEl ? appEl.getBoundingClientRect() : null;
+      setDbg({
+        ch: el.clientHeight, sh: el.scrollHeight, st: Math.round(el.scrollTop),
+        hp: Math.round(hourPx * 10) / 10, fit: Math.round(fitMinPx() * 10) / 10,
+        elBot: Math.round(r.bottom), tlBot: gr ? Math.round(gr.bottom) : null,
+        appBot: ar ? Math.round(ar.bottom) : null,
+        winH: window.innerHeight,
+        vvH: window.visualViewport ? Math.round(window.visualViewport.height) : null,
+      });
+    };
+    const id = requestAnimationFrame(() => requestAnimationFrame(calc));
+    return () => {
+      cancelAnimationFrame(id);
+      if (el) el.style.outline = "";
+      if (grid) grid.style.outline = "";
+    };
+  }, [view, date, hourPx]);
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.
@@ -1784,6 +1815,15 @@ function Planner() {
           ${Icon.plus()}</button>
       </div>
     </div>
+    ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
+      <div>DBG v8</div>
+      <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
+      <div>hp=${dbg.hp} fit=${dbg.fit}</div>
+      <div>tlBot=${dbg.tlBot}</div>
+      <div>elBot=${dbg.elBot}</div>
+      <div>appBot=${dbg.appBot}</div>
+      <div>winH=${dbg.winH} vvH=${dbg.vvH}</div>
+    </div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
