@@ -17,6 +17,11 @@
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 html, body { margin: 0; height: 100%; overscroll-behavior: none; }
+/* Жёстко фиксируем тело по размеру экрана и запрещаем прокрутку документа —
+   иначе на iOS PWA документ «плавает» (двойной тап по статус-бару двигает всё
+   приложение, снизу обрезается сетка). Внутренние области скроллятся сами. */
+html { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; }
+body { position: fixed; inset: 0; width: 100%; height: 100%; overflow: hidden; }
 /* Поведение «как приложение»: глушим случайное выделение, iOS-меню по долгому
    нажатию, перетаскивание картинок и двойной тап-масштаб. Поля ввода ниже
    отдельно получают разрешение на выделение текста. */
@@ -187,7 +192,7 @@ textarea.input { resize: vertical; }
 .auth-card .field { text-align: left; }
 
 /* Шапка */
-.app { height: var(--app-h, 100dvh); display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+.app { height: 100%; display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
 
 /* Круглая кнопка-иконка (поиск, настройки) */
 .icon-btn { width: 38px; height: 38px; flex: none; border-radius: 50%; border: 1px solid var(--border);
