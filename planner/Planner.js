@@ -1790,11 +1790,15 @@ function Planner() {
           ${Icon.plus()}</button>
       </div>
     </div>
-    ${dbg && html`<div style="position:fixed;left:6px;top:64px;z-index:99999;background:rgba(0,0,0,.82);color:#3f6;font:11px/1.4 ui-monospace,monospace;padding:7px 9px;border-radius:7px;white-space:pre;pointer-events:none;">DBG v5
-ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}
-hp=${dbg.hp} fit=${dbg.fit}
-padB=${dbg.padB} adH=${dbg.adH}
-elBot=${dbg.elBot} winH=${dbg.winH} tlBot=${dbg.tlBot}</div>`}
+    ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
+      <div>DBG v6</div>
+      <div>ch=${dbg.ch} sh=${dbg.sh}</div>
+      <div>st=${dbg.st} (max=${dbg.sh - dbg.ch})</div>
+      <div>hp=${dbg.hp} fit=${dbg.fit}</div>
+      <div>padB=${dbg.padB} adH=${dbg.adH}</div>
+      <div>elBot=${dbg.elBot} winH=${dbg.winH}</div>
+      <div>tlBot=${dbg.tlBot} gapBelow=${dbg.winH != null && dbg.elBot != null ? dbg.winH - dbg.elBot : "?"}</div>
+    </div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
