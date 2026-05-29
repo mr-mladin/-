@@ -190,10 +190,10 @@ function Planner() {
     cont.scrollTop = gridOffset + (a.timeMin / 60) * hourPx - a.yInContainer;
   }, [hourPx]);
 
-  // На входе в день (и при ресайзе) «дотягиваем» масштаб так, чтобы 24 часа влезали
-  // в экран — только если он слишком отдалён (prev < fit). Никогда не сжимаем и
-  // НЕ трогаем масштаб при смене дня (зависим только от view, не от date): какой
-  // масштаб пользователь задал — такой и остаётся при свайпе дней (по просьбе владельца).
+  // «Дотягиваем» масштаб так, чтобы 24 часа влезали в экран — только если он слишком
+  // отдалён (prev < fit). НИКОГДА не сжимаем (увеличенный вручную не трогаем). Раз
+  // свёрнутая зона «весь день» постоянной высоты, fit одинаков на всех днях → после
+  // первого вписывания это no-op при свайпе, т.е. масштаб остаётся стабильным.
   useEffect(() => {
     if (view !== "day") return;
     const fitUp = () => setHourPx(prev => { const f = fitMinPx(); return prev < f ? f : prev; });
@@ -206,7 +206,7 @@ function Planner() {
       window.removeEventListener("resize", fitUp);
       window.removeEventListener("orientationchange", fitUp);
     };
-  }, [view]);
+  }, [view, date]);
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.

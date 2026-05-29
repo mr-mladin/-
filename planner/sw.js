@@ -24,14 +24,33 @@ self.addEventListener("fetch", (e) => {
   if (req.method !== "GET") return;
   let url;
   try { url = new URL(req.url); } catch (_) { return; }
-  if (!CDN_HOSTS.includes(url.hostname)) return; // свои файлы — всегда из сети
 
-  e.respondWith((async () => {
-    const cache = await caches.open(CDN_CACHE);
-    const cached = await cache.match(req);
-    if (cached) return cached;
-    const res = await fetch(req);
-    if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone());
-    return res;
-  })());
+  // Библиотеки с CDN (фиксированные версии) — из кэша: быстрый холодный старт.
+  if (CDN_HOSTS.includes(url.hostname)) {
+    e.respondWith((async () => {
+      const cache = await caches.open(CDN_CACHE);
+      const cached = await cache.match(req);
+      if (cached) return cached;
+      const res = await fetch(req);
+      if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone());
+      return res;
+    })());
+    return;
+  }
+
+  // Свои файлы (тот же origin: html/js/css) — ВСЕГДА свежие из сети, минуя HTTP-кэш
+  // браузера (cache: "reload"). Раньше мы просто не вмешивались, и iOS отдавал старый
+  // CSS/JS из своего кэша → правки «не подхватывались». Офлайн — отдаём из кэша, если есть.
+  if (url.origin === self.location.origin) {
+    e.respondWith((async () => {
+      try {
+        return await fetch(req, { cache: "reload" });
+      } catch (err) {
+        const cached = await caches.match(req);
+        if (cached) return cached;
+        throw err;
+      }
+    })());
+  }
+  // Остальное (например, Supabase) — не трогаем.
 });

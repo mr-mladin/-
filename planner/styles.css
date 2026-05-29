@@ -616,10 +616,7 @@ textarea.input { resize: vertical; }
   .tl-title-edit, .tl-subs-edit, .allday-edit, .search-input { font-size: 16px; }
 
   /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
-  /* Шторка «весь день»: фиксированная свёрнутая высота (--adh), лишнее прячется,
-     тянется ручкой ниже. Постоянная высота → 24ч стабильно вписываются. */
-  .allday { padding: 8px 10px 8px 12px; gap: 6px; box-sizing: border-box;
-    height: var(--adh, 52px); overflow-y: auto; -webkit-overflow-scrolling: touch; border-bottom: none; }
+  .allday { padding: 8px 10px 8px 12px; gap: 6px; }
   .allday.empty { padding: 6px 10px 6px 12px; }
   .allday.grid { column-gap: 10px; row-gap: 6px; }
   .allday-item { gap: 7px; }
@@ -627,11 +624,6 @@ textarea.input { resize: vertical; }
   .allday-check .ico { width: 9px; height: 9px; }
   .allday-title, .allday-float .allday-title { font-size: 13px; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
-  .allday-handle { display: flex; align-items: center; justify-content: center; flex: none;
-    height: 18px; touch-action: none; cursor: ns-resize; border-bottom: 1px solid var(--border);
-    background: var(--surface); }
-  .allday-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border); transition: background-color .15s ease; }
-  .allday-handle:active .allday-grip { background: var(--text-mute); width: 52px; }
 }
 
 /* Настройки */
@@ -846,3 +838,20 @@ textarea.input { resize: vertical; }
 /* Спиннер первой загрузки в сетке дня (когда кэша ещё нет). */
 .grid-loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 30;
   pointer-events: none; background: var(--surface); }
+
+/* ---- Шторка «весь день» (только мобильный) ----
+   Стоит в КОНЦЕ файла специально: медиазапрос max-width:860px выше по файлу идёт
+   ДО дефолтных правил .allday, поэтому там переопределить их нельзя. Здесь — после
+   дефолтов, поэтому правила надёжно применяются на мобильном.
+   Зона «весь день» имеет постоянную свёрнутую высоту (--adh), лишнее прячется и
+   тянется ручкой ниже → место под часы постоянно, 24ч вписываются без пустоты. */
+@media (max-width: 860px) {
+  .allday { box-sizing: border-box; height: var(--adh, 52px);
+    overflow-y: auto; -webkit-overflow-scrolling: touch; border-bottom: none; }
+  .allday-handle { display: flex; align-items: center; justify-content: center; flex: none;
+    height: 18px; touch-action: none; cursor: ns-resize;
+    background: var(--surface); border-bottom: 1px solid var(--border); }
+  .allday-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border);
+    transition: background-color .15s ease, width .15s ease; }
+  .allday-handle:active .allday-grip { background: var(--text-mute); width: 54px; }
+}
