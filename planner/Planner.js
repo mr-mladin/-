@@ -193,24 +193,23 @@ function Planner() {
     cont.scrollTop = gridOffset + (a.timeMin / 60) * hourPx - a.yInContainer;
   }, [hourPx]);
 
-  // На входе в день, при смене дня и ресайзе вписываем сетку так, чтобы все 24 часа
-  // помещались в экран (как в Apple). Зона «весь день» свёрнута (см. рендер ниже),
-  // поэтому высота под часы стабильна и масштаб между днями почти не скачет. Если
-  // пользователь развернул «весь день» — не вписываем (день можно прокручивать).
-  // Двойной rAF — высота на iOS становится финальной не сразу.
+  // На входе в день (и при ресайзе) «дотягиваем» масштаб так, чтобы 24 часа влезали
+  // в экран — только если он слишком отдалён (prev < fit). Никогда не сжимаем и
+  // НЕ трогаем масштаб при смене дня (зависим только от view, не от date): какой
+  // масштаб пользователь задал — такой и остаётся при свайпе дней (по просьбе владельца).
   useEffect(() => {
-    if (view !== "day" || allDayExpanded) return;
-    const fit = () => setHourPx(() => fitMinPx());
+    if (view !== "day") return;
+    const fitUp = () => setHourPx(prev => { const f = fitMinPx(); return prev < f ? f : prev; });
     let r1 = 0, r2 = 0;
-    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fit); });
-    window.addEventListener("resize", fit);
-    window.addEventListener("orientationchange", fit);
+    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fitUp); });
+    window.addEventListener("resize", fitUp);
+    window.addEventListener("orientationchange", fitUp);
     return () => {
       cancelAnimationFrame(r1); cancelAnimationFrame(r2);
-      window.removeEventListener("resize", fit);
-      window.removeEventListener("orientationchange", fit);
+      window.removeEventListener("resize", fitUp);
+      window.removeEventListener("orientationchange", fitUp);
     };
-  }, [view, date, allDayExpanded]);
+  }, [view]);
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.

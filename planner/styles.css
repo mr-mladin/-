@@ -589,8 +589,7 @@ textarea.input { resize: vertical; }
      боковые отступы .planner, чтобы дойти до краёв экрана. */
   .planner-grid-scroll { border: none; border-radius: 0; box-shadow: none;
     margin-left: calc(-10px - env(safe-area-inset-left));
-    margin-right: calc(-10px - env(safe-area-inset-right));
-    padding-bottom: env(safe-area-inset-bottom); }
+    margin-right: calc(-10px - env(safe-area-inset-right)); }
   .tl { left: 0; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
   .planner-week { padding: 0 4px; margin-bottom: 8px; }
