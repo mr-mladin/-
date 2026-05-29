@@ -59,6 +59,7 @@ function Planner() {
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
   const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
+  const [dbg, setDbg] = useState(null); // ВРЕМЕННО: диагностика пустоты снизу
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
   const [confetti, setConfetti] = useState(null); // { key, id, bits } — хлопок конфетти при выполнении
   const [fallKey, setFallKey] = useState(null);   // ключ задачи в сетке, чей шарик сейчас падает
@@ -210,8 +211,41 @@ function Planner() {
     };
   }, [view, date]);
 
-  // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
-  // зажатым Ctrl, в Safari — события gesture* со свойством scale.
+  // Надёжное вписывание: ResizeObserver ловит МОМЕНТ, когда высота контейнера сетки
+  // окончательно устаканилась (на iOS это бывает позже первых кадров), и дотягивает
+  // масштаб до fit. Раньше двойного rAF не всегда хватало → hp оставался меньше fit
+  // → пустота снизу. Тут — гарантированно после фактического изменения размера.
+  useEffect(() => {
+    if (view !== "day" || typeof ResizeObserver === "undefined") return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => {
+      setHourPx(prev => { const f = fitMinPx(); return prev < f ? f : prev; });
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [view]);
+
+  // ВРЕМЕННО: точные размеры низа + высота ручки (загрузился ли CSS) + метка версии.
+  useEffect(() => {
+    if (view !== "day") { setDbg(null); return; }
+    const calc = () => {
+      const el = scrollRef.current, grid = innerRef.current, ad = adGridRef.current;
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      const gr = grid ? grid.getBoundingClientRect() : null;
+      const hdl = el.querySelector(".allday-handle");
+      setDbg({
+        hp: Math.round(hourPx * 10) / 10, fit: Math.round(fitMinPx() * 10) / 10,
+        ch: el.clientHeight, sh: el.scrollHeight, st: Math.round(el.scrollTop),
+        allH: ad ? ad.offsetHeight : -1, hdlH: hdl ? Math.round(hdl.getBoundingClientRect().height) : -1,
+        tlBot: gr ? Math.round(gr.bottom) : null, elBot: Math.round(r.bottom),
+        winH: window.innerHeight, adH,
+      });
+    };
+    const id = requestAnimationFrame(() => requestAnimationFrame(calc));
+    return () => cancelAnimationFrame(id);
+  }, [view, date, hourPx, adH]);
   // Сетка дня: горизонтальный свайп между днями обрабатывает САМ браузер через
   // CSS scroll-snap — лента из 3 панелей (вчера/сегодня/завтра) с обязательным
   // снапом по горизонтали. Браузер знает, когда пальцы на тачпаде, а когда нет,
@@ -1785,6 +1819,13 @@ function Planner() {
           ${Icon.plus()}</button>
       </div>
     </div>
+    ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.84);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
+      <div>DBG v9</div>
+      <div>hp=${dbg.hp} fit=${dbg.fit}</div>
+      <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
+      <div>allH=${dbg.allH} hdlH=${dbg.hdlH} adH=${dbg.adH}</div>
+      <div>tlBot=${dbg.tlBot} elBot=${dbg.elBot} winH=${dbg.winH}</div>
+    </div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
