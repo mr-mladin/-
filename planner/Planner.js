@@ -169,7 +169,9 @@ function Planner() {
     const padB = parseFloat(cs.paddingBottom) || 0;
     const adH = ad ? ad.offsetHeight : 0;
     const h = el.clientHeight - padT - padB - adH - 14;
-    return h > 0 ? Math.max(HOUR_MIN, Math.floor(h / 24)) : HOUR_MIN;
+    // Точное вписывание (без floor): 24*hourPx == доступная высота → сетка
+    // заканчивается ровно у safe-area снизу, без белой пустоты под 24:00.
+    return h > 0 ? Math.max(HOUR_MIN, h / 24) : HOUR_MIN;
   }
 
   // Запоминаем точку под курсором перед зумом, чтобы после смены масштаба
@@ -190,6 +192,25 @@ function Planner() {
     const gridOffset = (grid.getBoundingClientRect().top - cont.getBoundingClientRect().top) + cont.scrollTop;
     cont.scrollTop = gridOffset + (a.timeMin / 60) * hourPx - a.yInContainer;
   }, [hourPx]);
+
+  // При входе в день и при изменении размера экрана подгоняем масштаб так, чтобы
+  // все 24 часа вписались до низа без белой пустоты. «Дотягиваем» только слишком
+  // отдалённый масштаб (prev < fit) — если пользователь увеличил вручную (сетка
+  // прокручивается), его масштаб не трогаем. Двойной rAF — высота на iOS становится
+  // финальной не сразу (как в эффекте центрирования ниже).
+  useEffect(() => {
+    if (view !== "day") return;
+    const fitUp = () => setHourPx(prev => { const f = fitMinPx(); return prev < f ? f : prev; });
+    let r1 = 0, r2 = 0;
+    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fitUp); });
+    window.addEventListener("resize", fitUp);
+    window.addEventListener("orientationchange", fitUp);
+    return () => {
+      cancelAnimationFrame(r1); cancelAnimationFrame(r2);
+      window.removeEventListener("resize", fitUp);
+      window.removeEventListener("orientationchange", fitUp);
+    };
+  }, [view]);
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.
