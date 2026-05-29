@@ -616,7 +616,10 @@ textarea.input { resize: vertical; }
   .tl-title-edit, .tl-subs-edit, .allday-edit, .search-input { font-size: 16px; }
 
   /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
-  .allday { padding: 8px 10px 8px 12px; gap: 6px; }
+  /* Шторка «весь день»: фиксированная свёрнутая высота (--adh), лишнее прячется,
+     тянется ручкой ниже. Постоянная высота → 24ч стабильно вписываются. */
+  .allday { padding: 8px 10px 8px 12px; gap: 6px; box-sizing: border-box;
+    height: var(--adh, 52px); overflow-y: auto; -webkit-overflow-scrolling: touch; border-bottom: none; }
   .allday.empty { padding: 6px 10px 6px 12px; }
   .allday.grid { column-gap: 10px; row-gap: 6px; }
   .allday-item { gap: 7px; }
@@ -624,6 +627,11 @@ textarea.input { resize: vertical; }
   .allday-check .ico { width: 9px; height: 9px; }
   .allday-title, .allday-float .allday-title { font-size: 13px; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
+  .allday-handle { display: flex; align-items: center; justify-content: center; flex: none;
+    height: 18px; touch-action: none; cursor: ns-resize; border-bottom: 1px solid var(--border);
+    background: var(--surface); }
+  .allday-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border); transition: background-color .15s ease; }
+  .allday-handle:active .allday-grip { background: var(--text-mute); width: 52px; }
 }
 
 /* Настройки */
@@ -830,11 +838,8 @@ textarea.input { resize: vertical; }
   background-position: 0 58%; background-size: 0% 1.5px;
   transition: background-size .7s cubic-bezier(.4,0,.2,1), color .7s ease; }
 .allday-item.done .allday-title { background-size: 100% 1.5px; color: var(--text-mute); }
-/* «ещё N» / «свернуть» — занимает одну ячейку сетки «весь день». */
-.allday-more { display: flex; align-items: center; min-width: 0; border: none; background: none;
-  padding: 0; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text-mute);
-  cursor: pointer; text-align: left; white-space: nowrap; }
-.allday-more:hover { color: var(--accent); }
+/* Ручка-шторка «весь день» — только на мобильном (см. медиазапрос); на десктопе скрыта. */
+.allday-handle { display: none; }
 .allday-edit { min-width: 8ch; border: 0; background: none; outline: none; font-family: inherit;
   font-size: 15px; font-weight: 600; color: var(--text); padding: 0; user-select: text; -webkit-user-select: text; }
 

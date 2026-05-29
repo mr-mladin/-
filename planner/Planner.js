@@ -25,6 +25,7 @@ const SNAP = 5;
 const MIN_DUR = 15;
 const HOLD_MS = 350;
 const MIN_EVENT_PX = 14;
+const AD_COLLAPSED = 52; // свёрнутая высота зоны «весь день» (px) — постоянна, чтобы место под часы не «плавало»
 const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
@@ -56,7 +57,7 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
-  const [allDayExpanded, setAllDayExpanded] = useState(false); // зона «весь день» развёрнута (показать все)
+  const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
   const [confetti, setConfetti] = useState(null); // { key, id, bits } — хлопок конфетти при выполнении
   const [fallKey, setFallKey] = useState(null);   // ключ задачи в сетке, чей шарик сейчас падает
@@ -66,7 +67,6 @@ function Planner() {
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
-  const [dbg, setDbg] = useState(null); // ВРЕМЕННО: диагностика пустоты снизу
   // Соседние дни карусели рисуем только во время горизонтального свайпа —
   // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
   const [peek, setPeek] = useState(false);
@@ -145,7 +145,7 @@ function Planner() {
   }, [selected]);
 
   // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
-  useEffect(() => { setSelected(new Set()); setSelRange(null); setAllDayExpanded(false); }, [date, view, filter]);
+  useEffect(() => { setSelected(new Set()); setSelRange(null); setAdH(AD_COLLAPSED); }, [date, view, filter]);
 
   // Снять выделение кликом в любое место вне капсулы (даже по названию, заметке,
   // пустой области). Слушаем в фазе захвата, чтобы ловить и события, у которых
@@ -159,19 +159,15 @@ function Planner() {
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
   // Минимальный масштаб (предел сворачивания) — чтобы все 24 часа влезали в
-  // видимую высоту сетки без прокрутки.
+  // видимую высоту сетки без прокрутки. Меряем реальный отступ сверху до сетки
+  // часов (.tl): туда входят padding, СВЁРНУТАЯ зона «весь день» и ручка — всё
+  // постоянной высоты, поэтому «вписывание» одинаково на каждом дне (нет пустоты).
   function fitMinPx() {
-    const el = scrollRef.current;
-    if (!el) return HOUR_MIN;
-    // Высоту зоны «весь день» берём у центральной панели (adGridRef), а не через
-    // querySelector — во время свайпа в DOM присутствуют и панели соседних дней.
-    const cs = getComputedStyle(el);
-    const padT = parseFloat(cs.paddingTop) || 0;
-    const padB = parseFloat(cs.paddingBottom) || 0;
-    const adH = adGridRef.current ? adGridRef.current.offsetHeight : 0;
-    const h = el.clientHeight - padT - padB - adH - 14;
-    // Точное вписывание (без floor): 24*hourPx == доступная высота → сетка
-    // заканчивается ровно у safe-area снизу, без белой пустоты под 24:00.
+    const el = scrollRef.current, grid = innerRef.current;
+    if (!el || !grid) return HOUR_MIN;
+    const padB = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+    const above = (grid.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop;
+    const h = el.clientHeight - above - padB;
     return h > 0 ? Math.max(HOUR_MIN, h / 24) : HOUR_MIN;
   }
 
@@ -211,36 +207,6 @@ function Planner() {
       window.removeEventListener("orientationchange", fitUp);
     };
   }, [view]);
-
-  // ВРЕМЕННО: подсветка границ слоёв (красный — контейнер сетки, синий — часы) +
-  // числа, чтобы по скриншоту понять, какому слою принадлежит пустота снизу.
-  useEffect(() => {
-    if (view !== "day") { setDbg(null); return; }
-    const el = scrollRef.current, grid = innerRef.current;
-    if (el) el.style.outline = "2px solid rgba(255,0,0,.7)";
-    if (grid) grid.style.outline = "2px solid rgba(0,120,255,.85)";
-    const calc = () => {
-      if (!el) return;
-      const r = el.getBoundingClientRect();
-      const gr = grid ? grid.getBoundingClientRect() : null;
-      const appEl = document.getElementById("app");
-      const ar = appEl ? appEl.getBoundingClientRect() : null;
-      setDbg({
-        ch: el.clientHeight, sh: el.scrollHeight, st: Math.round(el.scrollTop),
-        hp: Math.round(hourPx * 10) / 10, fit: Math.round(fitMinPx() * 10) / 10,
-        elBot: Math.round(r.bottom), tlBot: gr ? Math.round(gr.bottom) : null,
-        appBot: ar ? Math.round(ar.bottom) : null,
-        winH: window.innerHeight,
-        vvH: window.visualViewport ? Math.round(window.visualViewport.height) : null,
-      });
-    };
-    const id = requestAnimationFrame(() => requestAnimationFrame(calc));
-    return () => {
-      cancelAnimationFrame(id);
-      if (el) el.style.outline = "";
-      if (grid) grid.style.outline = "";
-    };
-  }, [view, date, hourPx]);
 
   // Масштаб сетки дня жестом «щипок» на тачпаде. В Chromium/Arc это wheel с
   // зажатым Ctrl, в Safari — события gesture* со свойством scale.
@@ -1314,6 +1280,22 @@ function Planner() {
   // Сетка дня: касаниями карусель листает САМ браузер (CSS scroll-snap). Здесь
   // обрабатываем только: (а) свайп от левого края — открыть шторку проектов,
   // (б) два пальца — зафиксировать точку для зум-якоря.
+  // Ручка-шторка зоны «весь день»: тянем пальцем — высота меняется ровно за пальцем,
+  // от свёрнутой (AD_COLLAPSED) до половины экрана. Отпустил — осталось как есть.
+  function onAllDayHandleDown(e) {
+    e.preventDefault();
+    const startY = e.clientY, startH = adH;
+    const maxH = Math.round((window.visualViewport?.height || window.innerHeight) * 0.5);
+    const move = (ev) => setAdH(clamp(Math.round(startH + (ev.clientY - startY)), AD_COLLAPSED, maxH));
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointercancel", up);
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+  }
   function onDaySwipeStart(e) {
     if (e.touches.length === 2) {
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
@@ -1321,6 +1303,7 @@ function Planner() {
       return;
     }
     if (e.touches.length !== 1) return;
+    if (e.target && e.target.closest && e.target.closest(".allday-handle")) return; // ручку шторки ведёт её собственный drag
     if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; }
     // Тач-драг карусели дня — тянем сетку под пальцем через тот же transform.
     const st = daySwipeStateRef.current;
@@ -1436,14 +1419,14 @@ function Planner() {
     all.sort((a, b) => ((sortOrderById.get(rowIdOfX(a)) ?? 0) - (sortOrderById.get(rowIdOfX(b)) ?? 0))
       || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     return html`<div class="tl-peek">
-      <div class=${"allday" + (all.length === 0 ? " empty" : "") + (all.length ? " grid" : "")}>
-        ${(all.length <= 6 ? all : all.slice(0, 5)).map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
+      <div class=${"allday" + (all.length === 0 ? " empty" : "") + (all.length ? " grid" : "")} style=${`--adh:${AD_COLLAPSED}px`}>
+        ${all.map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
           <span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>
           <span class="allday-title">${i.title}</span>
         </div>`)}
-        ${all.length > 6 ? html`<span class="allday-more">ещё ${all.length - 5}</span>` : ""}
         ${all.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
       </div>
+      <div class="allday-handle"><span class="allday-grip"></span></div>
       ${dayStaticPane(pd)}
     </div>`;
   }
@@ -1636,7 +1619,7 @@ function Planner() {
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
-              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef}>
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}>
                 ${(() => {
                   const cell = (i) => html`
                     <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key} data-adkey=${i.key}
@@ -1652,21 +1635,7 @@ function Planner() {
                             onBlur=${() => commitTitle(i)} />`
                         : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
                     </div>`;
-                  if (!adDrag) {
-                    // Свёрнуто: показываем до 6 (2 ряда). Если больше — 5 задач + «ещё N».
-                    // Так зона не съедает место под часы и 24ч стабильно вписываются.
-                    if (allDayExpanded || allDay.length <= 6) {
-                      const out = allDay.map(cell);
-                      if (allDayExpanded && allDay.length > 6)
-                        out.push(html`<button class="allday-more" key="__less" type="button"
-                          onClick=${() => setAllDayExpanded(false)}>свернуть</button>`);
-                      return out;
-                    }
-                    const out = allDay.slice(0, 5).map(cell);
-                    out.push(html`<button class="allday-more" key="__more" type="button"
-                      onClick=${() => setAllDayExpanded(true)}>ещё ${allDay.length - 5}</button>`);
-                    return out;
-                  }
+                  if (!adDrag) return allDay.map(cell);
                   const rest = allDay.filter(i => i.key !== adDrag.key);
                   const slots = rest.slice(0, adDrag.overIndex).map(cell);
                   slots.push(html`<div class="allday-item ad-placeholder" key="__adph" data-adkey="__adph" style=${`height:${adDrag.h}px;`}></div>`);
@@ -1681,6 +1650,7 @@ function Planner() {
                 })()}
                 ${allDay.length === 0 ? html`<span class="allday-hint">Весь день</span>` : ""}
               </div>
+              <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
@@ -1815,15 +1785,6 @@ function Planner() {
           ${Icon.plus()}</button>
       </div>
     </div>
-    ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.82);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v8</div>
-      <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
-      <div>hp=${dbg.hp} fit=${dbg.fit}</div>
-      <div>tlBot=${dbg.tlBot}</div>
-      <div>elBot=${dbg.elBot}</div>
-      <div>appBot=${dbg.appBot}</div>
-      <div>winH=${dbg.winH} vvH=${dbg.vvH}</div>
-    </div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
