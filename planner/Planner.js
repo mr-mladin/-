@@ -83,6 +83,7 @@ function Planner() {
   const [selected, setSelected] = useState(() => new Set());
   const [selRange, setSelRange] = useState(null);
   const [asideOpen, setAsideOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches);
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -102,6 +103,7 @@ function Planner() {
   const zoomFocus = useRef(null);   // точка под пальцами при зуме (фиксируем её)
   const zoomingRef = useRef(false); // идёт изменение масштаба
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
+  const createActiveRef = useRef(false); // идёт размещение новой задачи (капсула под пальцем) — карусель дня не вмешивается
   const projRef = useRef(null);
   const asideRef = useRef(null);
   const swipedRef = useRef(false);
@@ -163,6 +165,12 @@ function Planner() {
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
   useEffect(() => { liftDragRef.current = liftDrag; }, [liftDrag]); // обработчикам свайпа/зума нужно актуальное «поднята ли задача»
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 860px)");
+    const on = () => setIsMobile(mq.matches);
+    mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on);
+    return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); };
+  }, []);
 
   // Масштаб часов = так, чтобы вся прокручиваемая лента влезла в экран точь-в-точь
   // (scrollHeight == clientHeight): ни прокрутки, ни пустоты. «Лишнее» помимо самих
@@ -656,13 +664,14 @@ function Planner() {
     let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - 60);
     const beginTouch = () => {
       active = true;
+      createActiveRef.current = true;
       setSelected(new Set());
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
       // Непассивный слушатель добавляем только после активации создания — чтобы
       // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
       document.addEventListener("touchmove", onTouchMove, { passive: false });
       setDrag({ type: "create", start: start0, dur: 60 });
-      if (navigator.vibrate) navigator.vibrate(12);
+      haptic();
     };
     const beginMouse = () => {
       active = true;
@@ -689,6 +698,7 @@ function Planner() {
     const onTouchMove = ev => { if (active) ev.preventDefault(); };
     const finish = (commit) => {
       clearTimeout(hold);
+      createActiveRef.current = false;
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", cancel);
@@ -1380,6 +1390,7 @@ function Planner() {
     st.cancel();
     let horiz = null;
     const move = (ev) => {
+      if (createActiveRef.current) { if (horiz === true) st.snap(); cleanup(); return; } // началось размещение новой задачи — карусель уступает
       const t = ev.touches[0]; if (!t) return;
       const dxF = t.clientX - sx, dyF = t.clientY - sy;
       if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
@@ -1433,8 +1444,10 @@ function Planner() {
         onClose=${closeEditor} />`
     : null;
   // В сетке дня — привязка к минуте начала задачи (для повторов — к позиции
-  // конкретного повторения на текущем дне).
-  const edGridMin = view === "day"
+  // конкретного повторения на текущем дне). На мобильном к сетке НЕ привязываем:
+  // там карточка открывается по центру (плавающей), иначе у нижних задач форма
+  // вылезает за экран и обрезается. На десктопе — как было, рядом с задачей.
+  const edGridMin = (view === "day" && !isMobile)
     ? (editing && editing.occ && editing.occ.start_min != null ? editing.occ.start_min
       : editing && edTask && edTask.date === date && edTask.start_min != null ? edTask.start_min
       : creating && creating.date === date && creating.start_min != null ? creating.start_min
@@ -1818,7 +1831,7 @@ function Planner() {
                   return html`<div class="tl-ghost" key=${"cg" + k} style=${`top:${(ns / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, ((it.duration_min || 0) / 60) * hourPx)}px;--c:${colorOf(it)};`}>
                     <div class="tl-ghost-pill"></div></div>`;
                 })}
-                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost"
+                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost placing"
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}

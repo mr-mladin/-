@@ -499,6 +499,11 @@ textarea.input { resize: vertical; }
 @keyframes ghostPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 .tl-ghost-label { position: absolute; left: 108px; top: 2px; font-size: 12px; color: var(--text-mute);
   font-variant-numeric: tabular-nums; }
+/* Создание новой задачи на мобильном: вместо пунктира — сплошная «приподнятая» капсула
+   (как поднятая задача), едет за пальцем, без поля ввода. Форма открывается на отпускании. */
+.tl-ghost.placing .tl-ghost-pill { background: var(--accent); border: 0;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+.tl-ghost.placing .tl-ghost-label { color: var(--text); font-weight: 600; }
 
 /* Переключатель вида */
 .seg { display: inline-flex; background: var(--bg-soft); border-radius: var(--radius); padding: 3px; gap: 2px; }
