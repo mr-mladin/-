@@ -116,6 +116,7 @@ function Planner() {
   const createActiveRef = useRef(false); // идёт размещение новой задачи (капсула под пальцем) — карусель дня не вмешивается
   const kbPrimerRef = useRef(null); // скрытое поле: открыть клавиатуру синхронно в жесте, затем фокус уедет в форму
   const createGeomRef = useRef(null); // позиция плавающей капсулы новой задачи (фикс. координаты вьюпорта)
+  const dndGeomRef = useRef(null);    // ширина/левый край сетки для плавающей капсулы при переносе из «весь день»
   const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
@@ -811,7 +812,6 @@ function Planner() {
   function onBlockTouch(e, item, tapAction) {
     const pid = e.pointerId;
     const sx = e.clientX, sy = e.clientY;
-    const grab = yToMin(e.clientY) - item.start_min;
     const dur = item.duration_min || 0;
     const origDate = dateRef.current; // день, с которого подняли (текущий день вида)
     const already = selected.has(item.key); // уже выделенную двигаем сразу, без удержания
@@ -879,7 +879,9 @@ function Planner() {
       }
       const speed = Math.hypot(vx, vy); // px/мс
       if (speed > 1.0) { haptic(); land(0, () => {}); return; } // резкий отброс в любую сторону → отмена (плавно назад)
-      const target = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
+      // Новое время считаем ОТ СМЕЩЕНИЯ ПАЛЬЦА (как призрак), а не от позиции сетки —
+      // иначе сдвиг сетки (адресная строка iOS) ломал бы расчёт и задача прыгала на 00:00.
+      const target = clamp(snap(item.start_min + Math.round(((ev.clientY - sy) / hourPx) * 60)), 0, 1440 - dur);
       const targetDy = ((target - item.start_min) / 60) * hourPx;
       const newDate = dateRef.current; // мог смениться вторым пальцем
       land(targetDy, () => {
@@ -1073,7 +1075,8 @@ function Planner() {
       ev.preventDefault();
       const zone = dndZoneAt(ev.clientX, ev.clientY);
       if (zone === "grid" && item.kind === "concrete" && innerRef.current) {
-        if (mode !== "schedule") { mode = "schedule"; setAdDrag(null); }
+        if (mode !== "schedule") { mode = "schedule"; setAdDrag(null);
+          const gr = innerRef.current.getBoundingClientRect(); dndGeomRef.current = { left: gr.left, width: gr.width }; }
         const gridMin = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
         setDnd({ source: "tray", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "grid", gridMin, dur });
         return;
@@ -1931,10 +1934,10 @@ function Planner() {
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
-                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-ghost"
+                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-ghost lift-target"
                   style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx)}px;--c:${dnd.color};`}>
                   <div class="tl-ghost-pill"></div>
-                  <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div></div>`}
+                  <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)}</div></div>`}
               </div>
               </div>
               <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
@@ -1961,10 +1964,22 @@ function Planner() {
       </div>
     </div>
 
-    ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
+    ${dnd && dnd.zone !== "grid" && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
       ${dnd.zone === "tray" ? html`<span class="dnd-ghost-hint">снять время</span>` : ""}
     </div>`}
+    ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dndGeomRef.current && (() => {
+      // Перенос из «весь день» в сетку — тот же вид, что и подъём обычной задачи:
+      // плавающая капсула под пальцем (призрак времени рисуется в сетке, см. выше).
+      const g = dndGeomRef.current, h = Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx);
+      return html`<div class="tl-event tl-lift-overlay lifted" style=${`top:${dnd.y - Math.min(h, 28)}px;left:${g.left}px;width:${g.width}px;height:${h}px;--c:${dnd.color};transform:scale(1.04);`}>
+        <div class="tl-pill"></div>
+        <div class="tl-body"><div class="tl-text">
+          <div class="tl-titlerow"><div class="tl-title">${dnd.title}</div></div>
+          <div class="tl-meta">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div>
+        </div></div>
+      </div>`;
+    })()}
     ${ctx && html`<div class="ctx-back" onPointerDown=${() => setCtx(null)} onContextMenu=${e => { e.preventDefault(); setCtx(null); }}>
       <div class="ctx-menu" style=${`left:${Math.min(ctx.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 176)}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
         <button class="ctx-item" onClick=${() => { setListModal(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
