@@ -233,7 +233,9 @@ function Planner() {
     // Масштаб подбираем автоматически ТОЛЬКО пока пользователь сам его не менял.
     // После ручного щипка — масштаб его, авто-вписывание молчит (в т.ч. при смене дня,
     // повороте, открытии клавиатуры). Зависимость без date: смена дня масштаб не трогает.
-    const fitNow = () => { if (!zoomedRef.current) setHourPx(fitMinPx()); };
+    // И НИКОГДА не пересчитываем во время переноса/создания — иначе сетка перескалируется
+    // под пальцем (на iOS адресная строка дёргает размер) и задача «улетает» не туда.
+    const fitNow = () => { if (zoomedRef.current || liftDragRef.current || createActiveRef.current) return; setHourPx(fitMinPx()); };
     let r1 = 0, r2 = 0;
     r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fitNow); });
     window.addEventListener("resize", fitNow);
@@ -253,7 +255,7 @@ function Planner() {
     if (view !== "day" || typeof ResizeObserver === "undefined") return;
     const el = scrollRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => { if (!zoomedRef.current) setHourPx(fitMinPx()); });
+    const ro = new ResizeObserver(() => { if (zoomedRef.current || liftDragRef.current || createActiveRef.current) return; setHourPx(fitMinPx()); });
     ro.observe(el);
     return () => ro.disconnect();
   }, [view]);
@@ -844,7 +846,10 @@ function Planner() {
       vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
       vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
       lx = ev.clientX; ly = ev.clientY; lt = now;
-      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false });
+      // Палец над зоной «весь день» (и задача обычная) → отметим: призрак времени прячем,
+      // зона подсветится; на отпускании задача станет задачей на весь день.
+      const overAllday = item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "allday";
+      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false, allday: overAllday });
     };
     // Плавный «доезд»: анимируем transform к нужному смещению (.landing, переход .2s).
     // Когда доехала — в одном кадре фиксируем новое время (top становится = слоту) и
@@ -866,6 +871,12 @@ function Planner() {
       cleanup();
       if (!wasLifted) { setLiftDrag(null); (tapAction || (() => openPreview(item)))(); return; }
       if (!mv) { setLiftDrag(null); return; } // подняли и отпустили без движения → остаётся выделенной
+      // Бросок в зону «весь день» → задача становится задачей на весь день (без времени).
+      if (item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "allday") {
+        setLiftDrag(null); haptic();
+        store.actions.tasks.reschedule(item, { date: dateRef.current, start_min: null, duration_min: null }).catch(showErr);
+        return;
+      }
       const speed = Math.hypot(vx, vy); // px/мс
       if (speed > 1.0) { haptic(); land(0, () => {}); return; } // резкий отброс в любую сторону → отмена (плавно назад)
       const target = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
@@ -1764,7 +1775,7 @@ function Planner() {
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
-              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + (dnd && dnd.zone === "allday" ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}>
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}>
                 ${(() => {
                   const cell = (i) => html`
                     <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key} data-adkey=${i.key}
@@ -1892,6 +1903,17 @@ function Planner() {
                     </div>
                   </div>`;
                 })}
+                ${liftDrag && !liftDrag.done && !liftDrag.allday && liftItemRef.current && (() => {
+                  // Призрак на месте приземления: задача едет за пальцем (плавающая копия),
+                  // а здесь, на разметке часов, прозрачный призрак показывает новое время.
+                  // По отпускании задача «доезжает» сюда и встаёт на это время. Над зоной
+                  // «весь день» призрак прячем — задача уйдёт туда.
+                  const it = liftItemRef.current, dur = it.duration_min || 0;
+                  const lm = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
+                  return html`<div class="tl-ghost lift-target" style=${`top:${(lm / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dur / 60) * hourPx)}px;--c:${colorOf(it)};`}>
+                    <div class="tl-ghost-pill"></div>
+                    <div class="tl-ghost-label">${minRangeLabel(lm, dur)}</div></div>`;
+                })()}
                 ${drag && drag.type === "copy" && (() => {
                   const src = dayTl.find(x => x.key === drag.key);
                   return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
