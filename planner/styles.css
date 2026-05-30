@@ -39,7 +39,8 @@ img, button { -webkit-user-drag: none; user-drag: none; }
    наследует callout). */
 button, .tray-task-wrap, .tray-task, .tl-event, .tl-pill, .allday-item, .wday, .seg-btn, .icon-btn {
   -webkit-touch-callout: none; }
-#app { height: 100%; }
+/* #app тянется до низа экрана через bottom:0 (НЕ height:100% — на iOS оно
+   считалось короче экрана, и снизу проступал фон body как «пустота»). */
 
 /* Полоса прокрутки видна только во время прокрутки.
    .is-scrolling ставится на <html> из main.js, пока идёт прокрутка, и
