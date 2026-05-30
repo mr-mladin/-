@@ -1808,11 +1808,6 @@ function Planner() {
             </div>
           </div>`}
         </div>
-
-        <button class="mobile-fab" title="Новая задача"
-          onClick=${() => setCreating({ date, list_id: filter !== "all" && filter !== "inbox" ? filter : null,
-            start_min: clamp((isToday ? Math.round(nowMin / 30) * 30 : 540), 0, 1380), duration_min: 60 })}>
-          ${Icon.plus()}</button>
       </div>
     </div>
 
