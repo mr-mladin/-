@@ -161,17 +161,19 @@ function Planner() {
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
-  // Масштаб часов = ровно остаток высоты под сеткой. МЕРЯЕМ реальный отступ сверху
-  // до сетки часов (.tl): grid.top − el.top + scrollTop = всё, что выше .tl (padding,
-  // зона «весь день» текущей высоты, ручка, бордюры, суб-пиксели). Тогда 24*hp =
-  // экран − этот отступ → контент ровно = экрану: ни прокрутки, ни пустоты (точно,
-  // без констант-догадок). Снизу у .tl ничего нет, поэтому остаток уходит весь в часы.
+  // Масштаб часов = так, чтобы вся прокручиваемая лента влезла в экран точь-в-точь
+  // (scrollHeight == clientHeight): ни прокрутки, ни пустоты. «Лишнее» помимо самих
+  // часов (зона «весь день», ручка, отступы, бордюры, суб-пиксели, и что бы там ни
+  // было СВЕРХУ И СНИЗУ) меряем напрямую = высота ленты − высота сетки часов. Что бы
+  // ни пряталось в вёрстке — оно попадёт в extra, и расчёт будет точным.
   function fitMinPx() {
-    const el = scrollRef.current, grid = innerRef.current;
+    const el = scrollRef.current, grid = innerRef.current, track = trackRef.current;
     if (!el || !grid) return HOUR_MIN;
-    const padB = parseFloat(getComputedStyle(el).paddingBottom) || 0;
-    const above = (grid.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop;
-    const h = el.clientHeight - above - padB;
+    const cs = getComputedStyle(el);
+    const padT = parseFloat(cs.paddingTop) || 0;
+    const padB = parseFloat(cs.paddingBottom) || 0;
+    const extra = track ? Math.max(0, track.offsetHeight - grid.offsetHeight) : 0;
+    const h = el.clientHeight - padT - padB - extra;
     return h > 0 ? Math.max(HOUR_MIN, h / 24) : HOUR_MIN;
   }
 
@@ -230,17 +232,15 @@ function Planner() {
   useEffect(() => {
     if (view !== "day") { setDbg(null); return; }
     const calc = () => {
-      const el = scrollRef.current, grid = innerRef.current, ad = adGridRef.current;
+      const el = scrollRef.current, grid = innerRef.current, track = trackRef.current;
       if (!el) return;
-      const r = el.getBoundingClientRect();
-      const gr = grid ? grid.getBoundingClientRect() : null;
-      const hdl = el.querySelector(".allday-handle");
+      const trackH = track ? track.offsetHeight : -1;
+      const tlH = grid ? grid.offsetHeight : -1;
+      const padB = Math.round(parseFloat(getComputedStyle(el).paddingBottom) || 0);
       setDbg({
         hp: Math.round(hourPx * 10) / 10, fit: Math.round(fitMinPx() * 10) / 10,
         ch: el.clientHeight, sh: el.scrollHeight, st: Math.round(el.scrollTop),
-        allH: ad ? ad.offsetHeight : -1, hdlH: hdl ? Math.round(hdl.getBoundingClientRect().height) : -1,
-        tlBot: gr ? Math.round(gr.bottom) : null, elBot: Math.round(r.bottom),
-        winH: window.innerHeight, adH,
+        trackH, tlH, extra: (trackH >= 0 && tlH >= 0) ? trackH - tlH : -1, padB, adH,
       });
     };
     const id = requestAnimationFrame(() => requestAnimationFrame(calc));
@@ -1322,14 +1322,15 @@ function Planner() {
   // — осталось как есть.
   function onAllDayHandleDown(e) {
     e.preventDefault();
-    const el = scrollRef.current, grid = innerRef.current;
-    const padB = el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
-    // Резерв над часами БЕЗ шторки = текущий отступ до .tl минус текущая высота шторки.
-    // Тогда при любой новой высоте nh: остаток под часы = clientHeight − padB − reserve − nh.
+    const el = scrollRef.current, grid = innerRef.current, track = trackRef.current;
+    const cs = el ? getComputedStyle(el) : null;
+    const padT = cs ? parseFloat(cs.paddingTop) || 0 : 0;
+    const padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
     const startH = adH;
-    const above = (el && grid) ? (grid.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop : 0;
-    const reserve = above - startH; // padding + ручка + бордюры (без самой шторки)
-    const avail = el ? el.clientHeight - padB - reserve : 0;
+    // «Лишнее» помимо часов и самой шторки (ручка, отступы, бордюры): высота ленты −
+    // высота сетки − текущая высота шторки. Дальше остаток под часы = экран − это − nh.
+    const extra = (track && grid) ? Math.max(0, track.offsetHeight - grid.offsetHeight) : 0;
+    const avail = el ? el.clientHeight - padT - padB - (extra - startH) : 0;
     const startY = e.clientY;
     const maxH = Math.round((window.visualViewport?.height || window.innerHeight) * 0.5);
     const move = (ev) => {
@@ -1834,11 +1835,11 @@ function Planner() {
       </div>
     </div>
     ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.84);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v11</div>
+      <div>DBG v12</div>
       <div>hp=${dbg.hp} fit=${dbg.fit}</div>
       <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
-      <div>allH=${dbg.allH} hdlH=${dbg.hdlH} adH=${dbg.adH}</div>
-      <div>tlBot=${dbg.tlBot} elBot=${dbg.elBot} winH=${dbg.winH}</div>
+      <div>trackH=${dbg.trackH} tlH=${dbg.tlH}</div>
+      <div>extra=${dbg.extra} padB=${dbg.padB} adH=${dbg.adH}</div>
     </div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
