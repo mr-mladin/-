@@ -662,6 +662,7 @@ function Planner() {
     const el = e.currentTarget, pid = e.pointerId;
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
     let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - 60);
+    let lx = e.clientX, ly = e.clientY, lt = performance.now(), vx = 0, vy = 0; // скорость для «отброса» (отмена создания)
     const beginTouch = () => {
       active = true;
       createActiveRef.current = true;
@@ -686,6 +687,10 @@ function Planner() {
       }
       ev.preventDefault();
       if (touch) {
+        const now = performance.now(), dt = Math.max(1, now - lt);
+        vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
+        vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
+        lx = ev.clientX; ly = ev.clientY; lt = now;
         start0 = clamp(snap(yToMin(ev.clientY)), 0, 1440 - 60);
         setDrag({ type: "create", start: start0, dur: 60 });
       } else {
@@ -713,7 +718,10 @@ function Planner() {
         list_id: filter !== "all" && filter !== "inbox" ? filter : null })
         .then(row => { if (row) openPreview(rowToItem(row)); }).catch(showErr);
     };
-    const up = () => finish(true);
+    const up = () => {
+      if (touch && active && Math.hypot(vx, vy) > 1.0) { haptic(); finish(false); return; } // резкий отброс → отмена создания
+      finish(true);
+    };
     const cancel = () => finish(false);
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
