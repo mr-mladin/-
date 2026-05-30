@@ -55,6 +55,7 @@ function Planner() {
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
   const [drag, setDrag] = useState(null);
+  const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy } — едет за пальцем
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
   const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
@@ -751,36 +752,51 @@ function Planner() {
       list_id: it.list_id || null, date, start_min: startMin, duration_min: it.duration_min || 60 };
   }
 
-  // Мобильное перемещение пилюли: только после долгого нажатия (режим
-  // перемещения с пульсацией). До этого касание по пилюле = обычный скролл/тап.
+  // Мобильное взаимодействие с задачей (как в Apple Календаре): долгое нажатие →
+  // задача «приподнимается» (увеличивается + тень, без пульсации) и едет за пальцем
+  // в ЛЮБУЮ сторону (свободный 2D-драг через transform). Отпустил — привязка к
+  // новому времени по вертикали (горизонталь только для ощущения). Резкий «отброс»
+  // (быстрый свайп вверх/в сторону) → отмена: задача возвращается на место.
   function onBlockTouch(e, item, tapAction) {
+    const pid = e.pointerId;
     const sx = e.clientX, sy = e.clientY;
     const grab = yToMin(e.clientY) - item.start_min;
     const dur = item.duration_min || 0;
-    // Уже выделенную пилюлю можно двигать сразу, без повторного удержания.
-    const already = selected.has(item.key);
-    let armed = false, moved = false, hold = null, newStart = item.start_min;
-    const onTouchMove = ev => { if (armed) ev.preventDefault(); };
-    const arm = (select) => {
-      armed = true;
+    const already = selected.has(item.key); // уже выделенную двигаем сразу, без удержания
+    let lifted = false, moved = false, hold = null;
+    let lx = sx, ly = sy, lt = performance.now(), vx = 0, vy = 0; // сглаженная скорость для «отброса»
+    const onTouchMove = ev => { if (lifted) ev.preventDefault(); }; // глушим прокрутку во время драга
+    const lift = (select) => {
+      lifted = true;
       document.addEventListener("touchmove", onTouchMove, { passive: false });
-      if (select) { setSelected(new Set([item.key])); haptic(); }
-      setDrag({ type: "move", key: item.key, start: item.start_min, dur, armed: true });
+      if (select) setSelected(new Set([item.key]));
+      haptic();
+      setLiftDrag({ key: item.key, dx: 0, dy: 0 });
     };
     const move = ev => {
+      if (ev.pointerId !== pid) return; // только наш палец (второй — для листания дня, фаза 2)
       const far = Math.hypot(ev.clientX - sx, ev.clientY - sy);
-      if (!armed) { if (far > 12) cleanup(); return; } // двинул до активации — это скролл
+      if (!lifted) { if (far > 12) cleanup(); return; } // двинул до подъёма — это прокрутка
       if (far > 3) moved = true;
       ev.preventDefault();
-      newStart = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
-      setDrag({ type: "move", key: item.key, start: newStart, dur, armed: true });
+      const now = performance.now(), dt = Math.max(1, now - lt);
+      vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
+      vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
+      lx = ev.clientX; ly = ev.clientY; lt = now;
+      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy });
     };
-    const up = () => {
-      const wasArmed = armed;
+    const up = (ev) => {
+      if (ev.pointerId !== pid) return;
+      const wasLifted = lifted, mv = moved;
       cleanup();
-      setDrag(null);
-      if (!wasArmed) { (tapAction || (() => openPreview(item)))(); return; }
-      if (moved && newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
+      setLiftDrag(null); // снимаем подъём → пилюля анимацией возвращается/доезжает
+      if (!wasLifted) { (tapAction || (() => openPreview(item)))(); return; }
+      if (!mv) return; // подняли и отпустили без движения → просто остаётся выделенной
+      const speed = Math.hypot(vx, vy); // px/мс
+      const flick = speed > 0.9 && (vy < -0.5 || Math.abs(vx) > 0.7); // резкий отброс вверх/в сторону
+      if (flick) return; // отмена: время не меняем, задача вернётся на место
+      const target = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
+      if (target !== item.start_min) store.actions.tasks.reschedule(item, { start_min: target }).catch(showErr);
     };
     const cleanup = () => {
       clearTimeout(hold);
@@ -792,8 +808,8 @@ function Planner() {
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
-    if (already) arm(false);                       // уже выделена → двигаем сразу
-    else hold = setTimeout(() => arm(true), 280);  // не выделена → выделяем удержанием
+    if (already) lift(false);                       // уже выделена → поднимаем сразу
+    else hold = setTimeout(() => lift(true), 280);  // не выделена → подъём по удержанию
   }
 
   function onBlockPointerDown(e, item, tapAction) {
@@ -1706,8 +1722,9 @@ function Planner() {
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
-                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (drag && drag.armed && drag.key === i.key ? " armed" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
+                  const lifting = liftDrag && liftDrag.key === i.key;
+                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (lifting ? " lifted" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${lifting ? `transform:translate(${liftDrag.dx}px,${liftDrag.dy}px) scale(1.04);` : ""}`}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
                       ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
