@@ -60,7 +60,6 @@ function Planner() {
   const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
   const adHRef = useRef(AD_COLLAPSED); // актуальная высота шторки для fitMinPx (без устаревания замыкания)
   const setAdHeight = (v) => { adHRef.current = v; setAdH(v); }; // менять высоту шторки только так
-  const [dbg, setDbg] = useState(null); // ВРЕМЕННО: диагностика пустоты снизу
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
   const [confetti, setConfetti] = useState(null); // { key, id, bits } — хлопок конфетти при выполнении
   const [fallKey, setFallKey] = useState(null);   // ключ задачи в сетке, чей шарик сейчас падает
@@ -228,24 +227,6 @@ function Planner() {
     return () => ro.disconnect();
   }, [view]);
 
-  // ВРЕМЕННО: точные размеры низа + высота ручки (загрузился ли CSS) + метка версии.
-  useEffect(() => {
-    if (view !== "day") { setDbg(null); return; }
-    const calc = () => {
-      const el = scrollRef.current, grid = innerRef.current, track = trackRef.current;
-      if (!el) return;
-      const trackH = track ? track.offsetHeight : -1;
-      const tlH = grid ? grid.offsetHeight : -1;
-      const padB = Math.round(parseFloat(getComputedStyle(el).paddingBottom) || 0);
-      setDbg({
-        hp: Math.round(hourPx * 10) / 10, fit: Math.round(fitMinPx() * 10) / 10,
-        ch: el.clientHeight, sh: el.scrollHeight, st: Math.round(el.scrollTop),
-        trackH, tlH, extra: (trackH >= 0 && tlH >= 0) ? trackH - tlH : -1, padB, adH,
-      });
-    };
-    const id = requestAnimationFrame(() => requestAnimationFrame(calc));
-    return () => cancelAnimationFrame(id);
-  }, [view, date, hourPx, adH]);
   // Сетка дня: горизонтальный свайп между днями обрабатывает САМ браузер через
   // CSS scroll-snap — лента из 3 панелей (вчера/сегодня/завтра) с обязательным
   // снапом по горизонтали. Браузер знает, когда пальцы на тачпаде, а когда нет,
@@ -1834,13 +1815,6 @@ function Planner() {
           ${Icon.plus()}</button>
       </div>
     </div>
-    ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.84);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v13</div>
-      <div>hp=${dbg.hp} fit=${dbg.fit}</div>
-      <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
-      <div>trackH=${dbg.trackH} tlH=${dbg.tlH}</div>
-      <div>extra=${dbg.extra} padB=${dbg.padB} adH=${dbg.adH}</div>
-    </div>`}
 
     ${dnd && html`<div class="dnd-ghost" style=${`left:${dnd.x}px;top:${dnd.y}px;--c:${dnd.color};`}>
       <span class="dnd-ghost-dot"></span>${dnd.title}
