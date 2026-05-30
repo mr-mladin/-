@@ -382,6 +382,10 @@ textarea.input { resize: vertical; }
 /* Пока задача поднята — браузер не должен сам перехватывать касания (иначе второй
    палец вызвал бы pointercancel и сорвал перенос). Все касания ведём вручную. */
 .planner-grid-scroll.holding, .planner-grid-scroll.holding * { touch-action: none; }
+/* Плавающая копия поднятой задачи/капсулы: fixed поверх всего, координаты вьюпорта.
+   Лежит ВНЕ ленты карусели, поэтому при листании дней вторым пальцем остаётся под
+   пальцем. Двойной класс — чтобы position:fixed побеждал .tl-event/.tl-ghost. */
+.tl-event.tl-lift-overlay, .tl-ghost.tl-lift-overlay { position: fixed; right: auto; z-index: 55; pointer-events: none; }
 .tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   background: var(--c); cursor: default; touch-action: pan-y; display: flex; flex-direction: column;
   align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }

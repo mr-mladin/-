@@ -63,7 +63,8 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy, landing, done } — едет за пальцем
   const liftDragRef = useRef(null);               // актуальное значение для обработчиков свайпа/зума
-  const liftItemRef = useRef(null);               // снимок поднятой задачи — чтобы дорисовать её на другом дне
+  const liftItemRef = useRef(null);               // снимок поднятой задачи — рисуем её плавающей копией
+  const liftGeomRef = useRef(null);               // позиция плавающей копии (фикс. координаты вьюпорта)
   const landTimerRef = useRef(null);              // таймер «доезда» задачи на место
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
@@ -114,6 +115,7 @@ function Planner() {
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const createActiveRef = useRef(false); // идёт размещение новой задачи (капсула под пальцем) — карусель дня не вмешивается
   const kbPrimerRef = useRef(null); // скрытое поле: открыть клавиатуру синхронно в жесте, затем фокус уедет в форму
+  const createGeomRef = useRef(null); // позиция плавающей капсулы новой задачи (фикс. координаты вьюпорта)
   const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
@@ -681,16 +683,17 @@ function Planner() {
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
     let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - NEW_DUR);
     let lx = e.clientX, ly = e.clientY, lt = performance.now(), vx = 0, vy = 0; // скорость для «отброса» (отмена создания)
-    let sx2 = null; // старт второго пальца — листание дня во время размещения
     const beginTouch = () => {
       active = true;
       createActiveRef.current = true;
       setSelected(new Set());
+      const g = innerRef.current;
+      if (g) { const gr = g.getBoundingClientRect(); createGeomRef.current = { top: gr.top, left: gr.left, width: gr.width }; }
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
       // Непассивный слушатель добавляем только после активации создания — чтобы
       // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
       document.addEventListener("touchmove", onTouchMove, { passive: false });
-      setDrag({ type: "create", start: start0, dur: NEW_DUR });
+      setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true });
       haptic();
     };
     const beginMouse = () => {
@@ -712,24 +715,15 @@ function Planner() {
         vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
         lx = ev.clientX; ly = ev.clientY; lt = now;
         start0 = clamp(snap(yToMin(ev.clientY)), 0, 1440 - NEW_DUR);
-        setDrag({ type: "create", start: start0, dur: NEW_DUR });
+        setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true });
       } else {
         cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
         setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
       }
     };
-    // Непассивный touchmove с preventDefault реально останавливает прокрутку после
-    // долгого нажатия. Плюс вторым пальцем листаем день — задачу можно создать на другом дне.
-    const onTouchMove = ev => {
-      if (!active) return;
-      ev.preventDefault();
-      if (ev.touches.length >= 2) {
-        const t2 = ev.touches[ev.touches.length - 1];
-        if (sx2 == null) sx2 = t2.clientX;
-        const d = t2.clientX - sx2;
-        if (Math.abs(d) > 55) { shift(d < 0 ? 1 : -1); haptic(); sx2 = t2.clientX; }
-      } else sx2 = null;
-    };
+    // Глушим прокрутку во время размещения. День листает ВТОРОЙ палец через ту же
+    // карусель (runDaySwipe), что и обычный свайп; капсула — плавающая копия поверх.
+    const onTouchMove = ev => { if (active) ev.preventDefault(); };
     const finish = (commit) => {
       clearTimeout(hold);
       createActiveRef.current = false;
@@ -819,24 +813,22 @@ function Planner() {
     const dur = item.duration_min || 0;
     const origDate = dateRef.current; // день, с которого подняли (текущий день вида)
     const already = selected.has(item.key); // уже выделенную двигаем сразу, без удержания
-    let lifted = false, moved = false, hold = null, sx2 = null, dayShifted = false; // sx2 — старт второго пальца (листание дня)
+    let lifted = false, moved = false, hold = null;
     let lx = sx, ly = sy, lt = performance.now(), vx = 0, vy = 0; // сглаженная скорость для «отброса»
-    // Пока задача поднята: одним пальцем двигаем её, ВТОРЫМ — листаем день (перенос на
-    // другой день). Глушим прокрутку всё время драга.
-    const onTouchMove = ev => {
-      if (!lifted) return;
-      ev.preventDefault();
-      if (ev.touches.length >= 2) {
-        const t2 = ev.touches[ev.touches.length - 1]; // последний коснувшийся — листающий палец
-        if (sx2 == null) sx2 = t2.clientX;
-        const d = t2.clientX - sx2;
-        if (Math.abs(d) > 55) { shift(d < 0 ? 1 : -1); haptic(); dayShifted = true; sx2 = t2.clientX; } // 55px = один день
-      } else sx2 = null;
-    };
+    // Пока задача поднята — глушим прокрутку. День листает ВТОРОЙ палец через ту же
+    // карусель, что и обычный свайп (runDaySwipe); поднятая задача — плавающая копия
+    // поверх (fixed), она не уезжает вместе с лентой.
+    const onTouchMove = ev => { if (lifted) ev.preventDefault(); };
     clearTimeout(landTimerRef.current); // прервать «доезд» прошлой задачи, если он ещё шёл
     const lift = (select) => {
       lifted = true;
       liftItemRef.current = item;
+      const g = innerRef.current;
+      if (g) {
+        const gr = g.getBoundingClientRect();
+        liftGeomRef.current = { top: gr.top + (item.start_min / 60) * hourPx, left: gr.left,
+          width: gr.width, height: Math.max(MIN_EVENT_PX, (dur / 60) * hourPx) };
+      }
       document.addEventListener("touchmove", onTouchMove, { passive: false });
       if (select) setSelected(new Set([item.key]));
       haptic();
@@ -869,7 +861,8 @@ function Planner() {
     };
     const up = (ev) => {
       if (ev.pointerId !== pid) return;
-      const wasLifted = lifted, mv = moved || dayShifted;
+      const dayChanged = dateRef.current !== origDate; // день сменили вторым пальцем (карусель)
+      const wasLifted = lifted, mv = moved || dayChanged;
       cleanup();
       if (!wasLifted) { setLiftDrag(null); (tapAction || (() => openPreview(item)))(); return; }
       if (!mv) { setLiftDrag(null); return; } // подняли и отпустили без движения → остаётся выделенной
@@ -1431,27 +1424,23 @@ function Planner() {
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
   }
-  function onDaySwipeStart(e) {
-    if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — день листает второй палец в своём обработчике
-    if (e.touches.length === 2) {
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-      zoomFocus.current = computeAnchor(midY);
-      return;
-    }
-    if (e.touches.length !== 1) return;
-    if (e.target && e.target.closest && e.target.closest(".allday-handle")) return; // ручку шторки ведёт её собственный drag
-    if (e.target && e.target.closest && e.target.closest(".tl-event")) return; // касание по задаче — ведёт её обработчик, не карусель
-    if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; }
-    // Тач-драг карусели дня — тянем сетку под пальцем через тот же transform.
+  // Единая механика свайпа дней (карусель st). Используется и для обычного свайпа, и
+  // для мультитача (второй палец, пока держим задачу/капсулу) — одна и та же физика,
+  // один свайп = один день, та же инерция и доводка. Палец отслеживаем по identifier,
+  // чтобы не путать пальцы при мультитаче. multi=true — свайп вторым пальцем (не уступаем
+  // создание/перенос: они идут параллельно своим обработчиком).
+  function runDaySwipe(touch, multi) {
     const st = daySwipeStateRef.current;
-    if (view !== "day" || !st) return;
-    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    if (view !== "day" || !st || !touch) return;
+    const id = touch.identifier;
+    const sx = touch.clientX, sy = touch.clientY;
     const startDx = st.getDx();
     st.cancel();
     let horiz = null;
+    const find = (list) => { for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i]; return null; };
     const move = (ev) => {
-      if (createActiveRef.current) { if (horiz === true) st.snap(); cleanup(); return; } // началось размещение новой задачи — карусель уступает
-      const t = ev.touches[0]; if (!t) return;
+      if (!multi && createActiveRef.current) { if (horiz === true) st.snap(); cleanup(); return; } // обычный свайп уступил создание
+      const t = find(ev.touches); if (!t) return;
       const dxF = t.clientX - sx, dyF = t.clientY - sy;
       if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
         horiz = Math.abs(dxF) > Math.abs(dyF) * 0.7;
@@ -1462,7 +1451,10 @@ function Planner() {
       ev.preventDefault();
       st.setDx(startDx + dxF);
     };
-    const end = () => { cleanup(); if (horiz === true) st.snap(); };
+    const end = (ev) => {
+      if (find(ev.touches)) return; // наш палец ещё на экране — свайп продолжается
+      cleanup(); if (horiz === true) st.snap();
+    };
     const cleanup = () => {
       document.removeEventListener("touchmove", move, { passive: false });
       document.removeEventListener("touchend", end);
@@ -1471,6 +1463,20 @@ function Planner() {
     document.addEventListener("touchmove", move, { passive: false });
     document.addEventListener("touchend", end);
     document.addEventListener("touchcancel", end);
+  }
+  function onDaySwipeStart(e) {
+    // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
+    if (liftDragRef.current || createActiveRef.current) { runDaySwipe(e.changedTouches[0], true); return; }
+    if (e.touches.length === 2) {
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      zoomFocus.current = computeAnchor(midY);
+      return;
+    }
+    if (e.touches.length !== 1) return;
+    if (e.target && e.target.closest && e.target.closest(".allday-handle")) return; // ручку шторки ведёт её собственный drag
+    if (e.target && e.target.closest && e.target.closest(".tl-event")) return; // касание по задаче — ведёт её обработчик
+    if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; }
+    runDaySwipe(e.touches[0], false);
   }
   function rowToItem(row) {
     return {
@@ -1798,8 +1804,10 @@ function Planner() {
                 ${selRange && html`<div class="tl-selrect"
                   style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
                 ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
-                ${(liftDrag && liftItemRef.current && !dayTl.some(t => t.key === liftDrag.key)
-                    ? [...dayTl, liftItemRef.current] : dayTl).map(i => {
+                ${dayTl.map(i => {
+                  // Поднятую задачу во время драга/«доезда» рисуем плавающей копией поверх
+                  // (см. ниже) — в самой ленте её прячем, чтобы день можно было листать под ней.
+                  if (liftDrag && !liftDrag.done && i.key === liftDrag.key) return null;
                   // Переходящая через полночь задача рисуется сегментом дня и не
                   // перетаскивается/не тянется (правка — через карточку по тапу).
                   const spanning = i.spanTop || i.spanBottom || i.cont;
@@ -1897,7 +1905,7 @@ function Planner() {
                   return html`<div class="tl-ghost" key=${"cg" + k} style=${`top:${(ns / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, ((it.duration_min || 0) / 60) * hourPx)}px;--c:${colorOf(it)};`}>
                     <div class="tl-ghost-pill"></div></div>`;
                 })}
-                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost placing"
+                ${drag && drag.type === "create" && !drag.touch && drag.dur > 0 && html`<div class="tl-ghost placing"
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
@@ -1945,6 +1953,32 @@ function Planner() {
     ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
       onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" aria-hidden="true" tabindex="-1" inputmode="text" />
+    ${liftDrag && !liftDrag.done && liftItemRef.current && liftGeomRef.current && (() => {
+      // Плавающая копия поднятой задачи (fixed, поверх всего) — едет за пальцем и не
+      // уезжает с лентой, пока второй палец листает дни. Доезжает на место и сменяется
+      // настоящей задачей в сетке (кадр .done).
+      const it = liftItemRef.current, g = liftGeomRef.current, landing = liftDrag.landing;
+      const dur = it.duration_min || 0;
+      const liftMin = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
+      const density = g.height >= 44 ? "" : g.height >= 24 ? " compact" : " mini";
+      return html`<div class=${"tl-event tl-lift-overlay" + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted")}
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
+        <div class="tl-pill"><button class=${"tl-pill-check" + (it.done ? " on" : "")} type="button">${Icon.check()}</button></div>
+        <div class="tl-body"><div class="tl-text">
+          <div class="tl-titlerow"><div class="tl-title">${it.title}${it.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div></div>
+          <div class="tl-meta">${minRangeLabel(liftMin, dur)} (${durHuman(dur)})</div>
+        </div></div>
+      </div>`;
+    })()}
+    ${drag && drag.type === "create" && drag.touch && drag.dur > 0 && createGeomRef.current && (() => {
+      // Плавающая капсула новой задачи (fixed) — стоит под пальцем, пока второй палец
+      // листает дни той же каруселью. Не уезжает с лентой.
+      const g = createGeomRef.current, h = Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx);
+      return html`<div class="tl-ghost placing tl-lift-overlay"
+        style=${`top:${g.top + (drag.start / 60) * hourPx}px;left:${g.left}px;width:${g.width}px;height:${h}px;`}>
+        <div class="tl-ghost-pill"></div>
+        <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
+    })()}
     ${edFloat && html`<div class="ed-float-back" onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}
