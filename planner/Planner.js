@@ -1440,7 +1440,7 @@ function Planner() {
     const td = pd === todayISO();
     return html`<div class="tl tl-static" style=${`height:${24 * hourPx}px;`}>
       ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
-        <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
+        ${h < 24 ? html`<span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span>` : ""}</div>`)}
       <div class="tl-spine"></div>
       ${td && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
         <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
@@ -1702,7 +1702,7 @@ function Planner() {
               <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
-                  <span class="grid-hour-label">${String(h % 24).padStart(2, "0")}:00</span></div>`)}
+                  ${h < 24 ? html`<span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span>` : ""}</div>`)}
                 <div class="tl-spine"></div>
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
@@ -1835,7 +1835,7 @@ function Planner() {
       </div>
     </div>
     ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.84);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v12</div>
+      <div>DBG v13</div>
       <div>hp=${dbg.hp} fit=${dbg.fit}</div>
       <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
       <div>trackH=${dbg.trackH} tlH=${dbg.tlH}</div>
