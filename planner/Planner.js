@@ -706,15 +706,14 @@ function Planner() {
       createActiveRef.current = true;
       setSelected(new Set());
       const g = innerRef.current;
-      // Капсула едет за пальцем (как при переносе): запоминаем её исходный top на экране,
-      // призрак времени привязан к разметке. start0 — точка, где задержали палец.
-      if (g) { const gr = g.getBoundingClientRect();
-        createGeomRef.current = { top: gr.top + (start0 / 60) * hourPx, left: gr.left, width: gr.width }; }
+      // Капсула едет за пальцем (как при переносе): храним левый край/ширину сетки,
+      // капсулу центрируем по текущей точке пальца (fx,fy). Призрак времени — в сетке.
+      if (g) { const gr = g.getBoundingClientRect(); createGeomRef.current = { left: gr.left, width: gr.width }; }
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
       // Непассивный слушатель добавляем только после активации создания — чтобы
       // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
       document.addEventListener("touchmove", onTouchMove, { passive: false });
-      setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, dx: 0, dy: 0 });
+      setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, fx: sx, fy: sy });
       haptic();
     };
     const beginMouse = () => {
@@ -735,9 +734,9 @@ function Planner() {
         vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
         vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
         lx = ev.clientX; ly = ev.clientY; lt = now;
-        // Время призрака — от смещения пальца (как при переносе), капсула едет за пальцем (dx,dy).
+        // Время призрака — от смещения пальца (как при переносе); капсула едет за пальцем (fx,fy).
         start0 = clamp(snap(anchor + Math.round(((ev.clientY - sy) / hourPx) * 60)), 0, 1440 - NEW_DUR);
-        setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, dx: ev.clientX - sx, dy: ev.clientY - sy });
+        setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, fx: ev.clientX, fy: ev.clientY });
       } else {
         cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
         setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
@@ -870,10 +869,9 @@ function Planner() {
       const overAllday = item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "allday";
       setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false, allday: overAllday });
     };
-    // Плавный «доезд»: анимируем transform к нужному смещению (.landing, переход .2s).
-    // Когда доехала — в одном кадре фиксируем новое время (top становится = слоту) и
-    // снимаем transform БЕЗ перехода (.settling, transition:none) — top и transform
-    // меняются на одну и ту же величину, визуально неотличимо, без скачка и «виляния».
+    // Плавный «доезд»: плавающая копия едет transform-ом к слоту (.landing, переход .2s).
+    // Когда доехала — фиксируем новое время (задача уже стоит на этом месте в ленте) и
+    // убираем копию (кадр done) → видимого скачка нет, копия и реальная задача совпадают.
     const land = (targetDy, commit) => {
       setLiftDrag({ key: item.key, dx: 0, dy: targetDy, landing: true });
       clearTimeout(landTimerRef.current);
@@ -1848,9 +1846,6 @@ function Planner() {
                   style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
                 ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
                 ${dayTl.map(i => {
-                  // Поднятую задачу во время драга/«доезда» рисуем плавающей копией поверх
-                  // (см. ниже) — в самой ленте её прячем, чтобы день можно было листать под ней.
-                  if (liftDrag && !liftDrag.done && i.key === liftDrag.key) return null;
                   // Переходящая через полночь задача рисуется сегментом дня и не
                   // перетаскивается/не тянется (правка — через карточку по тапу).
                   const spanning = i.spanTop || i.spanBottom || i.cont;
@@ -1866,17 +1861,12 @@ function Planner() {
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
-                  const lifting = liftDrag && liftDrag.key === i.key;
-                  const settling = lifting && liftDrag.done;   // кадр фиксации: без перехода, без transform
-                  const landing = lifting && liftDrag.landing; // «доезд»: transform едет к слоту с переходом
-                  const liftCls = settling ? " settling" : landing ? " landing" : lifting ? " lifted" : "";
-                  // Живое время при переносе: показываем, куда задача встанет (как при растягивании).
-                  // Работает и во время «доезда» (там dy = смещение до слота) — метка не мигает.
-                  const liftMin = (lifting && !settling)
-                    ? clamp(snap(i.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - (i.duration_min || 0))
-                    : null;
-                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + liftCls + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${(lifting && !settling) ? `transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};` : ""}`}
+                  // Поднятую задачу рисуем плавающей копией поверх (см. ниже). Сам элемент в
+                  // ленте НЕ удаляем (иначе iOS шлёт pointercancel → перенос срывается) — прячем
+                  // через visibility:hidden, место и касание сохраняются.
+                  const hiddenLift = liftDrag && !liftDrag.done && i.key === liftDrag.key;
+                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
@@ -1896,7 +1886,7 @@ function Planner() {
                           <div class="tl-title"
                             onClick=${e => { if (spanning) { e.stopPropagation(); openPreview(i); } }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
                         </div>
-                        <div class="tl-meta">${minRangeLabel(liftMin != null ? liftMin : (dragging ? vTop : i.start_min), dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
+                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
                           <div class="tl-subs" onPointerDown=${e => e.stopPropagation()}>
                             <button class=${"tl-subs-chip" + (openSubs.has(i.key) ? " open" : "")} type="button"
@@ -2036,7 +2026,7 @@ function Planner() {
       // переносе. Призрак времени рисуется в сетке (см. выше). Не уезжает с лентой.
       const g = createGeomRef.current, h = Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx);
       return html`<div class="tl-ghost placing tl-lift-overlay"
-        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${h}px;transform:translate(${drag.dx}px,${drag.dy}px) scale(1.04);`}>
+        style=${`top:${drag.fy - h / 2}px;left:${g.left}px;width:${g.width}px;height:${h}px;transform:scale(1.04);`}>
         <div class="tl-ghost-pill"></div>
         <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
     })()}
