@@ -26,7 +26,6 @@ const MIN_DUR = 15;
 const HOLD_MS = 350;
 const MIN_EVENT_PX = 14;
 const AD_COLLAPSED = 52; // высота приоткрытой шторки «весь день» по умолчанию (px)
-const GRID_HEAD = 32;    // ручка (18) + верхний отступ сетки (.tl margin 14) — резерв над часами помимо шторки
 const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
@@ -162,18 +161,17 @@ function Planner() {
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
-  // Масштаб часов = ровно остаток высоты под ТЕКУЩЕЙ шторкой: экран − padding −
-  // ручка/отступ (GRID_HEAD) − высота шторки (adH), делённое на 24. Тогда 24 часа
-  // занимают остаток точь-в-точь → ни прокрутки, ни пустоты. Закрыл шторку (adH→0)
-  // — часы крупнее; открыл — мельче. fit зависит от adH, поэтому пересчитываем при
-  // его изменении (см. эффекты ниже и обработчик ручки).
+  // Масштаб часов = ровно остаток высоты под сеткой. МЕРЯЕМ реальный отступ сверху
+  // до сетки часов (.tl): grid.top − el.top + scrollTop = всё, что выше .tl (padding,
+  // зона «весь день» текущей высоты, ручка, бордюры, суб-пиксели). Тогда 24*hp =
+  // экран − этот отступ → контент ровно = экрану: ни прокрутки, ни пустоты (точно,
+  // без констант-догадок). Снизу у .tl ничего нет, поэтому остаток уходит весь в часы.
   function fitMinPx() {
-    const el = scrollRef.current;
-    if (!el) return HOUR_MIN;
-    const cs = getComputedStyle(el);
-    const padT = parseFloat(cs.paddingTop) || 0;
-    const padB = parseFloat(cs.paddingBottom) || 0;
-    const h = el.clientHeight - padT - padB - GRID_HEAD - adHRef.current;
+    const el = scrollRef.current, grid = innerRef.current;
+    if (!el || !grid) return HOUR_MIN;
+    const padB = parseFloat(getComputedStyle(el).paddingBottom) || 0;
+    const above = (grid.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop;
+    const h = el.clientHeight - above - padB;
     return h > 0 ? Math.max(HOUR_MIN, h / 24) : HOUR_MIN;
   }
 
@@ -1324,12 +1322,15 @@ function Planner() {
   // — осталось как есть.
   function onAllDayHandleDown(e) {
     e.preventDefault();
-    const el = scrollRef.current;
-    const cs = el ? getComputedStyle(el) : null;
-    const padT = cs ? parseFloat(cs.paddingTop) || 0 : 0;
-    const padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
-    const avail = el ? el.clientHeight - padT - padB - GRID_HEAD : 0; // остаток не зависит от шторки
-    const startY = e.clientY, startH = adH;
+    const el = scrollRef.current, grid = innerRef.current;
+    const padB = el ? parseFloat(getComputedStyle(el).paddingBottom) || 0 : 0;
+    // Резерв над часами БЕЗ шторки = текущий отступ до .tl минус текущая высота шторки.
+    // Тогда при любой новой высоте nh: остаток под часы = clientHeight − padB − reserve − nh.
+    const startH = adH;
+    const above = (el && grid) ? (grid.getBoundingClientRect().top - el.getBoundingClientRect().top) + el.scrollTop : 0;
+    const reserve = above - startH; // padding + ручка + бордюры (без самой шторки)
+    const avail = el ? el.clientHeight - padB - reserve : 0;
+    const startY = e.clientY;
     const maxH = Math.round((window.visualViewport?.height || window.innerHeight) * 0.5);
     const move = (ev) => {
       const nh = clamp(Math.round(startH + (ev.clientY - startY)), 0, maxH);
@@ -1833,7 +1834,7 @@ function Planner() {
       </div>
     </div>
     ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.84);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v10</div>
+      <div>DBG v11</div>
       <div>hp=${dbg.hp} fit=${dbg.fit}</div>
       <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
       <div>allH=${dbg.allH} hdlH=${dbg.hdlH} adH=${dbg.adH}</div>
