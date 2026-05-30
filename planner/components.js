@@ -159,7 +159,6 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
     // Клик вне карточки — закрыть (без сохранения изменений-черновика).
     const onDown = e => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.(); };
     setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
-    if (!editing) setTimeout(() => titleRef.current?.focus(), 30);
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
   }, [onClose, editing]);
 
@@ -218,7 +217,8 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
       ${error && html`<div class="ed-error">${error}</div>`}
 
-      <input class="ed-title" ref=${titleRef} placeholder="Название задачи"
+      <input class="ed-title" placeholder="Название задачи"
+        ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
         value=${title} onInput=${e => setTitle(e.target.value)}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
 

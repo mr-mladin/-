@@ -23,6 +23,7 @@ const HOUR_MAX = 220;
 const GUTTER = 56;
 const SNAP = 5;
 const MIN_DUR = 15;
+const NEW_DUR = 5; // длительность новой задачи по умолчанию (мин)
 const HOLD_MS = 350;
 const MIN_EVENT_PX = 14;
 const AD_COLLAPSED = 52; // высота приоткрытой шторки «весь день» по умолчанию (px)
@@ -30,6 +31,11 @@ const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
   catch (e) { return HOUR_DEFAULT; }
+}
+// Пользователь хоть раз менял масштаб вручную (щипок/Ctrl+колесо)? Тогда авто-вписывание
+// больше НИКОГДА не трогает масштаб — его меняет только пользователь.
+function readZoomed() {
+  try { return localStorage.getItem("planner.hourManual") === "1"; } catch (e) { return false; }
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 
@@ -57,6 +63,7 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy, landing, done } — едет за пальцем
   const liftDragRef = useRef(null);               // актуальное значение для обработчиков свайпа/зума
+  const liftItemRef = useRef(null);               // снимок поднятой задачи — чтобы дорисовать её на другом дне
   const landTimerRef = useRef(null);              // таймер «доезда» задачи на место
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
@@ -99,11 +106,15 @@ function Planner() {
   const monthRef = useRef(null);
   const dateInputRef = useRef(null);
   const hourPxRef = useRef(hourPx);
+  const zoomedRef = useRef(readZoomed()); // масштаб зафиксирован вручную — авто-вписывание отключено
+  const markZoomed = () => { if (!zoomedRef.current) { zoomedRef.current = true; try { localStorage.setItem("planner.hourManual", "1"); } catch (e) {} } };
   const zoomAnchor = useRef(null);
   const zoomFocus = useRef(null);   // точка под пальцами при зуме (фиксируем её)
   const zoomingRef = useRef(false); // идёт изменение масштаба
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const createActiveRef = useRef(false); // идёт размещение новой задачи (капсула под пальцем) — карусель дня не вмешивается
+  const kbPrimerRef = useRef(null); // скрытое поле: открыть клавиатуру синхронно в жесте, затем фокус уедет в форму
+  const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
   const swipedRef = useRef(false);
@@ -152,7 +163,10 @@ function Planner() {
   }, [selected]);
 
   // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
-  useEffect(() => { setSelected(new Set()); setSelRange(null); setAdHeight(AD_COLLAPSED); }, [date, view, filter]);
+  useEffect(() => {
+    if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание на другой день — не сбрасываем выделение/шторку
+    setSelected(new Set()); setSelRange(null); setAdHeight(AD_COLLAPSED);
+  }, [date, view, filter]);
 
   // Снять выделение кликом в любое место вне капсулы (даже по названию, заметке,
   // пустой области). Слушаем в фазе захвата, чтобы ловить и события, у которых
@@ -214,7 +228,10 @@ function Planner() {
   // стабилен при свайпе. fitMinPx учитывает adH, поэтому вписывание всегда без пустоты.
   useEffect(() => {
     if (view !== "day") return;
-    const fitNow = () => setHourPx(fitMinPx());
+    // Масштаб подбираем автоматически ТОЛЬКО пока пользователь сам его не менял.
+    // После ручного щипка — масштаб его, авто-вписывание молчит (в т.ч. при смене дня,
+    // повороте, открытии клавиатуры). Зависимость без date: смена дня масштаб не трогает.
+    const fitNow = () => { if (!zoomedRef.current) setHourPx(fitMinPx()); };
     let r1 = 0, r2 = 0;
     r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fitNow); });
     window.addEventListener("resize", fitNow);
@@ -224,7 +241,7 @@ function Planner() {
       window.removeEventListener("resize", fitNow);
       window.removeEventListener("orientationchange", fitNow);
     };
-  }, [view, date]);
+  }, [view]);
 
   // Надёжное вписывание: ResizeObserver ловит МОМЕНТ, когда высота контейнера сетки
   // окончательно устаканилась (на iOS это бывает позже первых кадров), и дотягивает
@@ -234,7 +251,7 @@ function Planner() {
     if (view !== "day" || typeof ResizeObserver === "undefined") return;
     const el = scrollRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => { setHourPx(fitMinPx()); });
+    const ro = new ResizeObserver(() => { if (!zoomedRef.current) setHourPx(fitMinPx()); });
     ro.observe(el);
     return () => ro.disconnect();
   }, [view]);
@@ -256,7 +273,7 @@ function Planner() {
     const onWheel = (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
-        markZooming();
+        markZooming(); markZoomed();
         zoomAnchorAt(e.clientY);
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
         return;
@@ -265,7 +282,7 @@ function Planner() {
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
-      if (liftDragRef.current) return; // задача поднята — масштаб не трогаем
+      if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — масштаб не трогаем
       e.preventDefault();
       zoomingRef.current = true;
       base = hourPxRef.current;
@@ -273,7 +290,7 @@ function Planner() {
     const onGChange = (e) => {
       e.preventDefault();
       if (!zoomingRef.current) return;
-      markZooming();
+      markZooming(); markZoomed();
       const r = el.getBoundingClientRect();
       zoomAnchor.current = zoomFocus.current || computeAnchor(r.top + el.clientHeight / 2);
       setHourPx(clamp(Math.round(base * e.scale), fitMinPx(), HOUR_MAX));
@@ -657,12 +674,14 @@ function Planner() {
 
   function onGridPointerDown(e) {
     if (e.button !== 0 && e.pointerType !== "touch") return;
+    if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — второй палец листает день, новый жест не начинаем
     if (e.shiftKey) { startRangeSelect(e); return; }
     const touch = e.pointerType === "touch";
     const el = e.currentTarget, pid = e.pointerId;
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
-    let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - 60);
+    let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - NEW_DUR);
     let lx = e.clientX, ly = e.clientY, lt = performance.now(), vx = 0, vy = 0; // скорость для «отброса» (отмена создания)
+    let sx2 = null; // старт второго пальца — листание дня во время размещения
     const beginTouch = () => {
       active = true;
       createActiveRef.current = true;
@@ -671,7 +690,7 @@ function Planner() {
       // Непассивный слушатель добавляем только после активации создания — чтобы
       // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
       document.addEventListener("touchmove", onTouchMove, { passive: false });
-      setDrag({ type: "create", start: start0, dur: 60 });
+      setDrag({ type: "create", start: start0, dur: NEW_DUR });
       haptic();
     };
     const beginMouse = () => {
@@ -680,6 +699,7 @@ function Planner() {
       setDrag({ type: "create", start: anchor, dur: 0 });
     };
     const move = ev => {
+      if (ev.pointerId !== pid) return; // основной палец; второй (листание дня) — в onTouchMove
       if (!active) {
         const far = Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY);
         if (touch) { if (far > 14) finish(false); return; } // движение до долгого нажатия = прокрутка
@@ -691,16 +711,25 @@ function Planner() {
         vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
         vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
         lx = ev.clientX; ly = ev.clientY; lt = now;
-        start0 = clamp(snap(yToMin(ev.clientY)), 0, 1440 - 60);
-        setDrag({ type: "create", start: start0, dur: 60 });
+        start0 = clamp(snap(yToMin(ev.clientY)), 0, 1440 - NEW_DUR);
+        setDrag({ type: "create", start: start0, dur: NEW_DUR });
       } else {
         cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
         setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
       }
     };
-    // Непассивный touchmove с preventDefault реально останавливает прокрутку
-    // после долгого нажатия (touch-action, выставленный по ходу, не помогает).
-    const onTouchMove = ev => { if (active) ev.preventDefault(); };
+    // Непассивный touchmove с preventDefault реально останавливает прокрутку после
+    // долгого нажатия. Плюс вторым пальцем листаем день — задачу можно создать на другом дне.
+    const onTouchMove = ev => {
+      if (!active) return;
+      ev.preventDefault();
+      if (ev.touches.length >= 2) {
+        const t2 = ev.touches[ev.touches.length - 1];
+        if (sx2 == null) sx2 = t2.clientX;
+        const d = t2.clientX - sx2;
+        if (Math.abs(d) > 55) { shift(d < 0 ? 1 : -1); haptic(); sx2 = t2.clientX; }
+      } else sx2 = null;
+    };
     const finish = (commit) => {
       clearTimeout(hold);
       createActiveRef.current = false;
@@ -712,17 +741,21 @@ function Planner() {
       if (!active) { if (commit) setSelected(new Set()); return; }
       if (!commit) return;
       let start, dur;
-      if (touch) { start = start0; dur = 60; }
-      else { start = Math.min(anchor, cur); dur = Math.abs(cur - anchor); if (dur < MIN_DUR) dur = 60; }
-      store.actions.tasks.create({ title: "", date, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
-        list_id: filter !== "all" && filter !== "inbox" ? filter : null })
-        .then(row => { if (row) openPreview(rowToItem(row)); }).catch(showErr);
+      if (touch) { start = start0; dur = NEW_DUR; }
+      else { start = Math.min(anchor, cur); dur = Math.abs(cur - anchor); if (dur < MIN_DUR) dur = NEW_DUR; }
+      // Открываем форму создания (черновик, как в Apple Календаре): задача появится в
+      // сетке только после «Сохранить». Клавиатуру на iOS можно поднять лишь синхронно
+      // внутри жеста — «заводим» её скрытым полем, дальше фокус уедет на название в форме.
+      if (touch) primeKeyboard();
+      setCreating({ date: dateRef.current, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
+        list_id: filter !== "all" && filter !== "inbox" ? filter : null });
     };
-    const up = () => {
+    const up = (ev) => {
+      if (ev.pointerId !== pid) return; // только основной палец завершает создание (второй — листание дня)
       if (touch && active && Math.hypot(vx, vy) > 1.0) { haptic(); finish(false); return; } // резкий отброс → отмена создания
       finish(true);
     };
-    const cancel = () => finish(false);
+    const cancel = (ev) => { if (ev.pointerId === pid) finish(false); };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", cancel);
@@ -784,20 +817,33 @@ function Planner() {
     const sx = e.clientX, sy = e.clientY;
     const grab = yToMin(e.clientY) - item.start_min;
     const dur = item.duration_min || 0;
+    const origDate = dateRef.current; // день, с которого подняли (текущий день вида)
     const already = selected.has(item.key); // уже выделенную двигаем сразу, без удержания
-    let lifted = false, moved = false, hold = null;
+    let lifted = false, moved = false, hold = null, sx2 = null, dayShifted = false; // sx2 — старт второго пальца (листание дня)
     let lx = sx, ly = sy, lt = performance.now(), vx = 0, vy = 0; // сглаженная скорость для «отброса»
-    const onTouchMove = ev => { if (lifted) ev.preventDefault(); }; // глушим прокрутку во время драга
+    // Пока задача поднята: одним пальцем двигаем её, ВТОРЫМ — листаем день (перенос на
+    // другой день). Глушим прокрутку всё время драга.
+    const onTouchMove = ev => {
+      if (!lifted) return;
+      ev.preventDefault();
+      if (ev.touches.length >= 2) {
+        const t2 = ev.touches[ev.touches.length - 1]; // последний коснувшийся — листающий палец
+        if (sx2 == null) sx2 = t2.clientX;
+        const d = t2.clientX - sx2;
+        if (Math.abs(d) > 55) { shift(d < 0 ? 1 : -1); haptic(); dayShifted = true; sx2 = t2.clientX; } // 55px = один день
+      } else sx2 = null;
+    };
     clearTimeout(landTimerRef.current); // прервать «доезд» прошлой задачи, если он ещё шёл
     const lift = (select) => {
       lifted = true;
+      liftItemRef.current = item;
       document.addEventListener("touchmove", onTouchMove, { passive: false });
       if (select) setSelected(new Set([item.key]));
       haptic();
       setLiftDrag({ key: item.key, dx: 0, dy: 0, landing: false });
     };
     const move = ev => {
-      if (ev.pointerId !== pid) return; // только наш палец (второй — для листания дня, фаза 2)
+      if (ev.pointerId !== pid) return; // только наш палец (второй — для листания дня)
       const far = Math.hypot(ev.clientX - sx, ev.clientY - sy);
       if (!lifted) { if (far > 12) cleanup(); return; } // двинул до подъёма — это прокрутка
       if (far > 3) moved = true;
@@ -823,7 +869,7 @@ function Planner() {
     };
     const up = (ev) => {
       if (ev.pointerId !== pid) return;
-      const wasLifted = lifted, mv = moved;
+      const wasLifted = lifted, mv = moved || dayShifted;
       cleanup();
       if (!wasLifted) { setLiftDrag(null); (tapAction || (() => openPreview(item)))(); return; }
       if (!mv) { setLiftDrag(null); return; } // подняли и отпустили без движения → остаётся выделенной
@@ -831,7 +877,13 @@ function Planner() {
       if (speed > 1.0) { haptic(); land(0, () => {}); return; } // резкий отброс в любую сторону → отмена (плавно назад)
       const target = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
       const targetDy = ((target - item.start_min) / 60) * hourPx;
-      land(targetDy, () => { if (target !== item.start_min) store.actions.tasks.reschedule(item, { start_min: target }).catch(showErr); });
+      const newDate = dateRef.current; // мог смениться вторым пальцем
+      land(targetDy, () => {
+        const patch = {};
+        if (target !== item.start_min) patch.start_min = target;
+        if (newDate !== origDate) patch.date = newDate; // перенесли на другой день
+        if (patch.start_min != null || patch.date) store.actions.tasks.reschedule(item, patch).catch(showErr);
+      });
     };
     const cleanup = () => {
       clearTimeout(hold);
@@ -1380,7 +1432,7 @@ function Planner() {
     document.addEventListener("pointercancel", up);
   }
   function onDaySwipeStart(e) {
-    if (liftDragRef.current) return; // задача поднята — жесты сетки (свайп/зум) выключены, её ведёт палец
+    if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — день листает второй палец в своём обработчике
     if (e.touches.length === 2) {
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       zoomFocus.current = computeAnchor(midY);
@@ -1702,7 +1754,7 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
-            <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+            <div class=${"planner-grid-scroll" + (liftDrag || (drag && drag.type === "create") ? " holding" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
@@ -1746,7 +1798,8 @@ function Planner() {
                 ${selRange && html`<div class="tl-selrect"
                   style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
                 ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
-                ${dayTl.map(i => {
+                ${(liftDrag && liftItemRef.current && !dayTl.some(t => t.key === liftDrag.key)
+                    ? [...dayTl, liftItemRef.current] : dayTl).map(i => {
                   // Переходящая через полночь задача рисуется сегментом дня и не
                   // перетаскивается/не тянется (правка — через карточку по тапу).
                   const spanning = i.spanTop || i.spanBottom || i.cont;
@@ -1766,6 +1819,11 @@ function Planner() {
                   const settling = lifting && liftDrag.done;   // кадр фиксации: без перехода, без transform
                   const landing = lifting && liftDrag.landing; // «доезд»: transform едет к слоту с переходом
                   const liftCls = settling ? " settling" : landing ? " landing" : lifting ? " lifted" : "";
+                  // Живое время при переносе: показываем, куда задача встанет (как при растягивании).
+                  // Работает и во время «доезда» (там dy = смещение до слота) — метка не мигает.
+                  const liftMin = (lifting && !settling)
+                    ? clamp(snap(i.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - (i.duration_min || 0))
+                    : null;
                   return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + liftCls + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
                     style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${(lifting && !settling) ? `transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};` : ""}`}
                     onPointerDown=${down}
@@ -1796,7 +1854,7 @@ function Planner() {
                                 onPointerDown=${e => { if (!spanning) onBlockPointerDown(e, i, () => startTitleEdit(i, caretOffsetFromClick(e))); }}
                                 onClick=${e => { if (spanning) { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); } }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
                         </div>
-                        <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
+                        <div class="tl-meta">${minRangeLabel(liftMin != null ? liftMin : (dragging ? vTop : i.start_min), dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
                           <div class="tl-subs" onPointerDown=${e => e.stopPropagation()}>
                             <button class=${"tl-subs-chip" + (openSubs.has(i.key) ? " open" : "")} type="button"
@@ -1886,6 +1944,7 @@ function Planner() {
     ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
     ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
       onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
+    <input ref=${kbPrimerRef} class="kb-primer" type="text" aria-hidden="true" tabindex="-1" inputmode="text" />
     ${edFloat && html`<div class="ed-float-back" onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}

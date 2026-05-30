@@ -379,6 +379,9 @@ textarea.input { resize: vertical; }
 .tl-event.landing { z-index: 12; transition: transform .2s cubic-bezier(.2,.8,.3,1); }
 .tl-event.landing .tl-pill { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
 .tl-event.settling { z-index: 12; transition: none; } /* кадр фиксации: top и transform меняются мгновенно, без виляния */
+/* Пока задача поднята — браузер не должен сам перехватывать касания (иначе второй
+   палец вызвал бы pointercancel и сорвал перенос). Все касания ведём вручную. */
+.planner-grid-scroll.holding, .planner-grid-scroll.holding * { touch-action: none; }
 .tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   background: var(--c); cursor: default; touch-action: pan-y; display: flex; flex-direction: column;
   align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }
@@ -672,6 +675,9 @@ textarea.input { resize: vertical; }
 .tl-sub .ico { width: 11px; height: 11px; }
 
 /* Якорь в сетке дня — карточка «прирастает» к минуте начала задачи. */
+/* Скрытое поле для «подъёма» клавиатуры на iOS синхронно в жесте (см. primeKeyboard). */
+.kb-primer { position: fixed; top: 0; left: 0; width: 1px; height: 1px; opacity: 0;
+  border: 0; padding: 0; margin: 0; pointer-events: none; font-size: 16px; z-index: -1; background: transparent; }
 .ed-anchor { position: absolute; left: 20px; right: 8px; z-index: 30; }
 /* Плавающий вариант (другой день / не «День»). */
 .ed-float-back { position: fixed; inset: 0; z-index: 60; background: rgba(2, 6, 23, 0.35);
