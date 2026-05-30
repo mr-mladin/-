@@ -879,9 +879,10 @@ function Planner() {
       }
       const speed = Math.hypot(vx, vy); // px/мс
       if (speed > 1.0) { haptic(); land(0, () => {}); return; } // резкий отброс в любую сторону → отмена (плавно назад)
-      // Новое время считаем ОТ СМЕЩЕНИЯ ПАЛЬЦА (как призрак), а не от позиции сетки —
-      // иначе сдвиг сетки (адресная строка iOS) ломал бы расчёт и задача прыгала на 00:00.
-      const target = clamp(snap(item.start_min + Math.round(((ev.clientY - sy) / hourPx) * 60)), 0, 1440 - dur);
+      // Новое время — от ПОСЛЕДНЕГО положения пальца в move (ly), а НЕ от ev.clientY:
+      // у pointerup на iOS координата бывает нулевой/устаревшей → задача прыгала на 00:00.
+      // Берём ровно то же значение, что и призрак (он всегда верный).
+      const target = clamp(snap(item.start_min + Math.round(((ly - sy) / hourPx) * 60)), 0, 1440 - dur);
       const targetDy = ((target - item.start_min) / 60) * hourPx;
       const newDate = dateRef.current; // мог смениться вторым пальцем
       land(targetDy, () => {
@@ -1076,7 +1077,7 @@ function Planner() {
       const zone = dndZoneAt(ev.clientX, ev.clientY);
       if (zone === "grid" && item.kind === "concrete" && innerRef.current) {
         if (mode !== "schedule") { mode = "schedule"; setAdDrag(null);
-          const gr = innerRef.current.getBoundingClientRect(); dndGeomRef.current = { left: gr.left, width: gr.width }; }
+          const gr = innerRef.current.getBoundingClientRect(); dndGeomRef.current = { left: gr.left, width: gr.width, startX: ev.clientX }; }
         const gridMin = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
         setDnd({ source: "tray", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "grid", gridMin, dur });
         return;
@@ -1448,9 +1449,7 @@ function Planner() {
     if (view !== "day" || !st || !touch) return;
     const id = touch.identifier;
     const sx = touch.clientX, sy = touch.clientY;
-    const startDx = st.getDx();
-    st.cancel();
-    let horiz = null;
+    let horiz = null, startDx = 0;
     const find = (list) => { for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i]; return null; };
     const move = (ev) => {
       if (!multi && createActiveRef.current) { if (horiz === true) st.snap(); cleanup(); return; } // обычный свайп уступил создание
@@ -1459,6 +1458,9 @@ function Planner() {
       if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
         horiz = Math.abs(dxF) > Math.abs(dyF) * 0.7;
         if (!horiz) { cleanup(); return; }
+        // Прерываем текущую анимацию ТОЛЬКО когда реально начали горизонтальный свайп.
+        // Иначе обычный тап (без свайпа) останавливал бы доводку дня на полпути → залипание.
+        startDx = st.getDx(); st.cancel();
         clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни рисуем только на время свайпа
       }
       if (!horiz) return;
@@ -1864,17 +1866,8 @@ function Planner() {
                     <div class="tl-body">
                       <div class="tl-text">
                         <div class="tl-titlerow">
-                          ${titleEdit && titleEdit.key === i.key
-                            ? html`<input class="tl-title-edit" value=${titleEdit.value}
-                                ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
-                                onPointerDown=${e => e.stopPropagation()}
-                                style=${`width:${Math.max(titleEdit.value.length + 1, 4)}ch;`}
-                                onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
-                                onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
-                                onBlur=${() => commitTitle(i)} />`
-                            : html`<div class="tl-title"
-                                onPointerDown=${e => { if (!spanning) onBlockPointerDown(e, i, () => startTitleEdit(i, caretOffsetFromClick(e))); }}
-                                onClick=${e => { if (spanning) { e.stopPropagation(); startTitleEdit(i, caretOffsetFromClick(e)); } }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>`}
+                          <div class="tl-title"
+                            onClick=${e => { if (spanning) { e.stopPropagation(); openPreview(i); } }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
                         </div>
                         <div class="tl-meta">${minRangeLabel(liftMin != null ? liftMin : (dragging ? vTop : i.start_min), dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
@@ -1970,9 +1963,9 @@ function Planner() {
     </div>`}
     ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dndGeomRef.current && (() => {
       // Перенос из «весь день» в сетку — тот же вид, что и подъём обычной задачи:
-      // плавающая капсула под пальцем (призрак времени рисуется в сетке, см. выше).
+      // капсула свободно едет под пальцем (2D), а призрак времени привязан к разметке (см. выше).
       const g = dndGeomRef.current, h = Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx);
-      return html`<div class="tl-event tl-lift-overlay lifted" style=${`top:${dnd.y - Math.min(h, 28)}px;left:${g.left}px;width:${g.width}px;height:${h}px;--c:${dnd.color};transform:scale(1.04);`}>
+      return html`<div class="tl-event tl-lift-overlay lifted" style=${`top:${dnd.y - h / 2}px;left:${g.left + (dnd.x - g.startX)}px;width:${g.width}px;height:${h}px;--c:${dnd.color};transform:scale(1.04);`}>
         <div class="tl-pill"></div>
         <div class="tl-body"><div class="tl-text">
           <div class="tl-titlerow"><div class="tl-title">${dnd.title}</div></div>
