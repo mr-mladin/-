@@ -856,3 +856,12 @@ textarea.input { resize: vertical; }
     transition: background-color .15s ease, width .15s ease; }
   .allday-handle:active .allday-grip { background: var(--text-mute); width: 54px; }
 }
+
+/* ВРЕМЕННО — диагностика «пустоты снизу»: красим слои, чтобы по скрину понять,
+   какому элементу принадлежит пустое место. Уберу сразу после диагностики. */
+.planner-grid-scroll { background: rgba(40,140,255,0.20) !important; } /* синий — контейнер сетки */
+.tl { background: rgba(255,200,0,0.20) !important; }                   /* жёлтый — сами часы */
+.allday { background: rgba(0,200,120,0.22) !important; }               /* зелёный — зона «весь день» */
+.planner-body { background: rgba(255,140,0,0.30) !important; }         /* оранжевый — обёртка тела */
+.app { background: rgba(255,30,30,0.45) !important; }                  /* красный — фон приложения */
+body { background: rgba(210,0,210,0.45) !important; }                  /* фиолетовый — под приложением */
