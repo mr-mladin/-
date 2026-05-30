@@ -26,7 +26,7 @@ const MIN_DUR = 15;
 const HOLD_MS = 350;
 const MIN_EVENT_PX = 14;
 const AD_COLLAPSED = 52; // высота приоткрытой шторки «весь день» по умолчанию (px)
-const GRID_HEAD = 33;    // ручка (18+1) + верхний отступ сетки (.tl margin 14) — резерв над часами при закрытой шторке
+const GRID_HEAD = 32;    // ручка (18) + верхний отступ сетки (.tl margin 14) — резерв над часами помимо шторки
 const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
@@ -59,6 +59,8 @@ function Planner() {
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
   const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
+  const adHRef = useRef(AD_COLLAPSED); // актуальная высота шторки для fitMinPx (без устаревания замыкания)
+  const setAdHeight = (v) => { adHRef.current = v; setAdH(v); }; // менять высоту шторки только так
   const [dbg, setDbg] = useState(null); // ВРЕМЕННО: диагностика пустоты снизу
   const [openSubs, setOpenSubs] = useState(() => new Set()); // ключи задач с раскрытыми подзадачами в сетке
   const [confetti, setConfetti] = useState(null); // { key, id, bits } — хлопок конфетти при выполнении
@@ -147,7 +149,7 @@ function Planner() {
   }, [selected]);
 
   // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
-  useEffect(() => { setSelected(new Set()); setSelRange(null); setAdH(AD_COLLAPSED); }, [date, view, filter]);
+  useEffect(() => { setSelected(new Set()); setSelRange(null); setAdHeight(AD_COLLAPSED); }, [date, view, filter]);
 
   // Снять выделение кликом в любое место вне капсулы (даже по названию, заметке,
   // пустой области). Слушаем в фазе захвата, чтобы ловить и события, у которых
@@ -160,17 +162,18 @@ function Planner() {
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
 
-  // Масштаб подбираем так, чтобы 24 часа влезали в экран при ЗАКРЫТОЙ зоне «весь
-  // день» (учитываем только ручку + верхний отступ сетки, GRID_HEAD). Тогда при
-  // ЛЮБОЙ высоте шторки контент = экран + высота шторки ≥ экрана → пустоты снизу
-  // быть не может в принципе; открытие шторки просто прокручивает день.
+  // Масштаб часов = ровно остаток высоты под ТЕКУЩЕЙ шторкой: экран − padding −
+  // ручка/отступ (GRID_HEAD) − высота шторки (adH), делённое на 24. Тогда 24 часа
+  // занимают остаток точь-в-точь → ни прокрутки, ни пустоты. Закрыл шторку (adH→0)
+  // — часы крупнее; открыл — мельче. fit зависит от adH, поэтому пересчитываем при
+  // его изменении (см. эффекты ниже и обработчик ручки).
   function fitMinPx() {
     const el = scrollRef.current;
     if (!el) return HOUR_MIN;
     const cs = getComputedStyle(el);
     const padT = parseFloat(cs.paddingTop) || 0;
     const padB = parseFloat(cs.paddingBottom) || 0;
-    const h = el.clientHeight - padT - padB - GRID_HEAD;
+    const h = el.clientHeight - padT - padB - GRID_HEAD - adHRef.current;
     return h > 0 ? Math.max(HOUR_MIN, h / 24) : HOUR_MIN;
   }
 
@@ -195,19 +198,20 @@ function Planner() {
 
   // «Дотягиваем» масштаб так, чтобы 24 часа влезали в экран — только если он слишком
   // отдалён (prev < fit). НИКОГДА не сжимаем (увеличенный вручную не трогаем). Раз
-  // свёрнутая зона «весь день» постоянной высоты, fit одинаков на всех днях → после
-  // первого вписывания это no-op при свайпе, т.е. масштаб остаётся стабильным.
+  // Вписываем день ТОЧНО под текущую шторку: hp = ровно остаток / 24. На входе в день
+  // и при смене дня (шторка сброшена в AD_COLLAPSED) это одно и то же значение → масштаб
+  // стабилен при свайпе. fitMinPx учитывает adH, поэтому вписывание всегда без пустоты.
   useEffect(() => {
     if (view !== "day") return;
-    const fitUp = () => setHourPx(prev => { const f = fitMinPx(); return prev < f ? f : prev; });
+    const fitNow = () => setHourPx(fitMinPx());
     let r1 = 0, r2 = 0;
-    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fitUp); });
-    window.addEventListener("resize", fitUp);
-    window.addEventListener("orientationchange", fitUp);
+    r1 = requestAnimationFrame(() => { r2 = requestAnimationFrame(fitNow); });
+    window.addEventListener("resize", fitNow);
+    window.addEventListener("orientationchange", fitNow);
     return () => {
       cancelAnimationFrame(r1); cancelAnimationFrame(r2);
-      window.removeEventListener("resize", fitUp);
-      window.removeEventListener("orientationchange", fitUp);
+      window.removeEventListener("resize", fitNow);
+      window.removeEventListener("orientationchange", fitNow);
     };
   }, [view, date]);
 
@@ -219,9 +223,7 @@ function Planner() {
     if (view !== "day" || typeof ResizeObserver === "undefined") return;
     const el = scrollRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => {
-      setHourPx(prev => { const f = fitMinPx(); return prev < f ? f : prev; });
-    });
+    const ro = new ResizeObserver(() => { setHourPx(fitMinPx()); });
     ro.observe(el);
     return () => ro.disconnect();
   }, [view]);
@@ -1317,12 +1319,23 @@ function Planner() {
   // обрабатываем только: (а) свайп от левого края — открыть шторку проектов,
   // (б) два пальца — зафиксировать точку для зум-якоря.
   // Ручка-шторка зоны «весь день»: тянем пальцем — высота меняется ровно за пальцем,
-  // от полностью закрытой (0) до половины экрана. Отпустил — осталось как есть.
+  // от полностью закрытой (0) до половины экрана. Часы при этом заполняют остаток
+  // (hp = остаток/24), поэтому день всегда вписан без прокрутки и пустоты. Отпустил
+  // — осталось как есть.
   function onAllDayHandleDown(e) {
     e.preventDefault();
+    const el = scrollRef.current;
+    const cs = el ? getComputedStyle(el) : null;
+    const padT = cs ? parseFloat(cs.paddingTop) || 0 : 0;
+    const padB = cs ? parseFloat(cs.paddingBottom) || 0 : 0;
+    const avail = el ? el.clientHeight - padT - padB - GRID_HEAD : 0; // остаток не зависит от шторки
     const startY = e.clientY, startH = adH;
     const maxH = Math.round((window.visualViewport?.height || window.innerHeight) * 0.5);
-    const move = (ev) => setAdH(clamp(Math.round(startH + (ev.clientY - startY)), 0, maxH));
+    const move = (ev) => {
+      const nh = clamp(Math.round(startH + (ev.clientY - startY)), 0, maxH);
+      setAdHeight(nh);
+      if (avail > 0) setHourPx(clamp((avail - nh) / 24, HOUR_MIN, HOUR_MAX)); // часы занимают остаток
+    };
     const up = () => {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
@@ -1820,7 +1833,7 @@ function Planner() {
       </div>
     </div>
     ${dbg && html`<div style="position:fixed;left:6px;top:120px;z-index:99999;background:rgba(0,0,0,.84);color:#3f6;font:12px/1.5 ui-monospace,monospace;padding:7px 9px;border-radius:7px;pointer-events:none;">
-      <div>DBG v9</div>
+      <div>DBG v10</div>
       <div>hp=${dbg.hp} fit=${dbg.fit}</div>
       <div>ch=${dbg.ch} sh=${dbg.sh} st=${dbg.st}</div>
       <div>allH=${dbg.allH} hdlH=${dbg.hdlH} adH=${dbg.adH}</div>
