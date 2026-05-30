@@ -353,6 +353,7 @@ textarea.input { resize: vertical; }
   position: relative; }
 .grid-hour { position: absolute; left: 56px; right: 0; height: 0; border-top: 1px solid color-mix(in srgb, var(--border) 42%, transparent); }
 .grid-hour-label { position: absolute; right: calc(100% + 8px); top: -6px; font-size: 10px; color: var(--text-mute); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.grid-hour-label.last { top: auto; bottom: 1px; } /* подпись 00:00 у нижней линии — над линией, не свисает за сетку */
 .grid-now { position: absolute; left: 56px; right: 0; height: 0; border-top: 2px solid var(--danger); z-index: 4; }
 .grid-now-dot { position: absolute; left: -4px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: var(--danger); }
 .grid-now-time { position: absolute; right: 100%; top: -8px; margin-right: 4px; padding: 0 5px; border-radius: 4px;
@@ -370,10 +371,14 @@ textarea.input { resize: vertical; }
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
 .zooming .tl-event { transition: none; }
 .tl-event.dragging { z-index: 6; transition: none; }
-/* Поднятая задача (мобильный драг): без перехода — едет ровно за пальцем; крупнее, с тенью.
-   На отпускании класс снимается → transform убирается с переходом .2s (доезд/возврат). */
+/* Поднятая задача (мобильный драг): без перехода — едет ровно за пальцем; крупнее, с тенью. */
 .tl-event.lifted { z-index: 12; transition: none; }
 .tl-event.lifted .tl-pill { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+/* «Доезд» на отпускании: плавно везём transform к слоту (или назад к 0 при отмене),
+   масштаб сходит к 1. Когда доехала — фиксируем время и снимаем transform в одном кадре. */
+.tl-event.landing { z-index: 12; transition: transform .2s cubic-bezier(.2,.8,.3,1); }
+.tl-event.landing .tl-pill { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+.tl-event.settling { z-index: 12; transition: none; } /* кадр фиксации: top и transform меняются мгновенно, без виляния */
 .tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   background: var(--c); cursor: default; touch-action: pan-y; display: flex; flex-direction: column;
   align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }

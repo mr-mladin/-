@@ -55,7 +55,9 @@ function Planner() {
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
   const [drag, setDrag] = useState(null);
-  const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy } — едет за пальцем
+  const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy, landing, done } — едет за пальцем
+  const liftDragRef = useRef(null);               // актуальное значение для обработчиков свайпа/зума
+  const landTimerRef = useRef(null);              // таймер «доезда» задачи на место
   const [dnd, setDnd] = useState(null);
   const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
   const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
@@ -155,11 +157,12 @@ function Planner() {
   // дочерние обработчики останавливают всплытие (название, подзадачи).
   useEffect(() => {
     if (selected.size === 0) return;
-    const onDown = (e) => { const t = e.target; if (!(t && t.closest && t.closest(".tl-pill"))) setSelected(new Set()); };
+    const onDown = (e) => { const t = e.target; if (!(t && t.closest && t.closest(".tl-event"))) setSelected(new Set()); };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [selected]);
   useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
+  useEffect(() => { liftDragRef.current = liftDrag; }, [liftDrag]); // обработчикам свайпа/зума нужно актуальное «поднята ли задача»
 
   // Масштаб часов = так, чтобы вся прокручиваемая лента влезла в экран точь-в-точь
   // (scrollHeight == clientHeight): ни прокрутки, ни пустоты. «Лишнее» помимо самих
@@ -254,6 +257,7 @@ function Planner() {
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
+      if (liftDragRef.current) return; // задача поднята — масштаб не трогаем
       e.preventDefault();
       zoomingRef.current = true;
       base = hourPxRef.current;
@@ -754,9 +758,9 @@ function Planner() {
 
   // Мобильное взаимодействие с задачей (как в Apple Календаре): долгое нажатие →
   // задача «приподнимается» (увеличивается + тень, без пульсации) и едет за пальцем
-  // в ЛЮБУЮ сторону (свободный 2D-драг через transform). Отпустил — привязка к
-  // новому времени по вертикали (горизонталь только для ощущения). Резкий «отброс»
-  // (быстрый свайп вверх/в сторону) → отмена: задача возвращается на место.
+  // в ЛЮБУЮ сторону (свободный 2D-драг через transform). Отпустил — плавно «доезжает»
+  // до нового слота и фиксируется там без скачка. Резкий «отброс» в ЛЮБУЮ сторону →
+  // отмена: задача так же плавно возвращается на место.
   function onBlockTouch(e, item, tapAction) {
     const pid = e.pointerId;
     const sx = e.clientX, sy = e.clientY;
@@ -766,12 +770,13 @@ function Planner() {
     let lifted = false, moved = false, hold = null;
     let lx = sx, ly = sy, lt = performance.now(), vx = 0, vy = 0; // сглаженная скорость для «отброса»
     const onTouchMove = ev => { if (lifted) ev.preventDefault(); }; // глушим прокрутку во время драга
+    clearTimeout(landTimerRef.current); // прервать «доезд» прошлой задачи, если он ещё шёл
     const lift = (select) => {
       lifted = true;
       document.addEventListener("touchmove", onTouchMove, { passive: false });
       if (select) setSelected(new Set([item.key]));
       haptic();
-      setLiftDrag({ key: item.key, dx: 0, dy: 0 });
+      setLiftDrag({ key: item.key, dx: 0, dy: 0, landing: false });
     };
     const move = ev => {
       if (ev.pointerId !== pid) return; // только наш палец (второй — для листания дня, фаза 2)
@@ -783,20 +788,32 @@ function Planner() {
       vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
       vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
       lx = ev.clientX; ly = ev.clientY; lt = now;
-      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy });
+      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false });
+    };
+    // Плавный «доезд»: анимируем transform к нужному смещению (.landing, переход .2s).
+    // Когда доехала — в одном кадре фиксируем новое время (top становится = слоту) и
+    // снимаем transform БЕЗ перехода (.settling, transition:none) — top и transform
+    // меняются на одну и ту же величину, визуально неотличимо, без скачка и «виляния».
+    const land = (targetDy, commit) => {
+      setLiftDrag({ key: item.key, dx: 0, dy: targetDy, landing: true });
+      clearTimeout(landTimerRef.current);
+      landTimerRef.current = setTimeout(() => {
+        commit();
+        setLiftDrag({ key: item.key, dx: 0, dy: 0, done: true });
+        landTimerRef.current = setTimeout(() => setLiftDrag(c => (c && c.key === item.key && c.done) ? null : c), 60);
+      }, 220);
     };
     const up = (ev) => {
       if (ev.pointerId !== pid) return;
       const wasLifted = lifted, mv = moved;
       cleanup();
-      setLiftDrag(null); // снимаем подъём → пилюля анимацией возвращается/доезжает
-      if (!wasLifted) { (tapAction || (() => openPreview(item)))(); return; }
-      if (!mv) return; // подняли и отпустили без движения → просто остаётся выделенной
+      if (!wasLifted) { setLiftDrag(null); (tapAction || (() => openPreview(item)))(); return; }
+      if (!mv) { setLiftDrag(null); return; } // подняли и отпустили без движения → остаётся выделенной
       const speed = Math.hypot(vx, vy); // px/мс
-      const flick = speed > 0.9 && (vy < -0.5 || Math.abs(vx) > 0.7); // резкий отброс вверх/в сторону
-      if (flick) return; // отмена: время не меняем, задача вернётся на место
+      if (speed > 1.0) { haptic(); land(0, () => {}); return; } // резкий отброс в любую сторону → отмена (плавно назад)
       const target = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - dur);
-      if (target !== item.start_min) store.actions.tasks.reschedule(item, { start_min: target }).catch(showErr);
+      const targetDy = ((target - item.start_min) / 60) * hourPx;
+      land(targetDy, () => { if (target !== item.start_min) store.actions.tasks.reschedule(item, { start_min: target }).catch(showErr); });
     };
     const cleanup = () => {
       clearTimeout(hold);
@@ -1345,6 +1362,7 @@ function Planner() {
     document.addEventListener("pointercancel", up);
   }
   function onDaySwipeStart(e) {
+    if (liftDragRef.current) return; // задача поднята — жесты сетки (свайп/зум) выключены, её ведёт палец
     if (e.touches.length === 2) {
       const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
       zoomFocus.current = computeAnchor(midY);
@@ -1352,6 +1370,7 @@ function Planner() {
     }
     if (e.touches.length !== 1) return;
     if (e.target && e.target.closest && e.target.closest(".allday-handle")) return; // ручку шторки ведёт её собственный drag
+    if (e.target && e.target.closest && e.target.closest(".tl-event")) return; // касание по задаче — ведёт её обработчик, не карусель
     if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; }
     // Тач-драг карусели дня — тянем сетку под пальцем через тот же transform.
     const st = daySwipeStateRef.current;
@@ -1437,7 +1456,7 @@ function Planner() {
     const td = pd === todayISO();
     return html`<div class="tl tl-static" style=${`height:${24 * hourPx}px;`}>
       ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
-        ${h < 24 ? html`<span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span>` : ""}</div>`)}
+        <span class=${"grid-hour-label" + (h === 24 ? " last" : "")}>${(h % 24 === 0 ? "00" : String(h).padStart(2, "0"))}:00</span></div>`)}
       <div class="tl-spine"></div>
       ${td && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
         <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
@@ -1699,7 +1718,7 @@ function Planner() {
               <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
-                  ${h < 24 ? html`<span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span>` : ""}</div>`)}
+                  <span class=${"grid-hour-label" + (h === 24 ? " last" : "")}>${(h % 24 === 0 ? "00" : String(h).padStart(2, "0"))}:00</span></div>`)}
                 <div class="tl-spine"></div>
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
@@ -1723,8 +1742,12 @@ function Planner() {
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
                   const lifting = liftDrag && liftDrag.key === i.key;
-                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (lifting ? " lifted" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${lifting ? `transform:translate(${liftDrag.dx}px,${liftDrag.dy}px) scale(1.04);` : ""}`}
+                  const settling = lifting && liftDrag.done;   // кадр фиксации: без перехода, без transform
+                  const landing = lifting && liftDrag.landing; // «доезд»: transform едет к слоту с переходом
+                  const liftCls = settling ? " settling" : landing ? " landing" : lifting ? " lifted" : "";
+                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + liftCls + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${(lifting && !settling) ? `transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};` : ""}`}
+                    onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
                       ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
@@ -1737,12 +1760,13 @@ function Planner() {
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>
-                    <div class="tl-body" onPointerDown=${e => e.stopPropagation()}>
+                    <div class="tl-body">
                       <div class="tl-text">
                         <div class="tl-titlerow">
                           ${titleEdit && titleEdit.key === i.key
                             ? html`<input class="tl-title-edit" value=${titleEdit.value}
                                 ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
+                                onPointerDown=${e => e.stopPropagation()}
                                 style=${`width:${Math.max(titleEdit.value.length + 1, 4)}ch;`}
                                 onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
                                 onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
