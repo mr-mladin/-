@@ -218,7 +218,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
       ${error && html`<div class="ed-error">${error}</div>`}
 
       <input class="ed-title" placeholder="Название задачи"
-        ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
+        ref=${el => { if (el) { titleRef.current = el; if (!el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
         value=${title} onInput=${e => setTitle(e.target.value)}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
 

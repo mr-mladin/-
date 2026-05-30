@@ -188,6 +188,20 @@ function Planner() {
     mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on);
     return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); };
   }, []);
+  // Высота экранной клавиатуры (через visualViewport) в CSS-переменную --kb: форма
+  // редактирования «прислоняется» нижним краем ровно к клавиатуре (как в Apple Календаре).
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const upd = () => {
+      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty("--kb", kb + "px");
+    };
+    upd();
+    vv.addEventListener("resize", upd);
+    vv.addEventListener("scroll", upd);
+    return () => { vv.removeEventListener("resize", upd); vv.removeEventListener("scroll", upd); };
+  }, []);
 
   // Масштаб часов = так, чтобы вся прокручиваемая лента влезла в экран точь-в-точь
   // (scrollHeight == clientHeight): ни прокрутки, ни пустоты. «Лишнее» помимо самих
@@ -1167,7 +1181,7 @@ function Planner() {
 
   function openEdit(item) {
     const row = item.kind === "concrete" ? tasks.find(t => t.id === item.id) : tasks.find(t => t.id === item.templateId);
-    if (row) setEditing({ task: row, occ: item.kind === "occurrence" ? item : null });
+    if (row) { primeKeyboard(); setEditing({ task: row, occ: item.kind === "occurrence" ? item : null }); }
   }
   const toggleDone = (item) => {
     doneFeedback();

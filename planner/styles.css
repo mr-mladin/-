@@ -645,7 +645,18 @@ textarea.input { resize: vertical; }
   .allday-check .ico { width: 9px; height: 9px; }
   .allday-title, .allday-float .allday-title { font-size: 13px; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
+
+  /* Форма задачи как в Apple Календаре: лист во всю ширину, нижним краем «прислонён»
+     к клавиатуре (--kb), название сразу в фокусе. Шапка (Отмена/Сохранить) закреплена. */
+  .ed-float-back { align-items: stretch; justify-content: stretch; padding: 0; }
+  .ed-float-back .ed-card { position: fixed; left: 0; right: 0; top: 10px; bottom: var(--kb, 0);
+    width: 100%; max-width: none; height: auto; max-height: none; border: 0; border-radius: 18px 18px 0 0;
+    padding: 0 16px calc(14px + env(safe-area-inset-bottom)); gap: 12px;
+    transition: bottom .25s cubic-bezier(.2,.8,.3,1); animation: sheetUp .26s cubic-bezier(.2,.8,.3,1); }
+  .ed-float-back .ed-top { position: sticky; top: 0; z-index: 2; background: var(--surface);
+    padding: 12px 0 8px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
 }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
 
 /* Настройки */
 .set-section { margin-bottom: 20px; }
