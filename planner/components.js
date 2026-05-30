@@ -278,6 +278,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
           <div class="ed-dt"><span class="ed-dt-label">Конец</span>
             <input class="ed-input dt-date" type="date" value=${endDate} min=${date} onInput=${e => setEndDate(e.target.value)} />
             <input class="ed-input dt-time" type="time" value=${endTime} onInput=${e => setEndTime(e.target.value)} />
+            <span class="ed-dt-clear" aria-hidden="true"></span>
           </div>` : ""}`
         : html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`}
 

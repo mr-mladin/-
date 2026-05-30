@@ -698,6 +698,7 @@ function Planner() {
     const touch = e.pointerType === "touch";
     const el = e.currentTarget, pid = e.pointerId;
     const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
+    const sx = e.clientX, sy = e.clientY;
     let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - NEW_DUR);
     let lx = e.clientX, ly = e.clientY, lt = performance.now(), vx = 0, vy = 0; // скорость для «отброса» (отмена создания)
     const beginTouch = () => {
@@ -705,12 +706,15 @@ function Planner() {
       createActiveRef.current = true;
       setSelected(new Set());
       const g = innerRef.current;
-      if (g) { const gr = g.getBoundingClientRect(); createGeomRef.current = { top: gr.top, left: gr.left, width: gr.width }; }
+      // Капсула едет за пальцем (как при переносе): запоминаем её исходный top на экране,
+      // призрак времени привязан к разметке. start0 — точка, где задержали палец.
+      if (g) { const gr = g.getBoundingClientRect();
+        createGeomRef.current = { top: gr.top + (start0 / 60) * hourPx, left: gr.left, width: gr.width }; }
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
       // Непассивный слушатель добавляем только после активации создания — чтобы
       // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
       document.addEventListener("touchmove", onTouchMove, { passive: false });
-      setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true });
+      setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, dx: 0, dy: 0 });
       haptic();
     };
     const beginMouse = () => {
@@ -731,8 +735,9 @@ function Planner() {
         vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
         vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
         lx = ev.clientX; ly = ev.clientY; lt = now;
-        start0 = clamp(snap(yToMin(ev.clientY)), 0, 1440 - NEW_DUR);
-        setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true });
+        // Время призрака — от смещения пальца (как при переносе), капсула едет за пальцем (dx,dy).
+        start0 = clamp(snap(anchor + Math.round(((ev.clientY - sy) / hourPx) * 60)), 0, 1440 - NEW_DUR);
+        setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, dx: ev.clientX - sx, dy: ev.clientY - sy });
       } else {
         cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
         setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
@@ -906,16 +911,24 @@ function Planner() {
         if (patch.start_min != null || patch.date) store.actions.tasks.reschedule(item, patch).catch(showErr);
       });
     };
+    // Системная отмена жеста (pointercancel) — НЕ коммитим: задача плавно возвращается
+    // на место. Раньше cancel шёл в up → задача «соскакивала» в случайном месте.
+    const onCancel = (ev) => {
+      if (ev.pointerId !== pid) return;
+      const wasLifted = lifted;
+      cleanup();
+      if (wasLifted) land(0, () => {}); else setLiftDrag(null);
+    };
     const cleanup = () => {
       clearTimeout(hold);
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
-      document.removeEventListener("pointercancel", up);
+      document.removeEventListener("pointercancel", onCancel);
       document.removeEventListener("touchmove", onTouchMove, { passive: false });
     };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
-    document.addEventListener("pointercancel", up);
+    document.addEventListener("pointercancel", onCancel);
     if (already) lift(false);                       // уже выделена → поднимаем сразу
     else hold = setTimeout(() => lift(true), 280);  // не выделена → подъём по удержанию
   }
@@ -1790,7 +1803,7 @@ function Planner() {
 
           ${view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
-            <div class=${"planner-grid-scroll" + (liftDrag || (drag && drag.type === "create") ? " holding" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+            <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
@@ -1924,6 +1937,10 @@ function Planner() {
                     <div class="tl-ghost-pill"></div>
                     <div class="tl-ghost-label">${minRangeLabel(lm, dur)}</div></div>`;
                 })()}
+                ${drag && drag.type === "create" && drag.touch && drag.dur > 0 && html`<div class="tl-ghost lift-target"
+                  style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
+                  <div class="tl-ghost-pill"></div>
+                  <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
                 ${drag && drag.type === "copy" && (() => {
                   const src = dayTl.find(x => x.key === drag.key);
                   return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
@@ -2015,11 +2032,11 @@ function Planner() {
       </div>`;
     })()}
     ${drag && drag.type === "create" && drag.touch && drag.dur > 0 && createGeomRef.current && (() => {
-      // Плавающая капсула новой задачи (fixed) — стоит под пальцем, пока второй палец
-      // листает дни той же каруселью. Не уезжает с лентой.
+      // Плавающая капсула новой задачи (fixed) — едет за пальцем (dx,dy), как при
+      // переносе. Призрак времени рисуется в сетке (см. выше). Не уезжает с лентой.
       const g = createGeomRef.current, h = Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx);
       return html`<div class="tl-ghost placing tl-lift-overlay"
-        style=${`top:${g.top + (drag.start / 60) * hourPx}px;left:${g.left}px;width:${g.width}px;height:${h}px;`}>
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${h}px;transform:translate(${drag.dx}px,${drag.dy}px) scale(1.04);`}>
         <div class="tl-ghost-pill"></div>
         <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
     })()}

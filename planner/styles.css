@@ -379,9 +379,6 @@ textarea.input { resize: vertical; }
 .tl-event.landing { z-index: 12; transition: transform .2s cubic-bezier(.2,.8,.3,1); }
 .tl-event.landing .tl-pill { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
 .tl-event.settling { z-index: 12; transition: none; } /* кадр фиксации: top и transform меняются мгновенно, без виляния */
-/* Пока задача поднята — браузер не должен сам перехватывать касания (иначе второй
-   палец вызвал бы pointercancel и сорвал перенос). Все касания ведём вручную. */
-.planner-grid-scroll.holding, .planner-grid-scroll.holding * { touch-action: none; }
 /* Плавающая копия поднятой задачи/капсулы: fixed поверх всего, координаты вьюпорта.
    Лежит ВНЕ ленты карусели, поэтому при листании дней вторым пальцем остаётся под
    пальцем. Двойной класс — чтобы position:fixed побеждал .tl-event/.tl-ghost. */
@@ -647,14 +644,16 @@ textarea.input { resize: vertical; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
 
   /* Форма задачи как в Apple Календаре: лист во всю ширину, нижним краем «прислонён»
-     к клавиатуре (--kb), название сразу в фокусе. Шапка (Отмена/Сохранить) закреплена. */
+     к клавиатуре (--kb). Сверху НЕ заезжает под статус-бар: ограничен сверху безопасной
+     зоной, высота — по содержимому. Шапка (Отмена/Сохранить) закреплена. */
   .ed-float-back { align-items: stretch; justify-content: stretch; padding: 0; }
-  .ed-float-back .ed-card { position: fixed; left: 0; right: 0; top: 10px; bottom: var(--kb, 0);
-    width: 100%; max-width: none; height: auto; max-height: none; border: 0; border-radius: 18px 18px 0 0;
-    padding: 0 16px calc(14px + env(safe-area-inset-bottom)); gap: 12px;
-    transition: bottom .25s cubic-bezier(.2,.8,.3,1); animation: sheetUp .26s cubic-bezier(.2,.8,.3,1); }
+  .ed-float-back .ed-card { position: fixed; left: 0; right: 0; bottom: var(--kb, 0);
+    top: auto; width: 100%; max-width: none; height: auto;
+    max-height: calc(100dvh - var(--kb, 0px) - env(safe-area-inset-top) - 12px);
+    border: 0; border-radius: 18px 18px 0 0; padding: 0 16px calc(14px + env(safe-area-inset-bottom)); gap: 12px;
+    transition: bottom .2s ease; animation: sheetUp .26s cubic-bezier(.2,.8,.3,1); }
   .ed-float-back .ed-top { position: sticky; top: 0; z-index: 2; background: var(--surface);
-    padding: 12px 0 8px; margin: 0 -16px; padding-left: 16px; padding-right: 16px; }
+    padding: 12px 0 8px; margin: 0 -16px 0; padding-left: 16px; padding-right: 16px; }
 }
 @keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
 
@@ -781,7 +780,8 @@ textarea.input { resize: vertical; }
   font-family: inherit; font-size: 14px; color: var(--text); padding: 6px 8px; outline: none; }
 .ed-input.dt-date { flex: 1; min-width: 0; }
 .ed-input.dt-time { width: 92px; flex: none; }
-.ed-dt-clear { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px; }
+.ed-dt-clear { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px;
+  width: 19px; height: 19px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
 .ed-dt-clear .ico { width: 15px; height: 15px; }
 .ed-until { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); }
 
