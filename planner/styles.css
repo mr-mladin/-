@@ -849,7 +849,7 @@ textarea.input { resize: vertical; }
   padding: 0 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
   display: flex; align-items: center; justify-content: center; white-space: nowrap; cursor: grab;
   box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 45%, transparent); touch-action: none; z-index: 2;
-  transition: left .22s cubic-bezier(.2,.8,.3,1); }
+  transition: left .42s cubic-bezier(.22,1,.32,1); }
 .dur-knob.drag { transition: none; cursor: grabbing; transform: translate(-50%, -50%) scale(1.06); }
 
 /* ---- Подзадачи на пилюле в сетке (раскрытие/сворачивание) ---- */

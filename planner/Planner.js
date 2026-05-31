@@ -677,61 +677,47 @@ function Planner() {
     apply(anchor);
   }
 
+  // Создание задачи прямо в сетке (как в Apple Календаре). Долгое нажатие → задача
+  // фиксируется в этом времени (5 мин). Не отпуская, тянешь вниз — растёт к концу, вверх —
+  // к началу (конец = точка нажатия). Отпустил — открывается форма с этой длительностью.
   function onGridPointerDown(e) {
     if (e.button !== 0 && e.pointerType !== "touch") return;
-    if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — второй палец листает день, новый жест не начинаем
+    if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — новый жест не начинаем
     if (e.shiftKey) { startRangeSelect(e); return; }
     const touch = e.pointerType === "touch";
     const el = e.currentTarget, pid = e.pointerId;
-    const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440);
-    const sx = e.clientX, sy = e.clientY;
-    let cur = anchor, active = false, hold = null, start0 = clamp(anchor, 0, 1440 - NEW_DUR);
-    let lx = e.clientX, ly = e.clientY, lt = performance.now(), vx = 0, vy = 0; // скорость для «отброса» (отмена создания)
+    const anchor = clamp(snap(yToMin(e.clientY)), 0, 1440); // время точки нажатия — «якорь»
+    let cur = anchor, active = false, hold = null, dragged = false;
     const beginTouch = () => {
       active = true;
       createActiveRef.current = true;
       setSelected(new Set());
-      const g = innerRef.current;
-      // Капсула едет за пальцем в 2D (как поднятая задача): фиксируем стартовую позицию
-      // слота под пальцем (top/left) и точку нажатия (sx,sy); дальше двигаем через translate.
-      if (g) { const gr = g.getBoundingClientRect();
-        createGeomRef.current = { top: gr.top + (start0 / 60) * hourPx, left: gr.left, width: gr.width, sx, sy }; }
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
-      // Непассивный слушатель добавляем только после активации создания — чтобы
-      // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
+      // Непассивный слушатель добавляем только после активации — чтобы обычная
+      // вертикальная прокрутка оставалась быстрой (без ожидания JS).
       document.addEventListener("touchmove", onTouchMove, { passive: false });
-      setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, fx: sx, fy: sy });
+      setDrag({ type: "create", start: clamp(anchor, 0, 1440 - NEW_DUR), dur: NEW_DUR });
       haptic();
     };
-    const beginMouse = () => {
-      active = true;
-      setSelected(new Set());
-      setDrag({ type: "create", start: anchor, dur: 0 });
+    const beginMouse = () => { active = true; setSelected(new Set()); setDrag({ type: "create", start: anchor, dur: 0 }); };
+    // Тянем от якоря: вниз — растёт к концу, вверх — растёт к началу (конец = якорь).
+    const apply = (ev) => {
+      cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
+      const start = Math.min(anchor, cur), end = Math.max(anchor, cur);
+      if (end - start >= SNAP) dragged = true;
+      setDrag({ type: "create", start, dur: Math.max(SNAP, end - start) });
     };
     const move = ev => {
       if (ev.pointerId !== pid) return; // основной палец; второй (листание дня) — в onTouchMove
       if (!active) {
         const far = Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY);
-        if (touch) { if (far > 14) finish(false); return; } // движение до долгого нажатия = прокрутка
+        if (touch) { if (far > 14) finish(false); return; } // двинул до долгого нажатия = прокрутка
         if (far > 6) beginMouse(); else return;
       }
       ev.preventDefault();
-      if (touch) {
-        const now = performance.now(), dt = Math.max(1, now - lt);
-        vx = vx * 0.5 + ((ev.clientX - lx) / dt) * 0.5;
-        vy = vy * 0.5 + ((ev.clientY - ly) / dt) * 0.5;
-        lx = ev.clientX; ly = ev.clientY; lt = now;
-        // Время призрака — от смещения пальца (как при переносе); капсула едет за пальцем (fx,fy).
-        start0 = clamp(snap(anchor + Math.round(((ev.clientY - sy) / hourPx) * 60)), 0, 1440 - NEW_DUR);
-        setDrag({ type: "create", start: start0, dur: NEW_DUR, touch: true, fx: ev.clientX, fy: ev.clientY });
-      } else {
-        cur = clamp(snap(yToMin(ev.clientY)), 0, 1440);
-        setDrag({ type: "create", start: Math.min(anchor, cur), dur: Math.abs(cur - anchor) });
-      }
+      apply(ev);
     };
-    // Глушим прокрутку во время размещения. День листает ВТОРОЙ палец через ту же
-    // карусель (runDaySwipe), что и обычный свайп; капсула — плавающая копия поверх.
-    const onTouchMove = ev => { if (active) ev.preventDefault(); };
+    const onTouchMove = ev => { if (active) ev.preventDefault(); }; // глушим прокрутку во время создания
     const finish = (commit) => {
       clearTimeout(hold);
       createActiveRef.current = false;
@@ -742,19 +728,16 @@ function Planner() {
       setDrag(null);
       if (!active) { if (commit) setSelected(new Set()); return; }
       if (!commit) return;
-      let start, dur;
-      if (touch) { start = start0; dur = NEW_DUR; }
-      else { start = Math.min(anchor, cur); dur = Math.abs(cur - anchor); if (dur < MIN_DUR) dur = NEW_DUR; }
-      // Открываем форму создания (черновик): задача появится в сетке только после
-      // «Сохранить». Фокус в название и клавиатуру форма ставит сама после появления.
+      // Без перетаскивания — 5 мин от якоря; с перетаскиванием — выбранный интервал.
+      const start = dragged ? Math.min(anchor, cur) : anchor;
+      let dur = dragged ? Math.abs(cur - anchor) : NEW_DUR;
+      if (dur < SNAP) dur = NEW_DUR;
+      // Клавиатуру на iOS поднимаем синхронно в pointerup скрытым полем; фокус уедет на название.
+      if (touch) primeKeyboard();
       setCreating({ date: dateRef.current, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
         list_id: filter !== "all" && filter !== "inbox" ? filter : null });
     };
-    const up = (ev) => {
-      if (ev.pointerId !== pid) return; // только основной палец завершает создание (второй — листание дня)
-      if (touch && active && Math.hypot(vx, vy) > 1.0) { haptic(); finish(false); return; } // резкий отброс → отмена создания
-      finish(true);
-    };
+    const up = (ev) => { if (ev.pointerId === pid) finish(true); };
     const cancel = (ev) => { if (ev.pointerId === pid) finish(false); };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
@@ -762,7 +745,6 @@ function Planner() {
     if (touch) hold = setTimeout(beginTouch, HOLD_MS);
   }
 
-  // В какой зоне находится точка: над сеткой дня или над боковой панелью.
   function dndZoneAt(x, y) {
     const el = document.elementFromPoint(x, y);
     if (!el) return null;
@@ -1917,10 +1899,6 @@ function Planner() {
                     <div class="tl-ghost-pill"></div>
                     <div class="tl-ghost-label">${minRangeLabel(lm, dur)}</div></div>`;
                 })()}
-                ${drag && drag.type === "create" && drag.touch && drag.dur > 0 && html`<div class="tl-ghost lift-target"
-                  style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
-                  <div class="tl-ghost-pill"></div>
-                  <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)}</div></div>`}
                 ${drag && drag.type === "copy" && (() => {
                   const src = dayTl.find(x => x.key === drag.key);
                   return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
@@ -1934,7 +1912,7 @@ function Planner() {
                   return html`<div class="tl-ghost" key=${"cg" + k} style=${`top:${(ns / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, ((it.duration_min || 0) / 60) * hourPx)}px;--c:${colorOf(it)};`}>
                     <div class="tl-ghost-pill"></div></div>`;
                 })}
-                ${drag && drag.type === "create" && !drag.touch && drag.dur > 0 && html`<div class="tl-ghost placing"
+                ${drag && drag.type === "create" && drag.dur > 0 && html`<div class="tl-ghost placing"
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
