@@ -176,7 +176,10 @@ function Planner() {
   // дочерние обработчики останавливают всплытие (название, подзадачи).
   useEffect(() => {
     if (selected.size === 0) return;
-    const onDown = (e) => { const t = e.target; if (!(t && t.closest && t.closest(".tl-event"))) setSelected(new Set()); };
+    // Тап внутри открытой формы задачи не трогаем: сброс выделения здесь вызывал
+    // ре-рендер прямо в момент касания поля, и на iOS это срывало фокус (поле не
+    // получало курсор/клавиатуру).
+    const onDown = (e) => { const t = e.target; if (t && t.closest && t.closest(".ed-card")) return; if (!(t && t.closest && t.closest(".tl-event"))) setSelected(new Set()); };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [selected]);

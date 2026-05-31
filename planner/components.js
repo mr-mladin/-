@@ -295,8 +295,14 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
-    // Клик вне карточки — закрыть (без сохранения изменений-черновика).
-    const onDown = e => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.(); };
+    // Закрытие по клику вне карточки — только мышью (десктоп). На сенсоре глобальный
+    // pointerdown-слушатель на document срывал фокус полей на iOS (поле не получало
+    // курсор и клавиатуру, хотя кнопки работали). На телефоне форму закрывает тап
+    // по затемнённому фону (.ed-float-back), отдельный обработчик — он не мешает фокусу.
+    const onDown = e => {
+      if (e.pointerType === "touch") return;
+      if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.();
+    };
     setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
     return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
   }, [onClose, editing]);
