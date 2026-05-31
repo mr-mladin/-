@@ -122,6 +122,7 @@ function Planner() {
   const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
+  const contentRef = useRef(null); // слой «День» — едет вправо, открывая панель проектов под ним
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
   const adGridRef = useRef(null);   // контейнер зоны «весь день»
@@ -1339,15 +1340,16 @@ function Planner() {
     track.addEventListener("transitionend", onBack);
   }
 
-  // Шторка проектов: тянем за пальцем от края экрана. От левого края — открываем,
-  // от правого (когда открыта) — закрываем. Лента едет вместе с пальцем, после
-  // отпускания мягко доезжает (медленно).
+  // Панель проектов — нижний слой, всегда под экраном «День». Жест тянет ВЕРХНИЙ
+  // слой (экран дня) вбок: от левого края — уезжает вправо, открывая панель под ним;
+  // от правого края (когда панель открыта) — возвращается на место. Слой едет за
+  // пальцем, после отпускания мягко доезжает.
   function edgeSwipe(e, mode) {
-    const el = asideRef.current;
+    const el = contentRef.current;
     if (!el) return;
     const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
-    const W = window.innerWidth;
-    const base = mode === "open" ? -W : 0;
+    const W = el.offsetWidth; // ширина слоя «День» = на столько он уезжает вправо
+    const base = mode === "open" ? 0 : W; // позиция слоя «День» в начале жеста
     let decided = null, cur = base, lastX = sx, lastT = performance.now(), vx = 0;
     const move = ev => {
       const t = ev.touches[0]; if (!t) return;
@@ -1355,12 +1357,12 @@ function Planner() {
       if (decided === null) {
         if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
         decided = Math.abs(dx) > Math.abs(dy);
-        if (!decided) { cleanup(); return; } // вертикаль — это прокрутка, не шторка
+        if (!decided) { cleanup(); return; } // вертикаль — это прокрутка, не панель
       }
       const now = performance.now();
       if (now > lastT) vx = (t.clientX - lastX) / (now - lastT);
       lastX = t.clientX; lastT = now;
-      cur = Math.max(-W, Math.min(0, base + dx));
+      cur = Math.max(0, Math.min(W, base + dx)); // слой «День» уходит вправо до +W
       el.style.transition = "none";
       el.style.transform = `translateX(${cur}px)`;
     };
@@ -1368,12 +1370,11 @@ function Planner() {
       cleanup();
       if (decided !== true) return;
       let open;
-      if (vx > 0.2) open = true;        // флик вправо — открыть
-      else if (vx < -0.2) open = false; // флик влево — закрыть
-      else if (mode === "open") open = (cur + W) > 8;  // сдвинул хоть чуть-чуть — открываем
-      else open = !((-cur) > 8);                        // сдвинул хоть чуть-чуть — закрываем
+      if (vx > 0.2) open = true;        // флик вправо — открыть панель (слой уезжает)
+      else if (vx < -0.2) open = false; // флик влево — вернуть экран дня
+      else open = cur > W / 2;          // больше половины — доводим в эту сторону
       el.style.transition = "transform .5s cubic-bezier(.22,1,.3,1)";
-      el.style.transform = `translateX(${open ? 0 : -W}px)`;
+      el.style.transform = `translateX(${open ? W : 0}px)`;
       setAsideOpen(open);
       const onEnd = () => { el.removeEventListener("transitionend", onEnd); el.style.transition = ""; el.style.transform = ""; };
       el.addEventListener("transitionend", onEnd);
@@ -1750,7 +1751,7 @@ function Planner() {
           </div>
         </aside>
 
-        <div class="planner-content">
+        <div class="planner-content" ref=${contentRef}>
           <div class="planner-head">
             <div class="planner-nav">
               <button class="icon-btn cal-btn" title="Выбрать дату"
