@@ -37,6 +37,12 @@ input, textarea, [contenteditable], [contenteditable="true"] {
   -webkit-user-select: text; user-select: text;
   -webkit-touch-callout: default; }
 img, button { -webkit-user-drag: none; user-drag: none; }
+/* Жестовые поверхности (свайп между днями/неделями/месяцами) — глушим выделение
+   текста, чтобы горизонтальное протягивание не перехватывалось выделением (раньше
+   это делал user-select:none на body, но он ломал фокус полей формы в standalone-PWA,
+   поэтому возвращаем точечно сюда). Форма сюда не попадает — она рендерится вне .app. */
+.planner-grid-scroll, .week-scroll, .month {
+  -webkit-user-select: none; user-select: none; }
 /* Сенсорные интерактивные элементы — глушим iOS-меню (на случай если кто-то
    наследует callout). */
 button, .tray-task-wrap, .tray-task, .tl-event, .tl-pill, .allday-item, .wday, .seg-btn, .icon-btn {
