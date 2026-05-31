@@ -60,6 +60,7 @@ function Planner() {
   const [filter, setFilter] = useState("all");
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [edClosing, setEdClosing] = useState(false); // форма закрывается — проигрываем анимацию ухода перед размонтированием
   const [drag, setDrag] = useState(null);
   const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy, landing, done } — едет за пальцем
   const liftDragRef = useRef(null);               // актуальное значение для обработчиков свайпа/зума
@@ -113,9 +114,10 @@ function Planner() {
   const zoomFocus = useRef(null);   // точка под пальцами при зуме (фиксируем её)
   const zoomingRef = useRef(false); // идёт изменение масштаба
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
-  const createActiveRef = useRef(false); // идёт размещение новой задачи (капсула под пальцем) — карусель дня не вмешивается
-  const createGeomRef = useRef(null); // позиция плавающей капсулы новой задачи (фикс. координаты вьюпорта)
+  const createActiveRef = useRef(false); // идёт создание новой задачи (растягивание в сетке) — карусель дня не вмешивается
+  const kbPrimerRef = useRef(null);   // скрытое поле: поднять клавиатуру синхронно в жесте, затем фокус уедет в форму
   const dndGeomRef = useRef(null);    // ширина/левый край сетки для плавающей капсулы при переносе из «весь день»
+  const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
   const swipedRef = useRef(false);
@@ -1525,7 +1527,12 @@ function Planner() {
 
   // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
   const edTask = editing?.task || null;
-  const closeEditor = () => { setEditing(null); setCreating(null); };
+  // Закрытие с анимацией: сперва проигрываем уход (класс .closing), затем размонтируем.
+  const closeEditor = () => {
+    if (edClosing) return;
+    setEdClosing(true);
+    setTimeout(() => { setEditing(null); setCreating(null); setEdClosing(false); }, 240);
+  };
   const editorEl = (editing || creating)
     ? html`<${TaskEditor} key=${editing ? "e" + editing.task.id : "c"}
         initial=${editing ? editing.task : undefined}
@@ -2003,16 +2010,8 @@ function Planner() {
         </div></div>
       </div>`;
     })()}
-    ${drag && drag.type === "create" && drag.touch && drag.dur > 0 && createGeomRef.current && (() => {
-      // Плавающая капсула новой задачи (fixed) — едет за пальцем в 2D (translate от точки
-      // нажатия). Призрак времени рисуется в сетке (см. выше). Не уезжает с лентой.
-      const g = createGeomRef.current, h = Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx);
-      return html`<div class="tl-ghost placing tl-lift-overlay"
-        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${h}px;transform:translate(${drag.fx - g.sx}px,${drag.fy - g.sy}px) scale(1.04);`}>
-        <div class="tl-ghost-pill"></div>
-        <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
-    })()}
-    ${edFloat && html`<div class="ed-float-back" onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
+    <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" aria-hidden="true" tabindex="-1" />
+    ${edFloat && html`<div class=${"ed-float-back" + (edClosing ? " closing" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}
       onClose=${() => setListModal(null)} />`}

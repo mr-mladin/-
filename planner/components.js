@@ -298,12 +298,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
     // Клик вне карточки — закрыть (без сохранения изменений-черновика).
     const onDown = e => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.(); };
     setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
-    // При СОЗДАНИИ ставим курсор в название и поднимаем клавиатуру — после того как
-    // лист-шита доехала (анимация transform на iOS мешает фокусу). Дальше пользователь
-    // редактирует обычным тапом.
-    let t = 0;
-    if (!editing) t = setTimeout(() => { try { titleRef.current?.focus({ preventScroll: true }); } catch (e) { titleRef.current?.focus(); } }, 320);
-    return () => { clearTimeout(t); document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
   }, [onClose, editing]);
 
   function changeDate(v) { setDate(v); if (!endDate || endDate < v) setEndDate(v); if (!v) { setStartTime(""); setRecurrence(""); } }
@@ -361,7 +356,8 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
       ${error && html`<div class="ed-error">${error}</div>`}
 
-      <input class="ed-title" placeholder="Название задачи" ref=${titleRef}
+      <input class="ed-title" placeholder="Название задачи" enterkeyhint="done"
+        ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
         value=${title} onInput=${e => setTitle(e.target.value)}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
 
