@@ -27,6 +27,7 @@ const NEW_DUR = 5; // длительность новой задачи по ум
 const HOLD_MS = 350;
 const MIN_EVENT_PX = 14;
 const AD_COLLAPSED = 52; // высота приоткрытой шторки «весь день» по умолчанию (px)
+const EDGE_ZONE = 40; // ширина краевой зоны (px), от которой тянется шторка проектов
 const snap = m => Math.round(m / SNAP) * SNAP;
 function readHourPx() {
   try { const v = +localStorage.getItem("planner.hourPx"); return v >= HOUR_MIN && v <= HOUR_MAX ? v : HOUR_DEFAULT; }
@@ -64,6 +65,7 @@ function Planner() {
   const [drag, setDrag] = useState(null);
   const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy, landing, done } — едет за пальцем
   const liftDragRef = useRef(null);               // актуальное значение для обработчиков свайпа/зума
+  const liftedNowRef = useRef(false);             // задача реально поднята (синхронно, для свайпа дня)
   const liftItemRef = useRef(null);               // снимок поднятой задачи — рисуем её плавающей копией
   const liftGeomRef = useRef(null);               // позиция плавающей копии (фикс. координаты вьюпорта)
   const landTimerRef = useRef(null);              // таймер «доезда» задачи на место
@@ -809,6 +811,7 @@ function Planner() {
     clearTimeout(landTimerRef.current); // прервать «доезд» прошлой задачи, если он ещё шёл
     const lift = (select) => {
       lifted = true;
+      liftedNowRef.current = true; // синхронно: свайп дня теперь не перехватывает этот жест
       liftItemRef.current = item;
       const g = innerRef.current;
       if (g) {
@@ -886,6 +889,7 @@ function Planner() {
     };
     const cleanup = () => {
       clearTimeout(hold);
+      liftedNowRef.current = false;
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", onCancel);
@@ -1260,7 +1264,7 @@ function Planner() {
   // тянем ленту, на отпускании доезжаем к соседнему периоду или возвращаемся.
   function onCarouselSwipeStart(e) {
     if (e.touches.length !== 1) return;
-    if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; } // от левого края — шторка
+    if (!asideOpen && e.touches[0].clientX < EDGE_ZONE) { edgeSwipe(e, "open"); return; } // от левого края — шторка
     const track = trackRef.current;
     if (!track) return;
     if (commitFinalizeRef.current) commitFinalizeRef.current();
@@ -1385,7 +1389,7 @@ function Planner() {
   }
   function onAsideSwipeStart(e) {
     if (e.touches.length !== 1) return;
-    if (e.touches[0].clientX < window.innerWidth - 26) return; // только от правого края
+    if (e.touches[0].clientX < window.innerWidth - EDGE_ZONE) return; // только от правого края
     edgeSwipe(e, "close");
   }
   // Соседние дни оставляем смонтированными ещё немного после свайпа — чтобы при
@@ -1444,7 +1448,7 @@ function Planner() {
     let horiz = null, startDx = 0;
     const find = (list) => { for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i]; return null; };
     const move = (ev) => {
-      if (!multi && createActiveRef.current) { if (horiz === true) st.snap(); cleanup(); return; } // обычный свайп уступил создание
+      if (!multi && (createActiveRef.current || liftedNowRef.current)) { if (horiz === true) st.snap(); cleanup(); return; } // обычный свайп уступил создание/подъёму задачи
       const t = find(ev.touches); if (!t) return;
       const dxF = t.clientX - sx, dyF = t.clientY - sy;
       if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
@@ -1482,8 +1486,11 @@ function Planner() {
     }
     if (e.touches.length !== 1) return;
     if (e.target && e.target.closest && e.target.closest(".allday-handle")) return; // ручку шторки ведёт её собственный drag
-    if (e.target && e.target.closest && e.target.closest(".tl-event")) return; // касание по задаче — ведёт её обработчик
-    if (!asideOpen && e.touches[0].clientX < 26) { edgeSwipe(e, "open"); return; }
+    if (!asideOpen && e.touches[0].clientX < EDGE_ZONE) { edgeSwipe(e, "open"); return; }
+    // Свайп дня вооружаем и поверх задач: горизонтальное протягивание листает день.
+    // Обработчик задачи работает параллельно (он поднимает задачу только по удержанию
+    // ~280мс; быстрый горизонтальный свайп его отменяет). Если задача всё же поднята
+    // (liftedNowRef) — runDaySwipe сам уступает, и задача переносится, а не листает.
     runDaySwipe(e.touches[0], false);
   }
   function rowToItem(row) {
