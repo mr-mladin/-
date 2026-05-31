@@ -114,10 +114,8 @@ function Planner() {
   const zoomingRef = useRef(false); // идёт изменение масштаба
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const createActiveRef = useRef(false); // идёт размещение новой задачи (капсула под пальцем) — карусель дня не вмешивается
-  const kbPrimerRef = useRef(null); // скрытое поле: открыть клавиатуру синхронно в жесте, затем фокус уедет в форму
   const createGeomRef = useRef(null); // позиция плавающей капсулы новой задачи (фикс. координаты вьюпорта)
   const dndGeomRef = useRef(null);    // ширина/левый край сетки для плавающей капсулы при переносе из «весь день»
-  const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
   const swipedRef = useRef(false);
