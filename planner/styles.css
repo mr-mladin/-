@@ -644,18 +644,21 @@ textarea.input { resize: vertical; }
   .allday-title, .allday-float .allday-title { font-size: 13px; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
 
-  /* Форма задачи как в Apple Календаре: лист во весь экран, закреплён СВЕРХУ (не у
-     клавиатуры!) — поэтому при подъёме клавиатуры лист НЕ дёргается и тапы не съезжают.
-     Название вверху всегда над клавиатурой; содержимое прокручивается под шапкой. */
-  .ed-float-back { align-items: stretch; justify-content: stretch; padding: 0; background: var(--surface); }
-  .ed-float-back .ed-card { position: fixed; inset: 0; width: 100%; max-width: none; height: 100%;
-    max-height: none; border: 0; border-radius: 0; gap: 12px;
-    padding: calc(env(safe-area-inset-top) + 6px) 16px calc(16px + env(safe-area-inset-bottom));
-    overflow-y: auto; -webkit-overflow-scrolling: touch; animation: sheetUp .24s cubic-bezier(.2,.8,.3,1); }
-  .ed-float-back .ed-top { position: sticky; top: 0; z-index: 2; background: var(--surface);
-    padding: 6px 0 8px; }
+  /* Форма задачи — нижний лист (как в Apple Календаре): прижат к низу экрана,
+     высота по содержимому (до 92% экрана), скругление сверху. Не во весь экран и без
+     внутреннего «фиксированного» скролла на всю высоту — это и мешало iOS поднимать
+     клавиатуру и фокусировать поля. */
+  .ed-float-back { align-items: flex-end; justify-content: stretch; padding: 0; }
+  .ed-float-back .ed-card { width: 100%; max-width: none; border: 0; border-radius: 20px 20px 0 0;
+    gap: 12px; padding: 14px 16px calc(16px + env(safe-area-inset-bottom));
+    max-height: 92dvh; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    animation: edSheetUp .26s cubic-bezier(.2,.8,.3,1); }
+  .ed-float-back .ed-top { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 2px 0 8px; }
+  /* Закрытие нижнего листа — уезжает вниз. */
+  .ed-float-back.closing .ed-card { animation: edSheetDown .24s cubic-bezier(.4,0,.6,1) forwards; }
 }
-@keyframes sheetUp { from { transform: translateY(14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes edSheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes edSheetDown { from { transform: none; } to { transform: translateY(100%); } }
 
 /* Настройки */
 .set-section { margin-bottom: 20px; }
@@ -712,6 +715,8 @@ textarea.input { resize: vertical; }
   box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28); padding: 12px 14px 14px;
   max-height: 80dvh; overflow-y: auto; animation: edPop .2s cubic-bezier(.2,.7,.3,1); }
 @keyframes edPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px) scale(.985); } }
+@keyframes edBackIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes edBackOut { from { opacity: 1; } to { opacity: 0; } }
 .ed-anchor .ed-card { max-width: none; }
 @keyframes edPop { from { opacity: 0; transform: translateY(-6px) scale(.985); } to { opacity: 1; transform: none; } }
 
@@ -727,6 +732,11 @@ textarea.input { resize: vertical; }
 .ed-error { font-size: 12px; color: var(--danger); background: rgba(239,68,68,0.1);
   padding: 6px 10px; border-radius: var(--radius-sm); }
 
+/* Поля формы задачи — гарантированно доступны для ввода и каретки на iOS
+   (перебиваем любой унаследованный user-select:none, который гасил курсор/фокус). */
+.ed-title, .ed-notes, .ed-sub-input, .ed-input {
+  -webkit-user-select: text !important; user-select: text !important;
+  -webkit-touch-callout: default; touch-action: auto; pointer-events: auto; cursor: text; }
 .ed-title { border: 0; background: none; font-family: inherit; font-size: 18px; font-weight: 650;
   color: var(--text); padding: 0 2px; outline: none; }
 .ed-title::placeholder { color: var(--text-mute); font-weight: 600; }
