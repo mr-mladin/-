@@ -1,11 +1,16 @@
 import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
-import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS } from "./lib.js";
-import { minToHHMM, hhmmToMin } from "./lib.js";
+import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
+import { minToHHMM, hhmmToMin, durHuman } from "./lib.js";
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
+const WD_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+function humanDate(iso) {
+  const d = fromISO(iso);
+  return `${WD_SHORT[d.getDay()]}, ${d.getDate()} ${monthGen(d)} ${d.getFullYear()} г.`;
+}
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
 
@@ -115,6 +120,82 @@ function dbHint(msg) {
   return msg;
 }
 
+// ---- Пикер времени (как в Apple-стиле из видео) ----
+// Колесо: вертикальная лента значений со scroll-snap. Центрированное значение —
+// выбранное. По остановке прокрутки сообщаем новый индекс. Бесконечная прокрутка не
+// нужна (часы 0–23, минуты 0–59 — короткие списки), снап по центру делает CSS.
+const WHEEL_ITEM = 38; // высота строки колеса (px), должна совпадать с .tw-item в CSS
+function TimeWheel({ count, value, render, onChange }) {
+  const ref = useRef(null);
+  const settleRef = useRef(null);
+  const lockRef = useRef(false); // пока программно прокручиваем — не реагируем на scroll
+  // Держим визуальную позицию в соответствии с value (если меняли извне, напр. чипом).
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const target = value * WHEEL_ITEM;
+    if (Math.abs(el.scrollTop - target) > 1) {
+      lockRef.current = true;
+      el.scrollTop = target;
+      setTimeout(() => { lockRef.current = false; }, 60);
+    }
+  }, [value]);
+  const onScroll = () => {
+    if (lockRef.current) return;
+    clearTimeout(settleRef.current);
+    settleRef.current = setTimeout(() => {
+      const el = ref.current; if (!el) return;
+      const idx = Math.round(el.scrollTop / WHEEL_ITEM);
+      const clamped = Math.max(0, Math.min(count - 1, idx));
+      if (clamped !== value) onChange(clamped);
+      // доводим строго к слоту (на случай дробной остановки)
+      const target = clamped * WHEEL_ITEM;
+      if (Math.abs(el.scrollTop - target) > 1) { lockRef.current = true; el.scrollTo({ top: target, behavior: "smooth" }); setTimeout(() => { lockRef.current = false; }, 200); }
+    }, 90);
+  };
+  return html`<div class="tw" ref=${ref} onScroll=${onScroll}>
+    <div class="tw-pad"></div>
+    ${Array.from({ length: count }, (_, i) => html`<div class=${"tw-item" + (i === value ? " sel" : "")} key=${i}>${render(i)}</div>`)}
+    <div class="tw-pad"></div>
+  </div>`;
+}
+
+// Пикер «Начало → Конец»: четыре колеса (Ч:М → Ч:М). Прокрутка НАЧАЛА сохраняет
+// длительность (двигается конец). Прокрутка КОНЦА меняет длительность (начало на месте).
+// startMin: минута начала (0..1439). durMin: длительность (>0). onChange(start, dur).
+function TimeRangeWheels({ startMin, durMin, onChange }) {
+  const sh = Math.floor(startMin / 60), sm = startMin % 60;
+  const endMin = startMin + durMin;
+  const eh = Math.floor((endMin % 1440) / 60), em = endMin % 60;
+  // Прокрутка начала: новый старт, длительность та же (конец едет).
+  const setStartH = (h) => onChange(h * 60 + sm, durMin);
+  const setStartM = (m) => onChange(sh * 60 + m, durMin);
+  // Прокрутка конца: новый конец (в пределах тех же суток), длительность = конец − начало.
+  const setEndH = (h) => { let e = h * 60 + em; if (e <= startMin) e += 1440; onChange(startMin, e - startMin); };
+  const setEndM = (m) => { let e = eh * 60 + m; if (e <= startMin) e += 1440; onChange(startMin, e - startMin); };
+  const h2 = (i) => String(i).padStart(2, "0");
+  return html`<div class="tw-row">
+    <div class="tw-col"><${TimeWheel} count=${24} value=${sh} render=${h2} onChange=${setStartH} /></div>
+    <div class="tw-col"><${TimeWheel} count=${60} value=${sm} render=${h2} onChange=${setStartM} /></div>
+    <div class="tw-arrow">${Icon.right()}</div>
+    <div class="tw-col"><${TimeWheel} count=${24} value=${eh} render=${h2} onChange=${setEndH} /></div>
+    <div class="tw-col"><${TimeWheel} count=${60} value=${em} render=${h2} onChange=${setEndM} /></div>
+  </div>`;
+}
+
+// Чипы длительности: задают длительность (двигается конец, начало на месте). Если
+// текущая длительность не совпадает ни с одним пресетом — показываем её отдельным
+// активным чипом среди пресетов (как «17 мин», «1 ч 7 мин» в видео).
+const DUR_PRESETS = [1, 15, 30, 45, 60, 90];
+function DurationChips({ durMin, onPick }) {
+  const has = DUR_PRESETS.includes(durMin);
+  const chips = has ? DUR_PRESETS : [...DUR_PRESETS, durMin].sort((a, b) => a - b);
+  return html`<div class="dur-chips">
+    ${chips.map(d => html`<button type="button" key=${d}
+      class=${"dur-chip" + (d === durMin ? " sel" : "")}
+      onClick=${() => onPick(d)}>${durHuman(d)}</button>`)}
+  </div>`;
+}
+
 // Встроенный редактор задачи (вместо модальной формы). Рендерит карточку без
 // собственного позиционирования — обёртку/место задаёт родитель (в сетке дня
 // карточка «прирастает» к задаче, в боковой панели раскрывается на месте).
@@ -153,13 +234,37 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
   const cardRef = useRef(null);
   const titleRef = useRef(null);
+  const dateInputRef = useRef(null);
+
+  // Текущая длительность (мин) из времени начала/конца. Конец раньше начала → следующий день.
+  function curDur() {
+    if (!startTime) return 60;
+    const s = hhmmToMin(startTime);
+    let e = endTime ? hhmmToMin(endTime) : s + 60;
+    if (e <= s) e += 1440;
+    return Math.max(1, e - s);
+  }
+  // Применить новый интервал из пикера: пишем время начала и конца (конец = начало+длит,
+  // по модулю суток; endDate сдвигаем на +1 день, если перевалили за полночь).
+  function applyRange(startMin, durMin) {
+    const sm = ((Math.round(startMin) % 1440) + 1440) % 1440;
+    const dm = Math.max(1, Math.round(durMin));
+    setStartTime(minToHHMM(sm));
+    setEndTime(minToHHMM((sm + dm) % 1440));
+    setEndDate(sm + dm >= 1440 ? addDaysISO(date, 1) : date);
+  }
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
     // Клик вне карточки — закрыть (без сохранения изменений-черновика).
     const onDown = e => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.(); };
     setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
-    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+    // При СОЗДАНИИ ставим курсор в название и поднимаем клавиатуру — после того как
+    // лист-шита доехала (анимация transform на iOS мешает фокусу). Дальше пользователь
+    // редактирует обычным тапом.
+    let t = 0;
+    if (!editing) t = setTimeout(() => { try { titleRef.current?.focus({ preventScroll: true }); } catch (e) { titleRef.current?.focus(); } }, 320);
+    return () => { clearTimeout(t); document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
   }, [onClose, editing]);
 
   function changeDate(v) { setDate(v); if (!endDate || endDate < v) setEndDate(v); if (!v) { setStartTime(""); setRecurrence(""); } }
@@ -217,8 +322,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
       ${error && html`<div class="ed-error">${error}</div>`}
 
-      <input class="ed-title" placeholder="Название задачи"
-        ref=${el => { if (el) { titleRef.current = el; if (!el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
+      <input class="ed-title" placeholder="Название задачи" ref=${titleRef}
         value=${title} onInput=${e => setTitle(e.target.value)}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
 
@@ -269,17 +373,21 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
       </div>
 
       ${date ? html`
-        <div class="ed-dt"><span class="ed-dt-label">Начало</span>
-          <input class="ed-input dt-date" type="date" value=${date} onInput=${e => changeDate(e.target.value)} />
-          <input class="ed-input dt-time" type="time" value=${startTime} onInput=${e => changeStart(e.target.value)} />
-          <button class="ed-dt-clear" type="button" title="Без даты" onClick=${() => changeDate("")}>${Icon.close()}</button>
+        <div class="ed-datepick">
+          <button class="ed-date-row" type="button" onClick=${() => dateInputRef.current && (dateInputRef.current.showPicker ? dateInputRef.current.showPicker() : dateInputRef.current.click())}>
+            <span class="ed-date-ico">${Icon.calendar()}</span>
+            <span class="ed-date-text">${humanDate(date)}</span>
+            <span class="ed-date-rel">${date === todayISO() ? "Сегодня" : ""}</span>
+          </button>
+          <input ref=${dateInputRef} class="ed-date-hidden" type="date" value=${date} onInput=${e => changeDate(e.target.value)} />
         </div>
-        ${startTime ? html`
-          <div class="ed-dt"><span class="ed-dt-label">Конец</span>
-            <input class="ed-input dt-date" type="date" value=${endDate} min=${date} onInput=${e => setEndDate(e.target.value)} />
-            <input class="ed-input dt-time" type="time" value=${endTime} onInput=${e => setEndTime(e.target.value)} />
-            <span class="ed-dt-clear" aria-hidden="true"></span>
-          </div>` : ""}`
+        <div class="ed-sec-label">Время<button class="ed-dt-clear ed-time-off" type="button" title="Убрать время" onClick=${() => { setStartTime(""); setEndTime(""); }}>${Icon.close()}</button></div>
+        ${startTime
+          ? html`<${TimeRangeWheels} startMin=${hhmmToMin(startTime)} durMin=${curDur()}
+              onChange=${(s, d) => applyRange(s, d)} />
+            <div class="ed-sec-label">Продолжительность</div>
+            <${DurationChips} durMin=${curDur()} onPick=${d => applyRange(hhmmToMin(startTime), d)} />`
+          : html`<button class="ed-add" type="button" onClick=${() => changeStart("09:00")}>${Icon.clock()} Добавить время</button>`}`
         : html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`}
 
       ${date && html`

@@ -706,9 +706,10 @@ function Planner() {
       createActiveRef.current = true;
       setSelected(new Set());
       const g = innerRef.current;
-      // Капсула едет за пальцем (как при переносе): храним левый край/ширину сетки,
-      // капсулу центрируем по текущей точке пальца (fx,fy). Призрак времени — в сетке.
-      if (g) { const gr = g.getBoundingClientRect(); createGeomRef.current = { left: gr.left, width: gr.width }; }
+      // Капсула едет за пальцем в 2D (как поднятая задача): фиксируем стартовую позицию
+      // слота под пальцем (top/left) и точку нажатия (sx,sy); дальше двигаем через translate.
+      if (g) { const gr = g.getBoundingClientRect();
+        createGeomRef.current = { top: gr.top + (start0 / 60) * hourPx, left: gr.left, width: gr.width, sx, sy }; }
       try { el.setPointerCapture && el.setPointerCapture(pid); } catch (err) {}
       // Непассивный слушатель добавляем только после активации создания — чтобы
       // обычная вертикальная прокрутка оставалась быстрой (без ожидания JS).
@@ -2003,7 +2004,7 @@ function Planner() {
     ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
     ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
       onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
-    <input ref=${kbPrimerRef} class="kb-primer" type="text" aria-hidden="true" tabindex="-1" inputmode="text" />
+    <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
     ${liftDrag && !liftDrag.done && liftItemRef.current && liftGeomRef.current && (() => {
       // Плавающая копия поднятой задачи (fixed, поверх всего) — едет за пальцем и не
       // уезжает с лентой, пока второй палец листает дни. Доезжает на место и сменяется
@@ -2022,11 +2023,11 @@ function Planner() {
       </div>`;
     })()}
     ${drag && drag.type === "create" && drag.touch && drag.dur > 0 && createGeomRef.current && (() => {
-      // Плавающая капсула новой задачи (fixed) — едет за пальцем (dx,dy), как при
-      // переносе. Призрак времени рисуется в сетке (см. выше). Не уезжает с лентой.
+      // Плавающая капсула новой задачи (fixed) — едет за пальцем в 2D (translate от точки
+      // нажатия). Призрак времени рисуется в сетке (см. выше). Не уезжает с лентой.
       const g = createGeomRef.current, h = Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx);
       return html`<div class="tl-ghost placing tl-lift-overlay"
-        style=${`top:${drag.fy - h / 2}px;left:${g.left}px;width:${g.width}px;height:${h}px;transform:scale(1.04);`}>
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${h}px;transform:translate(${drag.fx - g.sx}px,${drag.fy - g.sy}px) scale(1.04);`}>
         <div class="tl-ghost-pill"></div>
         <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`;
     })()}
