@@ -188,20 +188,6 @@ function Planner() {
     mq.addEventListener ? mq.addEventListener("change", on) : mq.addListener(on);
     return () => { mq.removeEventListener ? mq.removeEventListener("change", on) : mq.removeListener(on); };
   }, []);
-  // Высота экранной клавиатуры (через visualViewport) в CSS-переменную --kb: форма
-  // редактирования «прислоняется» нижним краем ровно к клавиатуре (как в Apple Календаре).
-  useEffect(() => {
-    const vv = window.visualViewport;
-    if (!vv) return;
-    const upd = () => {
-      const kb = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
-      document.documentElement.style.setProperty("--kb", kb + "px");
-    };
-    upd();
-    vv.addEventListener("resize", upd);
-    vv.addEventListener("scroll", upd);
-    return () => { vv.removeEventListener("resize", upd); vv.removeEventListener("scroll", upd); };
-  }, []);
 
   // Масштаб часов = так, чтобы вся прокручиваемая лента влезла в экран точь-в-точь
   // (scrollHeight == clientHeight): ни прокрутки, ни пустоты. «Лишнее» помимо самих
@@ -759,10 +745,8 @@ function Planner() {
       let start, dur;
       if (touch) { start = start0; dur = NEW_DUR; }
       else { start = Math.min(anchor, cur); dur = Math.abs(cur - anchor); if (dur < MIN_DUR) dur = NEW_DUR; }
-      // Открываем форму создания (черновик, как в Apple Календаре): задача появится в
-      // сетке только после «Сохранить». Клавиатуру на iOS можно поднять лишь синхронно
-      // внутри жеста — «заводим» её скрытым полем, дальше фокус уедет на название в форме.
-      if (touch) primeKeyboard();
+      // Открываем форму создания (черновик): задача появится в сетке только после
+      // «Сохранить». Фокус в название и клавиатуру форма ставит сама после появления.
       setCreating({ date: dateRef.current, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
         list_id: filter !== "all" && filter !== "inbox" ? filter : null });
     };
@@ -1193,7 +1177,7 @@ function Planner() {
 
   function openEdit(item) {
     const row = item.kind === "concrete" ? tasks.find(t => t.id === item.id) : tasks.find(t => t.id === item.templateId);
-    if (row) { primeKeyboard(); setEditing({ task: row, occ: item.kind === "occurrence" ? item : null }); }
+    if (row) setEditing({ task: row, occ: item.kind === "occurrence" ? item : null });
   }
   const toggleDone = (item) => {
     doneFeedback();
@@ -2004,7 +1988,6 @@ function Planner() {
     ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
     ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
       onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
-    <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
     ${liftDrag && !liftDrag.done && liftItemRef.current && liftGeomRef.current && (() => {
       // Плавающая копия поднятой задачи (fixed, поверх всего) — едет за пальцем и не
       // уезжает с лентой, пока второй палец листает дни. Доезжает на место и сменяется

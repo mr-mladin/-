@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
-import { minToHHMM, hhmmToMin, durHuman } from "./lib.js";
+import { minToHHMM, hhmmToMin, durHuman, haptic } from "./lib.js";
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
@@ -124,7 +124,7 @@ function dbHint(msg) {
 // Колесо: вертикальная лента значений со scroll-snap. Центрированное значение —
 // выбранное. По остановке прокрутки сообщаем новый индекс. Бесконечная прокрутка не
 // нужна (часы 0–23, минуты 0–59 — короткие списки), снап по центру делает CSS.
-const WHEEL_ITEM = 38; // высота строки колеса (px), должна совпадать с .tw-item в CSS
+const WHEEL_ITEM = 40; // высота строки колеса (px), должна совпадать с .tw-item в CSS
 function TimeWheel({ count, value, render, onChange }) {
   const ref = useRef(null);
   const settleRef = useRef(null);
@@ -182,17 +182,56 @@ function TimeRangeWheels({ startMin, durMin, onChange }) {
   </div>`;
 }
 
-// Чипы длительности: задают длительность (двигается конец, начало на месте). Если
-// текущая длительность не совпадает ни с одним пресетом — показываем её отдельным
-// активным чипом среди пресетов (как «17 мин», «1 ч 7 мин» в видео).
+// Продолжительность: горизонтальная дорожка с пресетами и подвижной пилюлей, которую
+// можно тянуть влево/вправо (как в видео). Пилюля плавно едет за пальцем и встаёт на
+// ближайший пресет; если длительность кастомная (выставлена колесом конца) — пилюля
+// стоит между пресетами и показывает реальное значение («17 мин», «1 ч 7 мин»).
 const DUR_PRESETS = [1, 15, 30, 45, 60, 90];
-function DurationChips({ durMin, onPick }) {
-  const has = DUR_PRESETS.includes(durMin);
-  const chips = has ? DUR_PRESETS : [...DUR_PRESETS, durMin].sort((a, b) => a - b);
-  return html`<div class="dur-chips">
-    ${chips.map(d => html`<button type="button" key=${d}
-      class=${"dur-chip" + (d === durMin ? " sel" : "")}
-      onClick=${() => onPick(d)}>${durHuman(d)}</button>`)}
+function DurationPill({ durMin, onPick }) {
+  const trackRef = useRef(null);
+  const [dragFrac, setDragFrac] = useState(null); // 0..1 во время перетаскивания, иначе null
+  const N = DUR_PRESETS.length;
+  // Доля позиции пилюли (0..1) для текущей длительности: на пресете — точно над ним,
+  // между пресетами — пропорционально.
+  const fracForDur = (d) => {
+    if (d <= DUR_PRESETS[0]) return 0;
+    if (d >= DUR_PRESETS[N - 1]) return 1;
+    let i = 0; while (i < N - 1 && DUR_PRESETS[i + 1] <= d) i++;
+    const seg = (d - DUR_PRESETS[i]) / (DUR_PRESETS[i + 1] - DUR_PRESETS[i]);
+    return (i + seg) / (N - 1);
+  };
+  const frac = dragFrac != null ? dragFrac : fracForDur(durMin);
+  const nearestPreset = (f) => DUR_PRESETS[Math.round(f * (N - 1))];
+  const liveDur = dragFrac != null ? nearestPreset(dragFrac) : durMin;
+
+  const onDown = (e) => {
+    const track = trackRef.current; if (!track) return;
+    e.preventDefault();
+    const rect = track.getBoundingClientRect();
+    const pad = 22; // половина ширины пилюли — чтобы центр не выходил за края
+    const toFrac = (x) => Math.max(0, Math.min(1, (x - rect.left - pad) / (rect.width - pad * 2)));
+    let last = null;
+    const move = (ev) => {
+      const f = toFrac(ev.clientX);
+      setDragFrac(f);
+      const d = nearestPreset(f);
+      if (d !== last) { last = d; haptic(); onPick(d); } // живо меняем значение, пилюля едет за пальцем
+    };
+    const up = () => {
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      setDragFrac(null); // отпустили → пилюля встаёт строго на выбранный пресет (анимацией)
+    };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    move(e);
+  };
+  return html`<div class="dur-track" ref=${trackRef}>
+    ${DUR_PRESETS.map((d, i) => html`<button type="button" key=${d}
+      class=${"dur-tick" + (d === liveDur ? " hide" : "")}
+      style=${`left:calc(22px + ${i / (N - 1)} * (100% - 44px));`} onClick=${() => onPick(d)}>${durHuman(d)}</button>`)}
+    <div class=${"dur-knob" + (dragFrac != null ? " drag" : "")}
+      style=${`left:calc(22px + ${frac} * (100% - 44px));`} onPointerDown=${onDown}>${durHuman(liveDur)}</div>
   </div>`;
 }
 
@@ -374,19 +413,20 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
       ${date ? html`
         <div class="ed-datepick">
-          <button class="ed-date-row" type="button" onClick=${() => dateInputRef.current && (dateInputRef.current.showPicker ? dateInputRef.current.showPicker() : dateInputRef.current.click())}>
+          <div class="ed-date-row">
             <span class="ed-date-ico">${Icon.calendar()}</span>
             <span class="ed-date-text">${humanDate(date)}</span>
             <span class="ed-date-rel">${date === todayISO() ? "Сегодня" : ""}</span>
-          </button>
-          <input ref=${dateInputRef} class="ed-date-hidden" type="date" value=${date} onInput=${e => changeDate(e.target.value)} />
+          </div>
+          <input ref=${dateInputRef} class="ed-date-over" type="date" value=${date}
+            aria-label="Дата задачи" onInput=${e => changeDate(e.target.value)} />
         </div>
         <div class="ed-sec-label">Время<button class="ed-dt-clear ed-time-off" type="button" title="Убрать время" onClick=${() => { setStartTime(""); setEndTime(""); }}>${Icon.close()}</button></div>
         ${startTime
           ? html`<${TimeRangeWheels} startMin=${hhmmToMin(startTime)} durMin=${curDur()}
               onChange=${(s, d) => applyRange(s, d)} />
             <div class="ed-sec-label">Продолжительность</div>
-            <${DurationChips} durMin=${curDur()} onPick=${d => applyRange(hhmmToMin(startTime), d)} />`
+            <${DurationPill} durMin=${curDur()} onPick=${d => applyRange(hhmmToMin(startTime), d)} />`
           : html`<button class="ed-add" type="button" onClick=${() => changeStart("09:00")}>${Icon.clock()} Добавить время</button>`}`
         : html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`}
 
