@@ -1988,7 +1988,7 @@ function Planner() {
         </div></div>
       </div>`;
     })()}
-    <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" aria-hidden="true" tabindex="-1" />
+    <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
     ${edFloat && html`<div class=${"ed-float-back" + (edClosing ? " closing" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}

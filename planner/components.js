@@ -348,7 +348,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   const recurLabel = (RECUR_OPTIONS.find(o => o.value === recurrence) || RECUR_OPTIONS[0]).label;
 
   return html`
-    <div class="ed-card" ref=${cardRef} onPointerDown=${e => e.stopPropagation()}>
+    <div class="ed-card" ref=${cardRef}>
       <div class="ed-top">
         <button class="ed-cancel" type="button" title="Отмена" aria-label="Отмена" onClick=${onClose}>${Icon.close()}</button>
         <button class="ed-save" type="button" title="Сохранить" aria-label="Сохранить" disabled=${busy} onClick=${save}>${Icon.check()}</button>
