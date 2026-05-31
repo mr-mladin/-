@@ -24,12 +24,14 @@
    корневой контейнер #app. */
 html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; overscroll-behavior: none; }
 #app { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
-/* Поведение «как приложение»: глушим случайное выделение, iOS-меню по долгому
-   нажатию, перетаскивание картинок и двойной тап-масштаб. Поля ввода ниже
-   отдельно получают разрешение на выделение текста. */
+/* Поведение «как приложение»: глушим iOS-меню по долгому нажатию, перетаскивание
+   картинок и двойной тап-масштаб. ВАЖНО: user-select:none НЕ ставим на body —
+   в standalone-PWA на iOS WebKit из-за него не давал фокус/курсор полям формы
+   (даже text на самих полях это не перебивал). Выделение глушим точечно на самих
+   сетках/задачах (см. .tl, .week-grid, .tray-task-wrap, .allday-item ниже), а
+   long-press-меню по-прежнему отключено через touch-callout:none. */
 body { font-family: var(--font); background: var(--surface); color: var(--text); -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%; text-size-adjust: 100%;
-  -webkit-user-select: none; user-select: none;
   -webkit-touch-callout: none; touch-action: manipulation; }
 input, textarea, [contenteditable], [contenteditable="true"] {
   -webkit-user-select: text; user-select: text;
@@ -713,7 +715,12 @@ textarea.input { resize: vertical; }
 .ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
   background: var(--surface); border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
   box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28); padding: 12px 14px 14px;
-  max-height: 80dvh; overflow-y: auto; animation: edPop .2s cubic-bezier(.2,.7,.3,1); }
+  max-height: 80dvh; overflow-y: auto; animation: edPop .2s cubic-bezier(.2,.7,.3,1);
+  /* Рвём наследование user-select:none (с body) на КОНТЕЙНЕРЕ формы. В standalone-PWA
+     на iOS WebKit блокирует фокус/курсор полей, если у любого их родителя стоит
+     user-select:none — и text на самом поле этого НЕ перебивает. Поэтому ставим text
+     именно на родителя. (В обычном браузере фокус и так работал — баг только в PWA.) */
+  -webkit-user-select: text; user-select: text; }
 @keyframes edPopOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(-6px) scale(.985); } }
 @keyframes edBackIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes edBackOut { from { opacity: 1; } to { opacity: 0; } }
