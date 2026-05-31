@@ -693,7 +693,6 @@ textarea.input { resize: vertical; }
 .tl-sub .ico { width: 11px; height: 11px; }
 
 /* Якорь в сетке дня — карточка «прирастает» к минуте начала задачи. */
-/* Скрытое поле для «подъёма» клавиатуры на iOS синхронно в жесте (см. primeKeyboard). */
 .ed-anchor { position: absolute; left: 20px; right: 8px; z-index: 30; }
 /* Плавающий вариант (другой день / не «День»). */
 .ed-float-back { position: fixed; inset: 0; z-index: 60; background: rgba(2, 6, 23, 0.35);
@@ -809,30 +808,40 @@ textarea.input { resize: vertical; }
 .ed-time-off { margin-left: auto; }
 
 /* ---- Колёса времени (Начало → Конец) ---- */
-.tw-row { display: flex; align-items: center; gap: 0; background: var(--bg-soft);
-  border-radius: var(--radius); padding: 6px 4px; }
-.tw-col { flex: 1; min-width: 0; }
-.tw-arrow { flex: none; width: 24px; display: flex; justify-content: center; color: var(--text-mute); }
-.tw-arrow .ico { width: 18px; height: 18px; }
-/* высота колеса = 5 строк по 38px; центральная — выбранное значение */
-.tw { height: 190px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none;
+/* Скруглённый блок; за центральной строкой — единая светлая капсула выделения через
+   все четыре колеса и стрелку (как в Apple-видео). */
+.tw-row { position: relative; display: flex; align-items: center; gap: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 8px; }
+.tw-row::before { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 40px;
+  transform: translateY(-50%); border-radius: 12px; background: var(--bg-soft); z-index: 0; pointer-events: none; }
+.tw-col { flex: 1; min-width: 0; position: relative; z-index: 1; }
+.tw-arrow { position: relative; z-index: 1; flex: none; width: 22px; display: flex; justify-content: center; color: var(--text-mute); }
+.tw-arrow .ico { width: 16px; height: 16px; }
+/* высота колеса = 5 строк по 40px; центральная — выбранное значение */
+.tw { height: 200px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none;
   -webkit-overflow-scrolling: touch; position: relative; touch-action: pan-y; overscroll-behavior: contain;
-  mask-image: linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent);
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent); }
+  mask-image: linear-gradient(180deg, transparent 0%, #000 32%, #000 68%, transparent 100%);
+  -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 32%, #000 68%, transparent 100%); }
 .tw::-webkit-scrollbar { display: none; }
-.tw-pad { height: 76px; flex: none; } /* (190-38)/2 = 76: чтобы первая/последняя строка вставали в центр */
-.tw-item { height: 38px; display: flex; align-items: center; justify-content: center;
-  scroll-snap-align: center; font-size: 20px; font-variant-numeric: tabular-nums; color: var(--text-mute);
-  transition: color .12s, font-weight .12s; }
-.tw-item.sel { color: var(--text); font-weight: 700; }
+.tw-pad { height: 80px; flex: none; } /* (200-40)/2 = 80 */
+.tw-item { height: 40px; display: flex; align-items: center; justify-content: center;
+  scroll-snap-align: center; font-size: 21px; font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  color: var(--text-mute); font-weight: 400; opacity: .55; transition: color .14s ease, opacity .14s ease; }
+.tw-item.sel { color: var(--text); font-weight: 500; opacity: 1; }
 
-/* ---- Чипы длительности ---- */
-.dur-chips { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 2px 0; }
-.dur-chips::-webkit-scrollbar { display: none; }
-.dur-chip { flex: none; border: 0; background: var(--bg-soft); color: var(--text-soft);
-  border-radius: 999px; padding: 8px 16px; font-family: inherit; font-size: 14px; cursor: pointer;
-  white-space: nowrap; }
-.dur-chip.sel { background: var(--accent); color: #fff; font-weight: 600; }
+/* ---- Продолжительность: дорожка с пресетами и подвижной пилюлей ---- */
+.dur-track { position: relative; height: 46px; background: var(--bg-soft); border-radius: 999px;
+  display: flex; align-items: center; user-select: none; -webkit-user-select: none; touch-action: none; }
+.dur-tick { position: absolute; transform: translateX(-50%); border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: 13px; color: var(--text-mute); white-space: nowrap; padding: 4px;
+  font-variant-numeric: tabular-nums; transition: opacity .15s ease; }
+.dur-tick.hide { opacity: 0; } /* пресет под пилюлей не дублируем — его значение на самой пилюле */
+.dur-knob { position: absolute; top: 50%; transform: translate(-50%, -50%); height: 38px; min-width: 44px;
+  padding: 0 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center; white-space: nowrap; cursor: grab;
+  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 45%, transparent); touch-action: none; z-index: 2;
+  transition: left .22s cubic-bezier(.2,.8,.3,1); }
+.dur-knob.drag { transition: none; cursor: grabbing; transform: translate(-50%, -50%) scale(1.06); }
 
 /* ---- Подзадачи на пилюле в сетке (раскрытие/сворачивание) ---- */
 .tl-event.subs-open { z-index: 7; }
