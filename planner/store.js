@@ -73,9 +73,19 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     let active = true;
     (async () => {
-      const { data } = await supabase.auth.getSession();
+      let user = null;
+      try {
+        const { data } = await supabase.auth.getSession();
+        user = data.session?.user || null;
+      } catch (e) {
+        // База недоступна/тайм-аут — не зависаем на крутилке. Берём пользователя из
+        // прошлой сессии (кэш в localStorage), чтобы показать сохранённые задачи.
+        try {
+          const raw = JSON.parse(localStorage.getItem("fin.auth") || "null");
+          user = raw?.user || raw?.currentSession?.user || null;
+        } catch (e2) {}
+      }
       if (!active) return;
-      const user = data.session?.user || null;
       if (user) {
         // Показываем интерфейс сразу после проверки входа, а задачи догружаем
         // фоном — чтобы не держать пользователя на белом экране, пока идёт сеть.

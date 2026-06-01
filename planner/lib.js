@@ -10,8 +10,21 @@ import { html } from "htm/preact";
 export const SUPABASE_URL = "https://rxzjbyuxslzcnlkzdxqn.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_AQQdPOIOwksIkpNZ7W6KdA_Fy5f4xa3";
 
+// Сетевой запрос с тайм-аутом. Без него зависший ответ Supabase (например, когда
+// проект «уснул» на бесплатном тарифе) висит вечно: загрузка не завершается
+// (вечная крутилка), а форма сохранения крутится без конца. С тайм-аутом запрос
+// падает с ошибкой за разумное время → приложение грузится из кэша, а сохранение
+// честно показывает ошибку вместо зависания.
+const FETCH_TIMEOUT = 15000;
+function fetchWithTimeout(input, init = {}) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   db: { schema: "planner" },
+  global: { fetch: fetchWithTimeout },
   auth: {
     persistSession: true,
     autoRefreshToken: true,
