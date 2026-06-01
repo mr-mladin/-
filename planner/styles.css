@@ -617,15 +617,16 @@ textarea.input { resize: vertical; }
     display: flex; flex-direction: column; background: var(--bg); will-change: transform;
     padding: calc(2px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) 0 calc(10px + env(safe-area-inset-left));
     /* Тень по левому краю — слой «День» отбрасывает её на панель под ним, давая
-       ощущение глубины (живёт и во время перетаскивания: тень едет вместе со слоем). */
+       ощущение глубины (живёт и во время перетаскивания: тень едет вместе со слоем).
+       Когда панель полностью открыта — тень убираем (иначе она торчит у правого края). */
     box-shadow: -10px 0 30px rgba(2, 6, 23, 0.22);
-    transition: transform .28s cubic-bezier(.2,.7,.3,1); }
-  .planner.aside-open .planner-content { transform: translateX(100%); }
-  /* Панель под слоем чуть «выходит из глубины»: при закрытом экране дня она слегка
-     уменьшена и притенена, при открытии плавно встаёт в полный размер. */
-  .planner-aside { transform: scale(.94); opacity: .6; transform-origin: left center;
-    transition: transform .28s cubic-bezier(.2,.7,.3,1), opacity .28s ease; }
-  .planner.aside-open .planner-aside { transform: none; opacity: 1; }
+    transition: transform .28s cubic-bezier(.2,.7,.3,1), box-shadow .28s ease; }
+  .planner.aside-open .planner-content { transform: translateX(100%); box-shadow: none; }
+  /* Панель под слоем «выходит из глубины»: при закрытом экране дня она слегка
+     уменьшена и ПРИТУШЕНА (темнее), при открытии плавно «загорается» в полный размер. */
+  .planner-aside { transform: scale(.94); filter: brightness(.62); transform-origin: left center;
+    transition: transform .4s cubic-bezier(.2,.7,.3,1), filter .45s ease; }
+  .planner.aside-open .planner-aside { transform: none; filter: none; }
   /* Список задач панели — единственный скроллер слоя. Нижний отступ с учётом
      home-indicator, чтобы последняя задача не пряталась под ним. */
   .proj-tasks { max-height: none; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
