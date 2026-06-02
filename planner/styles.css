@@ -377,6 +377,13 @@ textarea.input { resize: vertical; }
   background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
+/* Полупрозрачный тайм-блок за капсулой (как в Календаре Apple): мягкая плашка цвета
+   задачи на всю площадь события, поверх неё — пилюля-акцент и текст. Рисуем фоном
+   ::before, чтобы не трогать разметку и геометрию жестов (перенос/resize). */
+.tl-event::before { content: ""; position: absolute; left: 52px; right: 8px; top: 1px; bottom: 1px;
+  border-radius: 14px; background: color-mix(in srgb, var(--c) 12%, transparent); pointer-events: none; z-index: 0; }
+.tl-event.done::before { background: color-mix(in srgb, var(--c) 6%, transparent); }
+.tl-event.mini::before { border-radius: 9px; }
 .zooming .tl-event { transition: none; }
 .tl-event.dragging { z-index: 6; transition: none; }
 /* Плавающая копия (overlay): едет ровно за пальцем, без перехода; крупнее, с тенью. */
