@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
-import { minToHHMM, hhmmToMin } from "./lib.js";
+import { minToHHMM, hhmmToMin, haptic } from "./lib.js";
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
@@ -126,42 +126,67 @@ function dbHint(msg) {
   return msg;
 }
 
-// ---- Пикер времени (как в Apple-стиле из видео) ----
-// Колесо: вертикальная лента значений со scroll-snap. Центрированное значение —
-// выбранное. По остановке прокрутки сообщаем новый индекс. Бесконечная прокрутка не
-// нужна (часы 0–23, минуты 0–59 — короткие списки), снап по центру делает CSS.
-const WHEEL_ITEM = 40; // высота строки колеса (px), должна совпадать с .tw-item в CSS
+// ---- Колесо выбора времени (в стиле Apple) ----
+// Бесконечная прокрутка по кругу (после 23/59 — снова 0): список значений повторён
+// много раз, и при подходе к краю мы незаметно «перецентрируем» его на тот же кадр
+// (значения повторяются period=count, прыжок не виден). Опираемся на нативную
+// прокрутку — даёт фирменную инерцию iOS и доводку через CSS scroll-snap. На КАЖДОЙ
+// смене цифры — короткая вибрация (haptic).
+const WHEEL_ITEM = 36;  // высота строки (px), должна совпадать с .tw-item в CSS
+const WHEEL_REP = 9;    // сколько раз повторяем список (центр — рабочая зона; края — буфер)
 function TimeWheel({ count, value, render, onChange }) {
   const ref = useRef(null);
   const settleRef = useRef(null);
-  const lockRef = useRef(false); // пока программно прокручиваем — не реагируем на scroll
-  // Держим визуальную позицию в соответствии с value (если меняли извне, напр. чипом).
-  useEffect(() => {
+  const lockRef = useRef(false);     // программная установка scrollTop — не реагируем
+  const lastIdxRef = useRef(value);  // последнее озвученное значение (для вибрации)
+  const mod = (n) => ((n % count) + count) % count;
+  const MID = Math.floor(WHEEL_REP / 2) * count; // стартовый блок (середина)
+
+  // Центрируем строку с индексом gi (глобальным) в окне колеса. smooth — плавная
+  // доводка (после остановки); без него — мгновенно (для невидимой перецентровки).
+  const centerTo = (gi, smooth) => {
     const el = ref.current; if (!el) return;
-    const target = value * WHEEL_ITEM;
-    if (Math.abs(el.scrollTop - target) > 1) {
-      lockRef.current = true;
-      el.scrollTop = target;
-      setTimeout(() => { lockRef.current = false; }, 60);
-    }
-  }, [value]);
+    const top = gi * WHEEL_ITEM - (el.clientHeight - WHEEL_ITEM) / 2;
+    if (Math.abs(el.scrollTop - top) < 0.5) return;
+    lockRef.current = true;
+    if (smooth) { el.scrollTo({ top, behavior: "smooth" }); setTimeout(() => { lockRef.current = false; }, 260); }
+    else { el.scrollTop = top; requestAnimationFrame(() => { lockRef.current = false; }); }
+  };
+  // Текущее центрированное значение из scrollTop.
+  const valueAt = () => {
+    const el = ref.current; if (!el) return value;
+    const gi = Math.round((el.scrollTop + (el.clientHeight - WHEEL_ITEM) / 2) / WHEEL_ITEM);
+    return { gi, v: mod(gi) };
+  };
+
+  useEffect(() => { lastIdxRef.current = mod(value); requestAnimationFrame(() => centerTo(MID + value, false)); }, []);
+  // Внешнее изменение value — переустановить позицию (если отличается от текущей).
+  useEffect(() => {
+    const cur = valueAt();
+    if (cur && cur.v === mod(value)) return;
+    lastIdxRef.current = mod(value);
+    centerTo(MID + value, false);
+  }, [value, count]);
+
   const onScroll = () => {
     if (lockRef.current) return;
+    const cur = valueAt(); if (!cur) return;
+    // Вибрация + сообщение наверх на каждой смене цифры.
+    if (cur.v !== lastIdxRef.current) { lastIdxRef.current = cur.v; haptic(); onChange(cur.v); }
+    // После остановки: доводим к слоту и (если ушли к краю буфера) незаметно
+    // перецентрируем на ту же цифру в середину — прокрутка к этому моменту уже
+    // замерла, поэтому прыжок инерцию не рвёт и не виден.
     clearTimeout(settleRef.current);
     settleRef.current = setTimeout(() => {
-      const el = ref.current; if (!el) return;
-      const idx = Math.round(el.scrollTop / WHEEL_ITEM);
-      const clamped = Math.max(0, Math.min(count - 1, idx));
-      if (clamped !== value) onChange(clamped);
-      // доводим строго к слоту (на случай дробной остановки)
-      const target = clamped * WHEEL_ITEM;
-      if (Math.abs(el.scrollTop - target) > 1) { lockRef.current = true; el.scrollTo({ top: target, behavior: "smooth" }); setTimeout(() => { lockRef.current = false; }, 200); }
-    }, 90);
+      const c = valueAt(); if (!c) return;
+      const reCenter = c.gi < count * 2 || c.gi > count * (WHEEL_REP - 2);
+      if (reCenter) centerTo(MID + c.v, false); else centerTo(c.gi, true);
+    }, 140);
   };
+
   return html`<div class="tw" ref=${ref} onScroll=${onScroll}>
-    <div class="tw-pad"></div>
-    ${Array.from({ length: count }, (_, i) => html`<div class=${"tw-item" + (i === value ? " sel" : "")} key=${i}>${render(i)}</div>`)}
-    <div class="tw-pad"></div>
+    ${Array.from({ length: WHEEL_REP * count }, (_, gi) => html`<div
+      class=${"tw-item" + (mod(gi) === mod(value) ? " sel" : "")} key=${gi}>${render(mod(gi))}</div>`)}
   </div>`;
 }
 
@@ -170,7 +195,7 @@ function TimeWheel({ count, value, render, onChange }) {
 function TimeColumn({ min, onChange }) {
   const h = Math.floor(min / 60), m = min % 60;
   const h2 = (i) => String(i).padStart(2, "0");
-  return html`<div class="tw-row tw-row-single">
+  return html`<div class="tw-row">
     <div class="tw-col"><${TimeWheel} count=${24} value=${h} render=${h2} onChange=${(v) => onChange(v * 60 + m)} /></div>
     <div class="tw-colon">:</div>
     <div class="tw-col"><${TimeWheel} count=${60} value=${m} render=${h2} onChange=${(v) => onChange(h * 60 + v)} /></div>

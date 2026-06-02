@@ -604,7 +604,7 @@ function Planner() {
   }, [date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
-  const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--accent)";
+  const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--inbox)";
 
   // FLIP: карточки «весь день» плавно доезжают на новые места при перестановке,
   // добавлении и удалении. До перерисовки помним позиции, после — анимируем разницу.
