@@ -524,6 +524,19 @@ textarea.input { resize: vertical; }
 .tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 11px; }
 .tl-event.mini .task-check { display: none; }
 .tl-event.done .tl-title { background-size: 100% 1.5px; color: var(--text-mute); }
+
+/* Колонки при пересечении (как в Календаре Apple): событие занимает свою долю ширины
+   справа от колонки часов и сдвигается вправо. Внутренняя раскладка (капсула, текст,
+   плашка, ручки) перебазируется к левому краю узкой колонки. --cols/--col — из JS. */
+.tl-event.columned { left: calc(100% / var(--cols) * var(--col));
+  width: calc(100% / var(--cols) - 3px); right: auto; }
+.tl-event.columned::before { left: 0; right: 0; }
+.tl-event.columned .tl-pill { left: 3px; }
+.tl-event.columned .tl-handle { left: 3px; }
+@media (hover: hover) and (pointer: fine) { .tl-event.columned .tl-handle { left: 3px; right: 0; width: auto; } }
+.tl-event.columned .tl-body { left: 48px; right: 6px; }
+.tl-event.columned.mini .tl-pill { left: 8px; }
+.tl-event.columned.mini .tl-body { left: 28px; }
 .tl-gap { position: absolute; left: 108px; right: 36px; transform: translateY(-50%);
   font-size: 12px; font-style: italic; color: var(--text-mute); }
 .tl-ghost { position: absolute; left: 0; right: 0; pointer-events: none; z-index: 5; --c: var(--accent); }

@@ -1515,6 +1515,14 @@ function Planner() {
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
   const dayTl = useMemo(() => [...timed].sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop))), [timed]);
+  // Раскладка пересекающихся задач по колонкам (как в Календаре Apple): задачи,
+  // накладывающиеся по времени, делят ширину поровну и встают рядом, а не друг на
+  // друга. Считаем от статичных позиций (без drag), чтобы слот не прыгал при переносе.
+  const dayCols = useMemo(() => {
+    const m = new Map();
+    for (const it of layoutColumns(dayTl, null)) m.set(it.key, { col: it._col, cols: it._cols });
+    return m;
+  }, [dayTl]);
 
   // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
   const edTask = editing?.task || null;
@@ -1863,14 +1871,20 @@ function Planner() {
                   const top = (vTop / 60) * hourPx;
                   const height = Math.max(MIN_EVENT_PX, (vDur / 60) * hourPx);
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
+                  // Колонки при пересечении: задача занимает свою долю ширины и сдвигается
+                  // вправо. Одиночная (cols=1), перетаскиваемая и переходящая через полночь —
+                  // на всю ширину (slot убираем). Геометрию задаём CSS-переменными.
+                  const slot = dayCols.get(i.key);
+                  const cols = (spanning || dragging || !slot) ? 1 : slot.cols;
+                  const colStyle = cols > 1 ? `--cols:${cols};--col:${slot.col};` : "";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
                   // Поднятую задачу рисуем плавающей копией поверх (см. ниже). Сам элемент в
                   // ленте НЕ удаляем (иначе iOS шлёт pointercancel → перенос срывается) — прячем
                   // через visibility:hidden, место и касание сохраняются.
                   const hiddenLift = liftDrag && !liftDrag.done && i.key === liftDrag.key;
-                  return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}
+                  return html`<div class=${"tl-event" + density + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}`}
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
