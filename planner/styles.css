@@ -892,7 +892,7 @@ textarea.input { resize: vertical; }
 /* ---- Начало / Конец: две колонки, у каждой своя дата и крутилка времени ---- */
 .ed-when { display: flex; gap: 10px; }
 .ed-when-col { flex: 1; min-width: 0; background: var(--bg-soft); border-radius: var(--radius-lg); padding: 12px 12px 6px; }
-.ed-when-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ed-when-head { display: flex; flex-direction: column; gap: 7px; margin-bottom: 4px; }
 .ed-when-label { font-size: 15px; font-weight: 650; color: var(--text); }
 /* Выбор даты колонки — мягкая пилюля с шевроном, поверх неё прозрачный date-input. */
 .ed-when-date { position: relative; display: inline-flex; align-items: center; gap: 4px;
@@ -900,6 +900,19 @@ textarea.input { resize: vertical; }
   font-size: 12px; color: var(--text-soft); cursor: pointer; font-variant-numeric: tabular-nums; }
 .ed-when-date-chev { display: inline-flex; color: var(--text-mute); }
 .ed-when-date-chev .ico { width: 13px; height: 13px; }
+/* Дата + фактическое время рядом (как в системном редакторе события). */
+.ed-when-fields { display: inline-flex; align-items: center; gap: 6px; }
+/* Чип фактического времени (красный «13:30»). На десктопе — ввод с клавиатуры;
+   на сенсоре время задаётся колесом, поэтому чип здесь только индикатор (не кликается). */
+.ed-when-time { border: 0; background: var(--bg-soft); border-radius: 8px; padding: 3px 7px;
+  font-family: inherit; font-size: 13px; font-weight: 600; color: var(--accent);
+  font-variant-numeric: tabular-nums; -webkit-appearance: none; appearance: none; outline: none;
+  width: auto; min-width: 0; }
+.ed-when-time::-webkit-calendar-picker-indicator { display: none; }
+.ed-when-time::-webkit-date-and-time-value { text-align: center; }
+@media (hover: none), (pointer: coarse) {
+  .ed-when-time { pointer-events: none; } /* на мобильном — индикатор, ввод через колесо */
+}
 .ed-time-clear { align-self: flex-start; }
 
 /* ---- Колёса времени: две колонки Начало/Конец, в каждой Ч:М ---- */
@@ -909,14 +922,15 @@ textarea.input { resize: vertical; }
   width: 92px; height: 36px; border-radius: 9px; background: var(--bg-soft); z-index: 0; pointer-events: none; }
 .tw-col { flex: none; width: 44px; position: relative; z-index: 1; }
 /* Колесо: окно из 5 строк по 36px (180px); центральная — выбранное значение. Края
-   плавно тают (mask) — фирменный «барабанный» вид. Высоту/паддинг под центрирование
-   задаёт JS (TimeWheel), снап тоже доводит JS. */
+   плавно тают (mask) — фирменный «барабанный» вид. Доводку к строке делает САМ
+   браузер через scroll-snap (срабатывает только после отпускания пальца/тачпада —
+   как в системном пикере, без подёргивания во время прокрутки). */
 .tw { height: 180px; overflow-y: scroll; scrollbar-width: none; position: relative;
-  -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain;
+  scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; touch-action: pan-y; overscroll-behavior: contain;
   mask-image: linear-gradient(180deg, transparent 0%, #000 28%, #000 72%, transparent 100%);
   -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 28%, #000 72%, transparent 100%); }
 .tw::-webkit-scrollbar { display: none; }
-.tw-item { height: 36px; display: flex; align-items: center; justify-content: center;
+.tw-item { height: 36px; display: flex; align-items: center; justify-content: center; scroll-snap-align: center;
   font-size: 21px; font-variant-numeric: tabular-nums; letter-spacing: .02em;
   color: var(--text-mute); font-weight: 400; opacity: .5; transition: color .14s ease, opacity .14s ease; }
 .tw-item.sel { color: var(--text); font-weight: 600; opacity: 1; }

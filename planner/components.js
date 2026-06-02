@@ -12,10 +12,10 @@ function humanDate(iso) {
   const d = fromISO(iso);
   return `${WD_SHORT[d.getDay()]}, ${d.getDate()} ${monthGen(d)} ${d.getFullYear()} г.`;
 }
-// Короткая дата для пилюль «Начало/Конец»: «3 июн 2026».
+// Короткая дата для пилюль «Начало/Конец»: «3 июн» (год не нужен — место в колонке).
 function shortDate(iso) {
   const d = fromISO(iso);
-  return `${d.getDate()} ${MON_SHORT[d.getMonth()]} ${d.getFullYear()}`;
+  return `${d.getDate()} ${MON_SHORT[d.getMonth()]}`;
 }
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
@@ -126,12 +126,12 @@ function dbHint(msg) {
   return msg;
 }
 
-// ---- Колесо выбора времени (в стиле Apple) ----
-// Бесконечная прокрутка по кругу (после 23/59 — снова 0): список значений повторён
-// много раз, и при подходе к краю мы незаметно «перецентрируем» его на тот же кадр
-// (значения повторяются period=count, прыжок не виден). Опираемся на нативную
-// прокрутку — даёт фирменную инерцию iOS и доводку через CSS scroll-snap. На КАЖДОЙ
-// смене цифры — короткая вибрация (haptic).
+// ---- Колесо выбора времени (стандартный системный пикер) ----
+// Бесконечная прокрутка по кругу (после 23/59 — снова 0): список повторён много раз,
+// у краёв буфера незаметно перецентрируем на ту же цифру. Доводку к значению делает
+// САМ браузер через CSS scroll-snap — то есть колесо встаёт на цифру только когда
+// палец/тачпад отпущен (как в системном пикере), и НЕ дёргается, пока крутишь. На
+// каждой смене цифры — короткая вибрация (haptic).
 const WHEEL_ITEM = 36;  // высота строки (px), должна совпадать с .tw-item в CSS
 const WHEEL_REP = 9;    // сколько раз повторяем список (центр — рабочая зона; края — буфер)
 function TimeWheel({ count, value, render, onChange }) {
@@ -142,46 +142,42 @@ function TimeWheel({ count, value, render, onChange }) {
   const mod = (n) => ((n % count) + count) % count;
   const MID = Math.floor(WHEEL_REP / 2) * count; // стартовый блок (середина)
 
-  // Центрируем строку с индексом gi (глобальным) в окне колеса. smooth — плавная
-  // доводка (после остановки); без него — мгновенно (для невидимой перецентровки).
-  const centerTo = (gi, smooth) => {
+  // Поставить scrollTop так, чтобы строка gi была по центру окна (точно на слоте).
+  const centerTo = (gi) => {
     const el = ref.current; if (!el) return;
     const top = gi * WHEEL_ITEM - (el.clientHeight - WHEEL_ITEM) / 2;
     if (Math.abs(el.scrollTop - top) < 0.5) return;
     lockRef.current = true;
-    if (smooth) { el.scrollTo({ top, behavior: "smooth" }); setTimeout(() => { lockRef.current = false; }, 260); }
-    else { el.scrollTop = top; requestAnimationFrame(() => { lockRef.current = false; }); }
+    el.scrollTop = top;
+    requestAnimationFrame(() => { lockRef.current = false; });
   };
-  // Текущее центрированное значение из scrollTop.
   const valueAt = () => {
-    const el = ref.current; if (!el) return value;
+    const el = ref.current; if (!el) return null;
     const gi = Math.round((el.scrollTop + (el.clientHeight - WHEEL_ITEM) / 2) / WHEEL_ITEM);
     return { gi, v: mod(gi) };
   };
 
-  useEffect(() => { lastIdxRef.current = mod(value); requestAnimationFrame(() => centerTo(MID + value, false)); }, []);
-  // Внешнее изменение value — переустановить позицию (если отличается от текущей).
+  useEffect(() => { lastIdxRef.current = mod(value); requestAnimationFrame(() => centerTo(MID + value)); }, []);
+  // Внешнее изменение value — подвести колесо к нему (если отличается от текущего).
   useEffect(() => {
     const cur = valueAt();
     if (cur && cur.v === mod(value)) return;
     lastIdxRef.current = mod(value);
-    centerTo(MID + value, false);
+    centerTo(MID + value);
   }, [value, count]);
 
   const onScroll = () => {
     if (lockRef.current) return;
     const cur = valueAt(); if (!cur) return;
-    // Вибрация + сообщение наверх на каждой смене цифры.
+    // Вибрация + сообщение наверх на каждой смене цифры (во время прокрутки).
     if (cur.v !== lastIdxRef.current) { lastIdxRef.current = cur.v; haptic(); onChange(cur.v); }
-    // После остановки: доводим к слоту и (если ушли к краю буфера) незаметно
-    // перецентрируем на ту же цифру в середину — прокрутка к этому моменту уже
-    // замерла, поэтому прыжок инерцию не рвёт и не виден.
+    // Доводку к слоту делает scroll-snap сам (после отпускания). Мы лишь, когда
+    // прокрутка ЗАМЕРЛА у края буфера, незаметно прыгаем на ту же цифру в середину.
     clearTimeout(settleRef.current);
     settleRef.current = setTimeout(() => {
       const c = valueAt(); if (!c) return;
-      const reCenter = c.gi < count * 2 || c.gi > count * (WHEEL_REP - 2);
-      if (reCenter) centerTo(MID + c.v, false); else centerTo(c.gi, true);
-    }, 140);
+      if (c.gi < count * 2 || c.gi > count * (WHEEL_REP - 2)) centerTo(MID + c.v);
+    }, 160);
   };
 
   return html`<div class="tw" ref=${ref} onScroll=${onScroll}>
@@ -389,11 +385,15 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
               <div class="ed-when-col">
                 <div class="ed-when-head">
                   <span class="ed-when-label">Начало</span>
-                  <div class="ed-when-date">
-                    <span class="ed-when-date-text">${shortDate(date)}</span>
-                    <span class="ed-when-date-chev">${Icon.down()}</span>
-                    <input class="ed-date-over" type="date" value=${date}
-                      aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
+                  <div class="ed-when-fields">
+                    <div class="ed-when-date">
+                      <span class="ed-when-date-text">${shortDate(date)}</span>
+                      <span class="ed-when-date-chev">${Icon.down()}</span>
+                      <input class="ed-date-over" type="date" value=${date}
+                        aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
+                    </div>
+                    <input class="ed-when-time" type="time" value=${startTime}
+                      aria-label="Время начала" onInput=${e => { if (e.target.value) setStartTime(e.target.value); }} />
                   </div>
                 </div>
                 <${TimeColumn} min=${hhmmToMin(startTime)} onChange=${setStartMin} />
@@ -401,11 +401,15 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
               <div class="ed-when-col">
                 <div class="ed-when-head">
                   <span class="ed-when-label">Конец</span>
-                  <div class="ed-when-date">
-                    <span class="ed-when-date-text">${shortDate(endDate || date)}</span>
-                    <span class="ed-when-date-chev">${Icon.down()}</span>
-                    <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
-                      aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
+                  <div class="ed-when-fields">
+                    <div class="ed-when-date">
+                      <span class="ed-when-date-text">${shortDate(endDate || date)}</span>
+                      <span class="ed-when-date-chev">${Icon.down()}</span>
+                      <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
+                        aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
+                    </div>
+                    <input class="ed-when-time" type="time" value=${endTime || startTime}
+                      aria-label="Время конца" onInput=${e => { if (e.target.value) setEndTime(e.target.value); }} />
                   </div>
                 </div>
                 <${TimeColumn} min=${hhmmToMin(endTime || startTime)} onChange=${setEndMin} />
