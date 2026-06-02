@@ -132,7 +132,7 @@ function dbHint(msg) {
 // САМ браузер через CSS scroll-snap — то есть колесо встаёт на цифру только когда
 // палец/тачпад отпущен (как в системном пикере), и НЕ дёргается, пока крутишь. На
 // каждой смене цифры — короткая вибрация (haptic).
-const WHEEL_ITEM = 36;  // высота строки (px), должна совпадать с .tw-item в CSS
+const WHEEL_ITEM = 38;  // высота строки (px), должна совпадать с .tw-item в CSS
 const WHEEL_REP = 9;    // сколько раз повторяем список (центр — рабочая зона; края — буфер)
 function TimeWheel({ count, value, render, onChange }) {
   const ref = useRef(null);
