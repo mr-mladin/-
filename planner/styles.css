@@ -378,7 +378,8 @@ textarea.input { resize: vertical; }
 .tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
   background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
-  transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
+  transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1),
+    left .18s cubic-bezier(.2,.7,.3,1), width .18s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
 /* Полупрозрачный тайм-блок за капсулой (как в Календаре Apple): мягкая плашка цвета
    задачи на всю площадь события, поверх неё — пилюля-акцент и текст. Рисуем фоном
    ::before, чтобы не трогать разметку и геометрию жестов (перенос/resize). */

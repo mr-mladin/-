@@ -1527,12 +1527,22 @@ function Planner() {
   const dayTl = useMemo(() => [...timed].sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop))), [timed]);
   // Раскладка пересекающихся задач по колонкам (как в Календаре Apple): задачи,
   // накладывающиеся по времени, делят ширину поровну и встают рядом, а не друг на
-  // друга. Считаем от статичных позиций (без drag), чтобы слот не прыгал при переносе.
+  // друга. Во время переноса/растягивания ОДНОЙ задачи пересчитываем колонки с её
+  // живой позицией — соседи «обтекают» перетаскиваемую: разъезжаются по колонкам.
+  // Десктоп — через drag (move/copy/resize); мобильный «подъём» — через liftDrag.
+  let liveDrag = null;
+  if (drag && (drag.type === "move" || drag.type === "copy" || drag.type === "resize")) {
+    liveDrag = { key: drag.key, start: drag.start, dur: drag.dur };
+  } else if (liftDrag && !liftDrag.landing && !liftDrag.done && !liftDrag.allday && liftItemRef.current) {
+    const it = liftItemRef.current, dur = it.duration_min || 0;
+    const start = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
+    liveDrag = { key: liftDrag.key, start, dur };
+  }
   const dayCols = useMemo(() => {
     const m = new Map();
-    for (const it of layoutColumns(dayTl, null)) m.set(it.key, { col: it._col, cols: it._cols });
+    for (const it of layoutColumns(dayTl, liveDrag)) m.set(it.key, { col: it._col, cols: it._cols });
     return m;
-  }, [dayTl]);
+  }, [dayTl, liveDrag && liveDrag.key, liveDrag && liveDrag.start, liveDrag && liveDrag.dur]);
 
   // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
   const edTask = editing?.task || null;
@@ -1882,10 +1892,10 @@ function Planner() {
                   const height = Math.max(MIN_EVENT_PX, (vDur / 60) * hourPx);
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
                   // Колонки при пересечении: задача занимает свою долю ширины и сдвигается
-                  // вправо. Одиночная (cols=1), перетаскиваемая и переходящая через полночь —
-                  // на всю ширину (slot убираем). Геометрию задаём CSS-переменными.
+                  // вправо. При переносе/растягивании одной задачи её слот живой (обтекает
+                  // соседей). Групповой перенос и переходящая через полночь — на всю ширину.
                   const slot = dayCols.get(i.key);
-                  const cols = (spanning || dragging || !slot) ? 1 : slot.cols;
+                  const cols = (spanning || inGroupMove || !slot) ? 1 : slot.cols;
                   const colStyle = cols > 1 ? `--cols:${cols};--col:${slot.col};` : "";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
