@@ -380,8 +380,10 @@ textarea.input { resize: vertical; }
 /* Полупрозрачный тайм-блок за капсулой (как в Календаре Apple): мягкая плашка цвета
    задачи на всю площадь события, поверх неё — пилюля-акцент и текст. Рисуем фоном
    ::before, чтобы не трогать разметку и геометрию жестов (перенос/resize). */
-.tl-event::before { content: ""; position: absolute; left: 52px; right: 8px; top: 1px; bottom: 1px;
-  border-radius: 14px; background: color-mix(in srgb, var(--c) 12%, transparent); pointer-events: none; z-index: 0; }
+/* Плашка-блок начинается ровно от левого края капсулы (pill: left 58px) — капсула
+   служит её левым краем, блок за неё не выходит. */
+.tl-event::before { content: ""; position: absolute; left: 58px; right: 8px; top: 1px; bottom: 1px;
+  border-radius: 12px; background: color-mix(in srgb, var(--c) 12%, transparent); pointer-events: none; z-index: 0; }
 .tl-event.done::before { background: color-mix(in srgb, var(--c) 6%, transparent); }
 .tl-event.mini::before { border-radius: 9px; }
 .zooming .tl-event { transition: none; }
@@ -464,9 +466,15 @@ textarea.input { resize: vertical; }
   .confetti { display: none; }
   .mobile-fab { animation: none !important; }
 }
-.tl-handle { position: absolute; left: 0; right: 0; height: 11px; cursor: ns-resize; touch-action: pan-y; z-index: 2; }
+/* Ручки растягивания. На сенсоре — узкая полоска над капсулой (как было), чтобы тап
+   по блоку открывал/листал. На десктопе (мышь) — на всю ширину блока: можно тянуть
+   за верх/низ самого тайм-блока, а не только за кончик капсулы. */
+.tl-handle { position: absolute; left: 58px; width: 38px; height: 11px; cursor: ns-resize; touch-action: pan-y; z-index: 2; }
 .tl-handle.top { top: 0; }
 .tl-handle.bottom { bottom: 0; }
+@media (hover: hover) and (pointer: fine) {
+  .tl-handle { left: 58px; right: 8px; width: auto; height: 14px; }
+}
 /* Точки-ручки на выделенной пилюле (как у события в Apple Календаре) */
 .tl-dot { position: absolute; left: 50%; transform: translateX(-50%); width: 14px; height: 14px; border-radius: 50%;
   background: var(--surface); border: 2.5px solid var(--c); cursor: ns-resize; touch-action: none; z-index: 4;

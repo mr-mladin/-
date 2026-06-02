@@ -1874,16 +1874,16 @@ function Planner() {
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
-                      ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       <button class=${"tl-pill-check" + (i.done ? " on" : "") + (fallKey === i.key ? " falling" : "")} type="button" title="Выполнено"
                         style=${`--drop:${Math.max(0, height - 34)}px;`}
                         onPointerDown=${e => e.stopPropagation()}
                         onClick=${e => { e.stopPropagation(); completeToggle(i); }}>${Icon.check()}</button>
                       ${confettiEl(i.key)}
-                      ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>
+                    ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
+                    ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     <div class="tl-body">
                       <div class="tl-text">
                         <div class="tl-titlerow">
