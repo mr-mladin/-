@@ -2,7 +2,7 @@ import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
-import { minToHHMM, hhmmToMin, haptic } from "./lib.js";
+import { minToHHMM, hhmmToMin } from "./lib.js";
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
@@ -126,77 +126,6 @@ function dbHint(msg) {
   return msg;
 }
 
-// ---- Колесо выбора времени (стандартный системный пикер) ----
-// Бесконечная прокрутка по кругу (после 23/59 — снова 0): список повторён много раз,
-// у краёв буфера незаметно перецентрируем на ту же цифру. Доводку к значению делает
-// САМ браузер через CSS scroll-snap — то есть колесо встаёт на цифру только когда
-// палец/тачпад отпущен (как в системном пикере), и НЕ дёргается, пока крутишь. На
-// каждой смене цифры — короткая вибрация (haptic).
-const WHEEL_ITEM = 38;  // высота строки (px), должна совпадать с .tw-item в CSS
-const WHEEL_REP = 9;    // сколько раз повторяем список (центр — рабочая зона; края — буфер)
-function TimeWheel({ count, value, render, onChange }) {
-  const ref = useRef(null);
-  const settleRef = useRef(null);
-  const lockRef = useRef(false);     // программная установка scrollTop — не реагируем
-  const lastIdxRef = useRef(value);  // последнее озвученное значение (для вибрации)
-  const mod = (n) => ((n % count) + count) % count;
-  const MID = Math.floor(WHEEL_REP / 2) * count; // стартовый блок (середина)
-
-  // Поставить scrollTop так, чтобы строка gi была по центру окна (точно на слоте).
-  const centerTo = (gi) => {
-    const el = ref.current; if (!el) return;
-    const top = gi * WHEEL_ITEM - (el.clientHeight - WHEEL_ITEM) / 2;
-    if (Math.abs(el.scrollTop - top) < 0.5) return;
-    lockRef.current = true;
-    el.scrollTop = top;
-    requestAnimationFrame(() => { lockRef.current = false; });
-  };
-  const valueAt = () => {
-    const el = ref.current; if (!el) return null;
-    const gi = Math.round((el.scrollTop + (el.clientHeight - WHEEL_ITEM) / 2) / WHEEL_ITEM);
-    return { gi, v: mod(gi) };
-  };
-
-  useEffect(() => { lastIdxRef.current = mod(value); requestAnimationFrame(() => centerTo(MID + value)); }, []);
-  // Внешнее изменение value — подвести колесо к нему (если отличается от текущего).
-  useEffect(() => {
-    const cur = valueAt();
-    if (cur && cur.v === mod(value)) return;
-    lastIdxRef.current = mod(value);
-    centerTo(MID + value);
-  }, [value, count]);
-
-  const onScroll = () => {
-    if (lockRef.current) return;
-    const cur = valueAt(); if (!cur) return;
-    // Вибрация + сообщение наверх на каждой смене цифры (во время прокрутки).
-    if (cur.v !== lastIdxRef.current) { lastIdxRef.current = cur.v; haptic(); onChange(cur.v); }
-    // Доводку к слоту делает scroll-snap сам (после отпускания). Мы лишь, когда
-    // прокрутка ЗАМЕРЛА у края буфера, незаметно прыгаем на ту же цифру в середину.
-    clearTimeout(settleRef.current);
-    settleRef.current = setTimeout(() => {
-      const c = valueAt(); if (!c) return;
-      if (c.gi < count * 2 || c.gi > count * (WHEEL_REP - 2)) centerTo(MID + c.v);
-    }, 160);
-  };
-
-  return html`<div class="tw" ref=${ref} onScroll=${onScroll}>
-    ${Array.from({ length: WHEEL_REP * count }, (_, gi) => html`<div
-      class=${"tw-item" + (mod(gi) === mod(value) ? " sel" : "")} key=${gi}>${render(mod(gi))}</div>`)}
-  </div>`;
-}
-
-// Компактные колёса «Ч : М» для одного момента (начало или конец). Час и минуты
-// сближены, между ними тонкое двоеточие. min: минута суток (0..1439). onChange(min).
-function TimeColumn({ min, onChange }) {
-  const h = Math.floor(min / 60), m = min % 60;
-  const h2 = (i) => String(i).padStart(2, "0");
-  return html`<div class="tw-row">
-    <div class="tw-col"><${TimeWheel} count=${24} value=${h} render=${h2} onChange=${(v) => onChange(v * 60 + m)} /></div>
-    <div class="tw-colon">:</div>
-    <div class="tw-col"><${TimeWheel} count=${60} value=${m} render=${h2} onChange=${(v) => onChange(h * 60 + v)} /></div>
-  </div>`;
-}
 
 
 // Встроенный редактор задачи (вместо модальной формы). Рендерит карточку без
@@ -237,10 +166,6 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
   const cardRef = useRef(null);
   const titleRef = useRef(null);
-
-  // Независимые крутилки начала/конца: каждая правит только своё время суток.
-  const setStartMin = (mm) => setStartTime(minToHHMM(((Math.round(mm) % 1440) + 1440) % 1440));
-  const setEndMin = (mm) => setEndTime(minToHHMM(((Math.round(mm) % 1440) + 1440) % 1440));
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
@@ -383,36 +308,30 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
           : html`
             <div class="ed-when">
               <div class="ed-when-col">
-                <div class="ed-when-head">
-                  <span class="ed-when-label">Начало</span>
-                  <div class="ed-when-fields">
-                    <div class="ed-when-date">
-                      <span class="ed-when-date-text">${shortDate(date)}</span>
-                      <span class="ed-when-date-chev">${Icon.down()}</span>
-                      <input class="ed-date-over" type="date" value=${date}
-                        aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
-                    </div>
-                    <input class="ed-when-time" type="time" value=${startTime}
-                      aria-label="Время начала" onInput=${e => { if (e.target.value) setStartTime(e.target.value); }} />
+                <span class="ed-when-label">Начало</span>
+                <div class="ed-when-pickers">
+                  <div class="ed-when-date">
+                    <span class="ed-when-date-text">${shortDate(date)}</span>
+                    <span class="ed-when-date-chev">${Icon.down()}</span>
+                    <input class="ed-date-over" type="date" value=${date}
+                      aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
                   </div>
+                  <input class="ed-when-time" type="time" value=${startTime}
+                    aria-label="Время начала" onInput=${e => { if (e.target.value) setStartTime(e.target.value); }} />
                 </div>
-                <${TimeColumn} min=${hhmmToMin(startTime)} onChange=${setStartMin} />
               </div>
               <div class="ed-when-col">
-                <div class="ed-when-head">
-                  <span class="ed-when-label">Конец</span>
-                  <div class="ed-when-fields">
-                    <div class="ed-when-date">
-                      <span class="ed-when-date-text">${shortDate(endDate || date)}</span>
-                      <span class="ed-when-date-chev">${Icon.down()}</span>
-                      <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
-                        aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
-                    </div>
-                    <input class="ed-when-time" type="time" value=${endTime || startTime}
-                      aria-label="Время конца" onInput=${e => { if (e.target.value) setEndTime(e.target.value); }} />
+                <span class="ed-when-label">Конец</span>
+                <div class="ed-when-pickers">
+                  <div class="ed-when-date">
+                    <span class="ed-when-date-text">${shortDate(endDate || date)}</span>
+                    <span class="ed-when-date-chev">${Icon.down()}</span>
+                    <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
+                      aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
                   </div>
+                  <input class="ed-when-time" type="time" value=${endTime || startTime}
+                    aria-label="Время конца" onInput=${e => { if (e.target.value) setEndTime(e.target.value); }} />
                 </div>
-                <${TimeColumn} min=${hhmmToMin(endTime || startTime)} onChange=${setEndMin} />
               </div>
             </div>
             <button class="ed-add ed-time-clear" type="button" onClick=${() => { setStartTime(""); setEndTime(""); }}>${Icon.close()} Убрать время</button>`}
