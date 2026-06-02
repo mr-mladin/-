@@ -122,6 +122,7 @@ function Planner() {
   const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
+  const edBackRef = useRef(null);  // оверлей формы — на мобильном позиционируем по блоку задачи
   const contentRef = useRef(null); // слой «День» — едет вправо, открывая панель проектов под ним
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
@@ -1530,21 +1531,44 @@ function Planner() {
         defaults=${creating || undefined}
         onClose=${closeEditor} />`
     : null;
-  // В сетке дня — привязка к минуте начала задачи (для повторов — к позиции
-  // конкретного повторения на текущем дне). На мобильном к сетке НЕ привязываем:
-  // там карточка открывается по центру (плавающей), иначе у нижних задач форма
-  // вылезает за экран и обрезается. На десктопе — как было, рядом с задачей.
-  const edGridMin = (view === "day" && !isMobile)
+  // Минута начала задачи, к которой привязываем форму (для повторов — позиция
+  // конкретного повторения на текущем дне). null — у задачи нет времени/другой день.
+  const edAnchorMin = view === "day"
     ? (editing && editing.occ && editing.occ.start_min != null ? editing.occ.start_min
       : editing && edTask && edTask.date === date && edTask.start_min != null ? edTask.start_min
       : creating && creating.date === date && creating.start_min != null ? creating.start_min
       : null)
     : null;
+  // Десктоп: форма прирастает к блоку прямо в сетке (ed-anchor). Мобильный: форму
+  // в саму сетку класть нельзя (у .planner-grid-scroll user-select:none — в
+  // standalone-PWA это гасит клавиатуру). Поэтому на телефоне форма — оверлей вне
+  // сетки, который мы позиционируем по блоку через useLayoutEffect ниже.
+  const edGridMin = !isMobile ? edAnchorMin : null;
   // В боковой панели — для задач без даты/времени (если они в текущей панели).
   const edPanel = (editing && edTask && !edTask.date && trayTasks.some(t => t.id === edTask.id))
     || (creating && !creating.date);
   // Плавающая карточка — всё остальное (другой день, не «День», и т.п.).
   const edFloat = !!(editing || creating) && edGridMin == null && !edPanel;
+  // На мобильном привязываем оверлей формы к блоку задачи: карточка встаёт на уровень
+  // блока (как на десктопе), но физически остаётся вне сетки — клавиатура не страдает.
+  const edAnchorMobile = isMobile && edFloat && edAnchorMin != null;
+  useLayoutEffect(() => {
+    const back = edBackRef.current;
+    if (!back) return;
+    const card = back.querySelector(".ed-card");
+    if (!card) return;
+    if (!edAnchorMobile) { card.style.marginTop = ""; return; } // не привязано — обычный лист снизу
+    const grid = innerRef.current;
+    if (!grid) return;
+    // Желаемый верх карточки = экранная Y блока задачи; ограничиваем, чтобы форма не
+    // уезжала за верх/низ экрана (с отступами под safe-area).
+    const gridTop = grid.getBoundingClientRect().top;
+    const blockY = gridTop + (edAnchorMin / 60) * hourPx;
+    const vh = window.innerHeight;
+    const ch = card.offsetHeight || 0;
+    const top = clamp(blockY, 56, Math.max(56, vh - ch - 16));
+    card.style.marginTop = top + "px";
+  }, [edAnchorMobile, edAnchorMin, hourPx, editing, creating, isMobile]);
 
   const prevDate = (() => { const x = fromISO(date); x.setDate(x.getDate() - 1); return toISO(x); })();
   const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();
@@ -1997,7 +2021,7 @@ function Planner() {
       </div>`;
     })()}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
-    ${edFloat && html`<div class=${"ed-float-back" + (edClosing ? " closing" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
+    ${edFloat && html`<div ref=${edBackRef} class=${"ed-float-back" + (edClosing ? " closing" : "") + (edAnchorMobile ? " anchored" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
       onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}
       onClose=${() => setListModal(null)} />`}

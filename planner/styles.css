@@ -690,6 +690,18 @@ textarea.input { resize: vertical; }
   .ed-float-back .ed-top { position: sticky; top: 0; z-index: 2; background: var(--surface); padding: 2px 0 8px; }
   /* Закрытие нижнего листа — уезжает вниз. */
   .ed-float-back.closing .ed-card { animation: edSheetDown .24s cubic-bezier(.4,0,.6,1) forwards; }
+
+  /* Форма привязана к блоку задачи (как на десктопе): карточка не лист снизу, а
+     «всплывает» на уровне блока. Вертикаль задаёт marginTop из JS (по позиции блока,
+     с ограничением по экрану). Физически карточка остаётся в оверлее вне сетки —
+     клавиатура в standalone-PWA не страдает. */
+  .ed-float-back.anchored { align-items: flex-start; justify-content: center;
+    padding: 0 10px calc(10px + env(safe-area-inset-right)); }
+  .ed-float-back.anchored .ed-card { width: 100%; max-width: 460px; border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg); padding: 12px 14px 14px; max-height: 78dvh;
+    animation: edPop .2s cubic-bezier(.2,.7,.3,1); }
+  .ed-float-back.anchored .ed-top { position: static; }
+  .ed-float-back.anchored.closing .ed-card { animation: edPopOut .2s cubic-bezier(.4,0,.6,1) forwards; }
 }
 @keyframes edSheetUp { from { transform: translateY(100%); } to { transform: none; } }
 @keyframes edSheetDown { from { transform: none; } to { transform: translateY(100%); } }
