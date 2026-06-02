@@ -224,8 +224,8 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   return html`
     <div class="ed-card" ref=${cardRef}>
       <div class="ed-top">
-        <button class="ed-cancel" type="button" title="Отмена" aria-label="Отмена" onClick=${onClose}>${Icon.close()}</button>
-        <button class="ed-save" type="button" title="Сохранить" aria-label="Сохранить" disabled=${busy} onClick=${save}>${Icon.check()}</button>
+        <button class="ed-cancel" type="button" onClick=${onClose}>Отменить</button>
+        <button class="ed-save" type="button" disabled=${busy} onClick=${save}>Готово</button>
       </div>
 
       ${error && html`<div class="ed-error">${error}</div>`}
