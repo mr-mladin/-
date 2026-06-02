@@ -832,21 +832,28 @@ textarea.input { resize: vertical; }
 .ed-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
 .ed-rep-ico { display: inline-flex; color: var(--text-mute); }
 .ed-rep-ico .ico { width: 15px; height: 15px; }
+/* Строка «проект + повтор»: проект слева, иконка повтора прижата вправо. */
+.ed-row { display: flex; align-items: center; gap: 8px; }
+.ed-row .ed-field:last-child { margin-left: auto; }
+/* Повтор — компактная иконка-кнопка рядом с проектом (текст убран). */
+.ed-rep-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
+  flex: none; border-radius: 50%; border: 0; cursor: pointer; background: var(--bg-soft); color: var(--text-mute); }
+.ed-rep-btn .ico { width: 17px; height: 17px; }
+.ed-rep-btn.on { background: var(--accent-soft); color: var(--accent); }
 .ed-menu { display: flex; flex-direction: column; gap: 1px; background: var(--surface);
   border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px; max-height: 220px;
   overflow-y: auto; box-shadow: 0 10px 28px rgba(2,6,23,0.2); }
+/* Меню повтора всплывает у правого края (кнопка прижата вправо). */
+.ed-menu-right { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 150px; }
 .ed-menu-item { display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer;
   background: none; border: 0; border-radius: var(--radius-sm); padding: 7px 9px; font-family: inherit;
   font-size: 14px; color: var(--text); }
 .ed-menu-item:hover { background: var(--bg-soft); }
 .ed-menu-item.sel { background: var(--accent-soft); }
 
-.ed-dt { display: flex; align-items: center; gap: 8px; }
-.ed-dt-label { width: 56px; flex: none; font-size: 13px; color: var(--text-soft); }
 .ed-input { border: 1px solid var(--border); background: var(--bg-soft); border-radius: var(--radius-sm);
   font-family: inherit; font-size: 14px; color: var(--text); padding: 6px 8px; outline: none; }
 .ed-input.dt-date { flex: 1; min-width: 0; }
-.ed-input.dt-time { width: 92px; flex: none; }
 .ed-dt-clear { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px;
   width: 19px; height: 19px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
 .ed-dt-clear .ico { width: 15px; height: 15px; }
@@ -859,23 +866,31 @@ textarea.input { resize: vertical; }
   border-radius: var(--radius-sm); padding: 10px; font-size: 13px; }
 .ed-confirm-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
-/* ---- Дата: одна строка-кнопка (открывает нативный date-picker) ---- */
-.ed-datepick { position: relative; }
-.ed-date-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
-  background: var(--bg-soft); border: 0; border-radius: var(--radius); padding: 11px 14px;
-  font-family: inherit; font-size: 15px; color: var(--text); cursor: pointer; }
-.ed-date-ico { display: inline-flex; color: var(--text-mute); }
-.ed-date-ico .ico { width: 18px; height: 18px; }
-.ed-date-text { flex: 1; min-width: 0; }
-.ed-date-rel { color: var(--text-mute); font-size: 14px; }
-/* Нативный date-input лежит прозрачным слоем ПОВЕРХ строки — прямой тап открывает
-   системный календарь iOS (надёжнее, чем showPicker()/click() по скрытому полю). */
+/* Нативный date-input лежит прозрачным слоем ПОВЕРХ кнопки/пилюли — прямой тап
+   открывает системный календарь iOS (надёжнее, чем showPicker() по скрытому полю). */
 .ed-date-over { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0;
   border: 0; opacity: 0; background: transparent; -webkit-appearance: none; appearance: none;
   font-size: 16px; cursor: pointer; }
 
-.ed-sec-label { display: flex; align-items: center; font-size: 15px; font-weight: 650; color: var(--text); margin: 4px 0 2px; }
-.ed-time-off { margin-left: auto; }
+/* Дата без времени — одна пилюля-строка (открывает нативный date-picker). */
+.ed-when-row { display: flex; }
+.ed-when-pill { position: relative; display: inline-flex; align-items: center; gap: 9px;
+  background: var(--bg-soft); border-radius: 999px; padding: 9px 14px; font-size: 14px; color: var(--text); }
+.ed-when-pill .ed-date-ico { display: inline-flex; color: var(--text-mute); }
+.ed-when-pill .ed-date-ico .ico { width: 17px; height: 17px; }
+
+/* ---- Начало / Конец: две колонки, у каждой своя дата и крутилка времени ---- */
+.ed-when { display: flex; gap: 10px; }
+.ed-when-col { flex: 1; min-width: 0; background: var(--bg-soft); border-radius: var(--radius-lg); padding: 12px 12px 6px; }
+.ed-when-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ed-when-label { font-size: 15px; font-weight: 650; color: var(--text); }
+/* Выбор даты колонки — мягкая пилюля с шевроном, поверх неё прозрачный date-input. */
+.ed-when-date { position: relative; display: inline-flex; align-items: center; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 4px 9px;
+  font-size: 12px; color: var(--text-soft); cursor: pointer; font-variant-numeric: tabular-nums; }
+.ed-when-date-chev { display: inline-flex; color: var(--text-mute); }
+.ed-when-date-chev .ico { width: 13px; height: 13px; }
+.ed-time-clear { align-self: flex-start; }
 
 /* ---- Колёса времени (Начало → Конец) ---- */
 /* Скруглённый блок; за центральной строкой — единая светлая капсула выделения через
@@ -885,8 +900,6 @@ textarea.input { resize: vertical; }
 .tw-row::before { content: ""; position: absolute; left: 8px; right: 8px; top: 50%; height: 40px;
   transform: translateY(-50%); border-radius: 12px; background: var(--bg-soft); z-index: 0; pointer-events: none; }
 .tw-col { flex: 1; min-width: 0; position: relative; z-index: 1; }
-.tw-arrow { position: relative; z-index: 1; flex: none; width: 22px; display: flex; justify-content: center; color: var(--text-mute); }
-.tw-arrow .ico { width: 16px; height: 16px; }
 /* высота колеса = 5 строк по 40px; центральная — выбранное значение */
 .tw { height: 200px; overflow-y: scroll; scroll-snap-type: y mandatory; scrollbar-width: none;
   -webkit-overflow-scrolling: touch; position: relative; touch-action: pan-y; overscroll-behavior: contain;
@@ -899,19 +912,16 @@ textarea.input { resize: vertical; }
   color: var(--text-mute); font-weight: 400; opacity: .55; transition: color .14s ease, opacity .14s ease; }
 .tw-item.sel { color: var(--text); font-weight: 500; opacity: 1; }
 
-/* ---- Продолжительность: дорожка с пресетами и подвижной пилюлей ---- */
-.dur-track { position: relative; height: 46px; background: var(--bg-soft); border-radius: 999px;
-  display: flex; align-items: center; user-select: none; -webkit-user-select: none; touch-action: none; }
-.dur-tick { position: absolute; transform: translateX(-50%); border: 0; background: none; cursor: pointer;
-  font-family: inherit; font-size: 13px; color: var(--text-mute); white-space: nowrap; padding: 4px;
-  font-variant-numeric: tabular-nums; transition: opacity .15s ease; }
-.dur-tick.hide { opacity: 0; } /* пресет под пилюлей не дублируем — его значение на самой пилюле */
-.dur-knob { position: absolute; top: 50%; transform: translate(-50%, -50%); height: 38px; min-width: 44px;
-  padding: 0 14px; border-radius: 999px; background: var(--accent); color: #fff; font-size: 14px; font-weight: 600;
-  display: flex; align-items: center; justify-content: center; white-space: nowrap; cursor: grab;
-  box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 45%, transparent); touch-action: none; z-index: 2;
-  transition: left .42s cubic-bezier(.22,1,.32,1); }
-.dur-knob.drag { transition: none; cursor: grabbing; transform: translate(-50%, -50%) scale(1.06); }
+/* Компактная одиночная крутилка «Ч : М» (в колонках Начало/Конец): без рамки и фона
+   (фон даёт .ed-when-col), час и минуты сближены, тонкое двоеточие между ними. */
+.tw-row-single { background: none; border: 0; border-radius: 0; padding: 0; gap: 0; justify-content: center; }
+.tw-row-single::before { left: 0; right: 0; height: 36px; border-radius: 10px; }
+.tw-row-single .tw { height: 144px; }
+.tw-row-single .tw-pad { height: 54px; } /* (144-36)/2 = 54 */
+.tw-row-single .tw-item { height: 36px; font-size: 19px; }
+.tw-row-single .tw-col { flex: none; width: 40px; }
+.tw-colon { position: relative; z-index: 1; flex: none; width: 8px; text-align: center;
+  font-size: 19px; font-weight: 600; color: var(--text-mute); }
 
 /* ---- Подзадачи на пилюле в сетке (раскрытие/сворачивание) ---- */
 .tl-event.subs-open { z-index: 7; }

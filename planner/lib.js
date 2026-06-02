@@ -322,6 +322,7 @@ export const Icon = {
   left: () => wrap(html`<path d="M15 18l-6-6 6-6"/>`),
   arrowUp: () => wrap(html`<path d="M12 19V5M5 12l7-7 7 7"/>`),
   right: () => wrap(html`<path d="M9 6l6 6-6 6"/>`),
+  down: () => wrap(html`<path d="M6 9l6 6 6-6"/>`),
   check: () => wrap(html`<path d="M5 13l4 4L19 7"/>`),
   calendar: () => wrap(html`<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>`),
   inbox: () => wrap(html`<path d="M5 5h14l2 7v7H3v-7z"/><path d="M3 12h5l2 3h4l2-3h5"/>`),

@@ -2,14 +2,20 @@ import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
-import { minToHHMM, hhmmToMin, durHuman, haptic } from "./lib.js";
+import { minToHHMM, hhmmToMin } from "./lib.js";
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
 const WD_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
+const MON_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
 function humanDate(iso) {
   const d = fromISO(iso);
   return `${WD_SHORT[d.getDay()]}, ${d.getDate()} ${monthGen(d)} ${d.getFullYear()} г.`;
+}
+// Короткая дата для пилюль «Начало/Конец»: «3 июн 2026».
+function shortDate(iso) {
+  const d = fromISO(iso);
+  return `${d.getDate()} ${MON_SHORT[d.getMonth()]} ${d.getFullYear()}`;
 }
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
@@ -159,81 +165,18 @@ function TimeWheel({ count, value, render, onChange }) {
   </div>`;
 }
 
-// Пикер «Начало → Конец»: четыре колеса (Ч:М → Ч:М). Прокрутка НАЧАЛА сохраняет
-// длительность (двигается конец). Прокрутка КОНЦА меняет длительность (начало на месте).
-// startMin: минута начала (0..1439). durMin: длительность (>0). onChange(start, dur).
-function TimeRangeWheels({ startMin, durMin, onChange }) {
-  const sh = Math.floor(startMin / 60), sm = startMin % 60;
-  const endMin = startMin + durMin;
-  const eh = Math.floor((endMin % 1440) / 60), em = endMin % 60;
-  // Прокрутка начала: новый старт, длительность та же (конец едет).
-  const setStartH = (h) => onChange(h * 60 + sm, durMin);
-  const setStartM = (m) => onChange(sh * 60 + m, durMin);
-  // Прокрутка конца: новый конец (в пределах тех же суток), длительность = конец − начало.
-  const setEndH = (h) => { let e = h * 60 + em; if (e <= startMin) e += 1440; onChange(startMin, e - startMin); };
-  const setEndM = (m) => { let e = eh * 60 + m; if (e <= startMin) e += 1440; onChange(startMin, e - startMin); };
+// Компактные колёса «Ч : М» для одного момента (начало или конец). Час и минуты
+// сближены, между ними тонкое двоеточие. min: минута суток (0..1439). onChange(min).
+function TimeColumn({ min, onChange }) {
+  const h = Math.floor(min / 60), m = min % 60;
   const h2 = (i) => String(i).padStart(2, "0");
-  return html`<div class="tw-row">
-    <div class="tw-col"><${TimeWheel} count=${24} value=${sh} render=${h2} onChange=${setStartH} /></div>
-    <div class="tw-col"><${TimeWheel} count=${60} value=${sm} render=${h2} onChange=${setStartM} /></div>
-    <div class="tw-arrow">${Icon.right()}</div>
-    <div class="tw-col"><${TimeWheel} count=${24} value=${eh} render=${h2} onChange=${setEndH} /></div>
-    <div class="tw-col"><${TimeWheel} count=${60} value=${em} render=${h2} onChange=${setEndM} /></div>
+  return html`<div class="tw-row tw-row-single">
+    <div class="tw-col"><${TimeWheel} count=${24} value=${h} render=${h2} onChange=${(v) => onChange(v * 60 + m)} /></div>
+    <div class="tw-colon">:</div>
+    <div class="tw-col"><${TimeWheel} count=${60} value=${m} render=${h2} onChange=${(v) => onChange(h * 60 + v)} /></div>
   </div>`;
 }
 
-// Продолжительность: горизонтальная дорожка с пресетами и подвижной пилюлей, которую
-// можно тянуть влево/вправо (как в видео). Пилюля плавно едет за пальцем и встаёт на
-// ближайший пресет; если длительность кастомная (выставлена колесом конца) — пилюля
-// стоит между пресетами и показывает реальное значение («17 мин», «1 ч 7 мин»).
-const DUR_PRESETS = [1, 15, 30, 45, 60, 90];
-function DurationPill({ durMin, onPick }) {
-  const trackRef = useRef(null);
-  const [dragFrac, setDragFrac] = useState(null); // 0..1 во время перетаскивания, иначе null
-  const N = DUR_PRESETS.length;
-  // Доля позиции пилюли (0..1) для текущей длительности: на пресете — точно над ним,
-  // между пресетами — пропорционально.
-  const fracForDur = (d) => {
-    if (d <= DUR_PRESETS[0]) return 0;
-    if (d >= DUR_PRESETS[N - 1]) return 1;
-    let i = 0; while (i < N - 1 && DUR_PRESETS[i + 1] <= d) i++;
-    const seg = (d - DUR_PRESETS[i]) / (DUR_PRESETS[i + 1] - DUR_PRESETS[i]);
-    return (i + seg) / (N - 1);
-  };
-  const frac = dragFrac != null ? dragFrac : fracForDur(durMin);
-  const nearestPreset = (f) => DUR_PRESETS[Math.round(f * (N - 1))];
-  const liveDur = dragFrac != null ? nearestPreset(dragFrac) : durMin;
-
-  const onDown = (e) => {
-    const track = trackRef.current; if (!track) return;
-    e.preventDefault();
-    const rect = track.getBoundingClientRect();
-    const pad = 22; // половина ширины пилюли — чтобы центр не выходил за края
-    const toFrac = (x) => Math.max(0, Math.min(1, (x - rect.left - pad) / (rect.width - pad * 2)));
-    let last = null;
-    const move = (ev) => {
-      const f = toFrac(ev.clientX);
-      setDragFrac(f);
-      const d = nearestPreset(f);
-      if (d !== last) { last = d; haptic(); onPick(d); } // живо меняем значение, пилюля едет за пальцем
-    };
-    const up = () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-      setDragFrac(null); // отпустили → пилюля встаёт строго на выбранный пресет (анимацией)
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", up);
-    move(e);
-  };
-  return html`<div class="dur-track" ref=${trackRef}>
-    ${DUR_PRESETS.map((d, i) => html`<button type="button" key=${d}
-      class=${"dur-tick" + (d === liveDur ? " hide" : "")}
-      style=${`left:calc(22px + ${i / (N - 1)} * (100% - 44px));`} onClick=${() => onPick(d)}>${durHuman(d)}</button>`)}
-    <div class=${"dur-knob" + (dragFrac != null ? " drag" : "")}
-      style=${`left:calc(22px + ${frac} * (100% - 44px));`} onPointerDown=${onDown}>${durHuman(liveDur)}</div>
-  </div>`;
-}
 
 // Встроенный редактор задачи (вместо модальной формы). Рендерит карточку без
 // собственного позиционирования — обёртку/место задаёт родитель (в сетке дня
@@ -273,25 +216,10 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
   const cardRef = useRef(null);
   const titleRef = useRef(null);
-  const dateInputRef = useRef(null);
 
-  // Текущая длительность (мин) из времени начала/конца. Конец раньше начала → следующий день.
-  function curDur() {
-    if (!startTime) return 60;
-    const s = hhmmToMin(startTime);
-    let e = endTime ? hhmmToMin(endTime) : s + 60;
-    if (e <= s) e += 1440;
-    return Math.max(1, e - s);
-  }
-  // Применить новый интервал из пикера: пишем время начала и конца (конец = начало+длит,
-  // по модулю суток; endDate сдвигаем на +1 день, если перевалили за полночь).
-  function applyRange(startMin, durMin) {
-    const sm = ((Math.round(startMin) % 1440) + 1440) % 1440;
-    const dm = Math.max(1, Math.round(durMin));
-    setStartTime(minToHHMM(sm));
-    setEndTime(minToHHMM((sm + dm) % 1440));
-    setEndDate(sm + dm >= 1440 ? addDaysISO(date, 1) : date);
-  }
+  // Независимые крутилки начала/конца: каждая правит только своё время суток.
+  const setStartMin = (mm) => setStartTime(minToHHMM(((Math.round(mm) % 1440) + 1440) % 1440));
+  const setEndMin = (mm) => setEndTime(minToHHMM(((Math.round(mm) % 1440) + 1440) % 1440));
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
@@ -391,58 +319,80 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
           </div>`}
       </div>
 
-      <div class="ed-field">
-        <button class="ed-proj" type="button" onClick=${() => setProjOpen(o => !o)}>
-          <span class="ed-dot" style=${`background:${dotColor};`}></span>
-          <span class="ed-proj-name">${list ? list.name : "Входящие"}</span>
-        </button>
-        ${projOpen && html`
-          <div class="ed-menu">
-            <button class=${"ed-menu-item" + (!listId ? " sel" : "")} type="button"
-              onClick=${() => { setListId(""); setProjOpen(false); }}>
-              <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
-            ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
-              onClick=${() => { setListId(l.id); setProjOpen(false); }}>
-              <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
+      <div class="ed-row">
+        <div class="ed-field">
+          <button class="ed-proj" type="button" onClick=${() => setProjOpen(o => !o)}>
+            <span class="ed-dot" style=${`background:${dotColor};`}></span>
+            <span class="ed-proj-name">${list ? list.name : "Входящие"}</span>
+          </button>
+          ${projOpen && html`
+            <div class="ed-menu">
+              <button class=${"ed-menu-item" + (!listId ? " sel" : "")} type="button"
+                onClick=${() => { setListId(""); setProjOpen(false); }}>
+                <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
+              ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
+                onClick=${() => { setListId(l.id); setProjOpen(false); }}>
+                <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
+            </div>`}
+        </div>
+        ${date && html`
+          <div class="ed-field">
+            <button class=${"ed-rep-btn" + (recurrence ? " on" : "")} type="button" title=${recurLabel}
+              aria-label="Повтор" onClick=${() => setRepOpen(o => !o)}>${Icon.repeat()}</button>
+            ${repOpen && html`
+              <div class="ed-menu ed-menu-right">
+                ${RECUR_OPTIONS.map(o => html`<button class=${"ed-menu-item" + (recurrence === o.value ? " sel" : "")} type="button" key=${o.value}
+                  onClick=${() => { setRecurrence(o.value); setRepOpen(false); }}>${o.label}</button>`)}
+              </div>`}
           </div>`}
       </div>
 
-      ${date ? html`
-        <div class="ed-datepick">
-          <div class="ed-date-row">
-            <span class="ed-date-ico">${Icon.calendar()}</span>
-            <span class="ed-date-text">${humanDate(date)}</span>
-            <span class="ed-date-rel">${date === todayISO() ? "Сегодня" : ""}</span>
-          </div>
-          <input ref=${dateInputRef} class="ed-date-over" type="date" value=${date}
-            aria-label="Дата задачи" onInput=${e => changeDate(e.target.value)} />
-        </div>
-        <div class="ed-sec-label">Время<button class="ed-dt-clear ed-time-off" type="button" title="Убрать время" onClick=${() => { setStartTime(""); setEndTime(""); }}>${Icon.close()}</button></div>
-        ${startTime
-          ? html`<${TimeRangeWheels} startMin=${hhmmToMin(startTime)} durMin=${curDur()}
-              onChange=${(s, d) => applyRange(s, d)} />
-            <div class="ed-sec-label">Продолжительность</div>
-            <${DurationPill} durMin=${curDur()} onPick=${d => applyRange(hhmmToMin(startTime), d)} />`
-          : html`<button class="ed-add" type="button" onClick=${() => changeStart("09:00")}>${Icon.clock()} Добавить время</button>`}`
-        : html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`}
+      ${!date
+        ? html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`
+        : !startTime
+          ? html`<div class="ed-when-row">
+              <div class="ed-when-pill">
+                <span class="ed-date-ico">${Icon.calendar()}</span>
+                <span class="ed-date-text">${humanDate(date)}</span>
+                <input class="ed-date-over" type="date" value=${date}
+                  aria-label="Дата задачи" onInput=${e => changeDate(e.target.value)} />
+              </div>
+            </div>
+            <button class="ed-add" type="button" onClick=${() => changeStart("09:00")}>${Icon.clock()} Добавить время</button>`
+          : html`
+            <div class="ed-when">
+              <div class="ed-when-col">
+                <div class="ed-when-head">
+                  <span class="ed-when-label">Начало</span>
+                  <div class="ed-when-date">
+                    <span class="ed-when-date-text">${shortDate(date)}</span>
+                    <span class="ed-when-date-chev">${Icon.down()}</span>
+                    <input class="ed-date-over" type="date" value=${date}
+                      aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
+                  </div>
+                </div>
+                <${TimeColumn} min=${hhmmToMin(startTime)} onChange=${setStartMin} />
+              </div>
+              <div class="ed-when-col">
+                <div class="ed-when-head">
+                  <span class="ed-when-label">Конец</span>
+                  <div class="ed-when-date">
+                    <span class="ed-when-date-text">${shortDate(endDate || date)}</span>
+                    <span class="ed-when-date-chev">${Icon.down()}</span>
+                    <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
+                      aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
+                  </div>
+                </div>
+                <${TimeColumn} min=${hhmmToMin(endTime || startTime)} onChange=${setEndMin} />
+              </div>
+            </div>
+            <button class="ed-add ed-time-clear" type="button" onClick=${() => { setStartTime(""); setEndTime(""); }}>${Icon.close()} Убрать время</button>`}
 
-      ${date && html`
-        <div class="ed-field">
-          <button class="ed-proj" type="button" onClick=${() => setRepOpen(o => !o)}>
-            <span class="ed-rep-ico">${Icon.repeat()}</span>
-            <span class="ed-proj-name">${recurLabel}</span>
-          </button>
-          ${repOpen && html`
-            <div class="ed-menu">
-              ${RECUR_OPTIONS.map(o => html`<button class=${"ed-menu-item" + (recurrence === o.value ? " sel" : "")} type="button" key=${o.value}
-                onClick=${() => { setRecurrence(o.value); setRepOpen(false); }}>${o.label}</button>`)}
-            </div>`}
-          ${recurrence && html`<div class="ed-until">
-            <span>до</span>
-            <input class="ed-input dt-date" type="date" value=${until} onInput=${e => setUntil(e.target.value)} />
-            ${until && html`<button class="ed-dt-clear" type="button" onClick=${() => setUntil("")}>${Icon.close()}</button>`}
-          </div>`}
-        </div>`}
+      ${date && recurrence && html`<div class="ed-until">
+        <span>повтор до</span>
+        <input class="ed-input dt-date" type="date" value=${until} onInput=${e => setUntil(e.target.value)} />
+        ${until && html`<button class="ed-dt-clear" type="button" onClick=${() => setUntil("")}>${Icon.close()}</button>`}
+      </div>`}
 
       ${editing && !confirmDel && html`
         <button class="ed-del" type="button" onClick=${() => setConfirmDel(true)}>${Icon.trash()} Удалить задачу</button>`}
