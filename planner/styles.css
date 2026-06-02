@@ -526,10 +526,10 @@ textarea.input { resize: vertical; }
 .tl-event.done .tl-title { background-size: 100% 1.5px; color: var(--text-mute); }
 
 /* Колонки при пересечении (как в Календаре Apple): событие занимает свою долю ширины
-   справа от колонки часов и сдвигается вправо. Внутренняя раскладка (капсула, текст,
-   плашка, ручки) перебазируется к левому краю узкой колонки. --cols/--col — из JS. */
-.tl-event.columned { left: calc(100% / var(--cols) * var(--col));
-  width: calc(100% / var(--cols) - 3px); right: auto; }
+   СПРАВА от колонки часов (gutter 56px) и сдвигается вправо. Внутренняя раскладка
+   (капсула, текст, плашка, ручки) перебазируется к левому краю узкой колонки. */
+.tl-event.columned { left: calc(56px + (100% - 56px) / var(--cols) * var(--col));
+  width: calc((100% - 56px) / var(--cols) - 3px); right: auto; }
 .tl-event.columned::before { left: 0; right: 0; }
 .tl-event.columned .tl-pill { left: 3px; }
 .tl-event.columned .tl-handle { left: 3px; }
