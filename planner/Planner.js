@@ -140,6 +140,10 @@ function Planner() {
 
   useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
   useEffect(() => () => clearTimeout(peekTimerRef.current), []); // не оставлять таймер при размонтировании
+  // При размонтировании Planner глушим возможные «висящие» таймеры жестов (доезд
+  // поднятой задачи / автолистание соседних дней) — чтобы они не дёрнули setState
+  // на уже снятом компоненте.
+  useEffect(() => () => { clearTimeout(landTimerRef.current); clearTimeout(peekTimerRef.current); }, []);
 
   // Отмена/возврат: Cmd/Ctrl+Z — отменить, Cmd/Ctrl+Shift+Z — повторить.
   // (кроме случаев ввода текста в полях).
@@ -675,9 +679,10 @@ function Planner() {
       setSelRange({ lo, hi });
     };
     const move = ev => { ev.preventDefault(); apply(clamp(yToMin(ev.clientY), 0, 1440)); };
-    const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); setSelRange(null); };
+    const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up); setSelRange(null); };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
     apply(anchor);
   }
 
@@ -939,8 +944,13 @@ function Planner() {
       newStart = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440 - item.duration_min);
       setDrag({ type: copy ? "copy" : "move", key: item.key, start: newStart, dur: item.duration_min });
     };
+    const detach = () => {
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel);
+    };
+    // Системное прерывание жеста (pointercancel) — НЕ коммитим, просто сбрасываем.
+    const cancel = () => { detach(); setDrag(null); setDnd(null); };
     const up = (ev) => {
-      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+      detach();
       setDrag(null); setDnd(null);
       if (!moved) { (tapAction || (() => handleTap(item, shift)))(); return; }
       if (copy) {
@@ -964,7 +974,7 @@ function Planner() {
         store.actions.tasks.reschedule(item, { start_min: newStart }).catch(showErr);
       }
     };
-    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", cancel);
   }
 
   // Перетаскивание задачи из боковой панели в сетку дня (назначить время).
@@ -1136,11 +1146,11 @@ function Planner() {
     const move = ev => { newDur = clamp(snap(yToMin(ev.clientY) - item.start_min), MIN_DUR, 1440 - item.start_min);
       setDrag({ type: "resize", key: item.key, start: item.start_min, dur: newDur }); };
     const up = () => {
-      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
       if (newDur !== item.duration_min) store.actions.tasks.reschedule(item, { duration_min: newDur }).catch(showErr);
       setDrag(null);
     };
-    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
   }
 
   // Растягивание за верхний край: двигаем начало, конец остаётся на месте.
@@ -1156,11 +1166,11 @@ function Planner() {
       setDrag({ type: "resize", key: item.key, start: newStart, dur: newDur });
     };
     const up = () => {
-      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up);
+      document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
       if (newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart, duration_min: newDur }).catch(showErr);
       setDrag(null);
     };
-    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up);
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", up);
   }
 
   function openEdit(item) {

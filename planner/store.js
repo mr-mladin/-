@@ -67,8 +67,10 @@ export function StoreProvider({ children }) {
   // Уже вставленные: tmp-id → настоящий uuid. Если форму открыли с временным id,
   // а вставка успела завершиться, поздняя правка уходит по реальному id.
   const tmpIdMap = useRef(new Map());
+  const toastTimers = useRef(new Set()); // активные таймеры автоскрытия тостов — гасим при размонтировании
 
   useEffect(() => { applyTheme(state.theme); }, []);
+  useEffect(() => () => { toastTimers.current.forEach(clearTimeout); toastTimers.current.clear(); }, []);
 
   useEffect(() => {
     let active = true;
@@ -201,7 +203,8 @@ export function StoreProvider({ children }) {
   function pushToast(text, type = "info") {
     const id = Math.random().toString(36).slice(2);
     setToasts(t => [...t, { id, text, type }]);
-    setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 3000);
+    const tm = setTimeout(() => { toastTimers.current.delete(tm); setToasts(t => t.filter(x => x.id !== id)); }, 3000);
+    toastTimers.current.add(tm);
   }
 
   // История действий: каждое запоминает, как его отменить (undo) и повторить
