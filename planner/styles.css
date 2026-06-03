@@ -411,6 +411,11 @@ textarea.input { resize: vertical; }
 .tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   background: color-mix(in srgb, var(--c) 88%, transparent); cursor: default; touch-action: pan-y;
   display: flex; flex-direction: column; align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }
+/* Обтекание: капсула перетаскиваемого призрака, накрывшая чужие задачи, плавно
+   уезжает вбок (на --lane «полос» по 44px), огибая их капсулы как капля. Двигается
+   ТОЛЬКО капсула призрака — соседние задачи стоят на месте. */
+.tl-event.flowing .tl-pill { transform: translateX(calc(var(--lane, 0) * 44px));
+  transition: transform .32s cubic-bezier(.34, 1.3, .5, 1); }
 /* Переходящая через полночь задача: плоский край там, где она продолжается. */
 .tl-event.span-top .tl-pill { border-top-left-radius: 5px; border-top-right-radius: 5px; }
 .tl-event.span-bottom .tl-pill { border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }

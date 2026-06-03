@@ -1525,11 +1525,16 @@ function Planner() {
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
   const dayTl = useMemo(() => [...timed].sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop))), [timed]);
-  // Раскладка пересекающихся задач по колонкам (как в Календаре Apple): задачи,
-  // накладывающиеся по времени, делят ширину поровну и встают рядом, а не друг на
-  // друга. Во время переноса/растягивания ОДНОЙ задачи пересчитываем колонки с её
-  // живой позицией — соседи «обтекают» перетаскиваемую: разъезжаются по колонкам.
-  // Десктоп — через drag (move/copy/resize); мобильный «подъём» — через liftDrag.
+  // Раскладка пересекающихся задач по колонкам (как в Календаре Apple). СТАТИЧНАЯ:
+  // соседние задачи стоят на месте и НЕ двигаются при переносе. В сторону уезжает
+  // только призрак перетаскиваемой задачи (см. ghostLane ниже) — он обтекает чужие
+  // капсулы, а не толкает их.
+  const dayCols = useMemo(() => {
+    const m = new Map();
+    for (const it of layoutColumns(dayTl, null)) m.set(it.key, { col: it._col, cols: it._cols });
+    return m;
+  }, [dayTl]);
+  // Живая позиция перетаскиваемой задачи (десктоп — drag, мобильный подъём — liftDrag).
   let liveDrag = null;
   if (drag && (drag.type === "move" || drag.type === "copy" || drag.type === "resize")) {
     liveDrag = { key: drag.key, start: drag.start, dur: drag.dur };
@@ -1538,10 +1543,17 @@ function Planner() {
     const start = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
     liveDrag = { key: liftDrag.key, start, dur };
   }
-  const dayCols = useMemo(() => {
-    const m = new Map();
-    for (const it of layoutColumns(dayTl, liveDrag)) m.set(it.key, { col: it._col, cols: it._cols });
-    return m;
+  // Сколько чужих задач сейчас перекрывает призрак по времени — на столько «полос»
+  // он уводится вбок (обтекает их капсулы). 0 — призрак во всю ширину, как обычно.
+  const ghostOverlap = useMemo(() => {
+    if (!liveDrag) return 0;
+    const s = liveDrag.start, e = liveDrag.start + liveDrag.dur;
+    let n = 0;
+    for (const it of dayTl) {
+      if (it.key === liveDrag.key) continue;
+      if (it.vTop < e && it.vEnd > s) n++;
+    }
+    return Math.min(n, 3); // не уводим слишком далеко
   }, [dayTl, liveDrag && liveDrag.key, liveDrag && liveDrag.start, liveDrag && liveDrag.dur]);
 
   // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
@@ -1895,7 +1907,10 @@ function Planner() {
                   // вправо. При переносе/растягивании одной задачи её слот живой (обтекает
                   // соседей). Групповой перенос и переходящая через полночь — на всю ширину.
                   const slot = dayCols.get(i.key);
-                  const cols = (spanning || inGroupMove || !slot) ? 1 : slot.cols;
+                  // Перетаскиваемый призрак рисуем во всю ширину (cols=1) — вбок уводим
+                  // только его капсулу (.flowing). Групповой/спан — тоже во всю ширину.
+                  const isLiveDragKey = liveDrag && liveDrag.key === i.key;
+                  const cols = (spanning || inGroupMove || isLiveDragKey || !slot) ? 1 : slot.cols;
                   const colStyle = cols > 1 ? `--cols:${cols};--col:${slot.col};` : "";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
@@ -1903,8 +1918,11 @@ function Planner() {
                   // ленте НЕ удаляем (иначе iOS шлёт pointercancel → перенос срывается) — прячем
                   // через visibility:hidden, место и касание сохраняются.
                   const hiddenLift = liftDrag && !liftDrag.done && i.key === liftDrag.key;
-                  return html`<div class=${"tl-event" + density + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}`}
+                  // Призрак перетаскиваемой задачи, накрывший чужие капсулы, уводит свою
+                  // капсулу вбок (.flowing + --lane) — обтекает их. Соседи не двигаются.
+                  const flowing = isLiveDragKey && ghostOverlap > 0;
+                  return html`<div class=${"tl-event" + density + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (flowing ? " flowing" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}${flowing ? `--lane:${ghostOverlap};` : ""}`}
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
@@ -2045,8 +2063,8 @@ function Planner() {
       const dur = it.duration_min || 0;
       const liftMin = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
       const density = g.height >= 44 ? "" : g.height >= 24 ? " compact" : " mini";
-      return html`<div class=${"tl-event tl-lift-overlay" + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted")}
-        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
+      return html`<div class=${"tl-event tl-lift-overlay" + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted") + (ghostOverlap > 0 ? " flowing" : "")}
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};--lane:${ghostOverlap};transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
         <div class="tl-pill"><button class=${"tl-pill-check" + (it.done ? " on" : "")} type="button">${Icon.check()}</button></div>
         <div class="tl-body"><div class="tl-text">
           <div class="tl-titlerow"><div class="tl-title">${it.title}${it.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div></div>
