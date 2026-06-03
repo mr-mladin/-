@@ -13,6 +13,7 @@ const initialState = {
   user: null,
   taskLists: readCache().lists,
   tasks: readCache().tasks,
+  areas: readCache().areas,
   theme: readTheme(),
 };
 
@@ -24,12 +25,12 @@ function readTheme() {
 function readCache() {
   try {
     const v = JSON.parse(localStorage.getItem("planner.cache") || "null");
-    if (v && Array.isArray(v.tasks) && Array.isArray(v.lists)) return v;
+    if (v && Array.isArray(v.tasks) && Array.isArray(v.lists)) return { areas: [], ...v };
   } catch (e) {}
-  return { tasks: [], lists: [] };
+  return { tasks: [], lists: [], areas: [] };
 }
-function writeCache(lists, tasks) {
-  try { localStorage.setItem("planner.cache", JSON.stringify({ lists, tasks })); } catch (e) {}
+function writeCache(lists, tasks, areas) {
+  try { localStorage.setItem("planner.cache", JSON.stringify({ lists, tasks, areas })); } catch (e) {}
 }
 function clearCache() {
   try { localStorage.removeItem("planner.cache"); } catch (e) {}
@@ -111,7 +112,7 @@ export function StoreProvider({ children }) {
       else {
         loadEpoch.current++;
         clearCache();
-        dispatch({ type: "set", payload: { loading: false, ready: true, taskLists: [], tasks: [] } });
+        dispatch({ type: "set", payload: { loading: false, ready: true, taskLists: [], tasks: [], areas: [] } });
       }
     });
     return () => { active = false; sub?.subscription?.unsubscribe(); };
@@ -157,9 +158,10 @@ export function StoreProvider({ children }) {
   async function loadAll() {
     const myEpoch = ++loadEpoch.current;
     try {
-      const [listsRes, tasksRes] = await Promise.all([
+      const [listsRes, tasksRes, areasRes] = await Promise.all([
         supabase.from("lists").select("*").order("sort_order").order("created_at"),
         supabase.from("tasks").select("*"),
+        supabase.from("areas").select("*").order("sort_order").order("created_at"),
       ]);
       if (myEpoch !== loadEpoch.current) return;
       if (listsRes.error || tasksRes.error) {
@@ -168,10 +170,13 @@ export function StoreProvider({ children }) {
         return;
       }
       const lists = listsRes.data || [], rows = tasksRes.data || [];
-      writeCache(lists, rows);
+      // Области добавлены позже задач — на старой базе их таблицы может не быть.
+      // Тогда просто работаем без областей (не валим загрузку).
+      const areas = areasRes.error ? [] : (areasRes.data || []);
+      writeCache(lists, rows, areas);
       dispatch({
         type: "set",
-        payload: { loading: false, ready: true, taskLists: lists, tasks: rows },
+        payload: { loading: false, ready: true, taskLists: lists, tasks: rows, areas },
       });
       rollOverdue(rows);
     } catch (e) {
@@ -189,7 +194,7 @@ export function StoreProvider({ children }) {
     if (rolledFor.current === today) return;
     rolledFor.current = today;
     const overdue = (rows || []).filter(t =>
-      !t.recurrence && !t.recurrence_parent && !t.done && t.date && t.date < today);
+      !t.recurrence && !t.recurrence_parent && !t.done && !t.deleted_at && t.date && t.date < today);
     if (!overdue.length) return;
     writeAt.current = Date.now();
     const patch = { start_min: null, duration_min: null };
@@ -326,10 +331,53 @@ export function StoreProvider({ children }) {
         .catch(() => { if (prev) dispatch({ type: "upsertOne", key: "taskLists", item: prev }); pushToast("Не удалось сохранить проект", "error"); });
       return Promise.resolve();
     },
-    remove: async (id) => {
-      await deleteRow("lists", id, "taskLists");
+    // Удаление проекта: его задачи переезжают в проект moveTo (id) либо во
+    // «Входящие» (moveTo == null). В базе чиним строки одним апдейтом по list_id.
+    remove: async (id, moveTo = null) => {
+      const affected = state.tasks.filter(t => t.list_id === id);
       dispatch({ type: "replaceMany", key: "tasks",
-        items: state.tasks.map(t => t.list_id === id ? { ...t, list_id: null } : t) });
+        items: state.tasks.map(t => t.list_id === id ? { ...t, list_id: moveTo, area_id: null } : t) });
+      await deleteRow("lists", id, "taskLists");
+      if (affected.length) supabase.from("tasks").update({ list_id: moveTo, area_id: null }).eq("list_id", id);
+    },
+  };
+
+  // Области — верхний уровень группировки проектов. Оптимистично, как проекты.
+  const areas = {
+    create: (payload) => {
+      const tempId = "tmp-" + Math.random().toString(36).slice(2);
+      const optimistic = { sort_order: state.areas.length, ...payload, id: tempId, user_id: state.user?.id };
+      dispatch({ type: "upsertOne", key: "areas", item: optimistic });
+      supabase.from("areas").insert(withUser({ sort_order: state.areas.length, ...payload })).select().single()
+        .then(({ data, error }) => {
+          dispatch({ type: "removeOne", key: "areas", id: tempId });
+          if (error || !data) { pushToast("Не удалось сохранить область", "error"); return; }
+          dispatch({ type: "upsertOne", key: "areas", item: data });
+        })
+        .catch(() => { dispatch({ type: "removeOne", key: "areas", id: tempId }); pushToast("Не удалось сохранить область", "error"); });
+      return Promise.resolve(optimistic);
+    },
+    update: (id, payload) => {
+      const prev = state.areas.find(a => a.id === id);
+      if (prev) dispatch({ type: "upsertOne", key: "areas", item: { ...prev, ...payload } });
+      supabase.from("areas").update(payload).eq("id", id).select().single()
+        .then(({ data, error }) => {
+          if (error || !data) { if (prev) dispatch({ type: "upsertOne", key: "areas", item: prev }); pushToast("Не удалось сохранить область", "error"); return; }
+          dispatch({ type: "upsertOne", key: "areas", item: data });
+        })
+        .catch(() => { if (prev) dispatch({ type: "upsertOne", key: "areas", item: prev }); pushToast("Не удалось сохранить область", "error"); });
+      return Promise.resolve();
+    },
+    // Удаление области: её проекты становятся «без области» (area_id = null),
+    // задачи, висевшие прямо на области, уезжают во «Входящие».
+    remove: async (id) => {
+      dispatch({ type: "replaceMany", key: "taskLists",
+        items: state.taskLists.map(l => l.area_id === id ? { ...l, area_id: null } : l) });
+      dispatch({ type: "replaceMany", key: "tasks",
+        items: state.tasks.map(t => t.area_id === id ? { ...t, area_id: null } : t) });
+      await deleteRow("areas", id, "areas");
+      supabase.from("lists").update({ area_id: null }).eq("area_id", id);
+      supabase.from("tasks").update({ area_id: null }).eq("area_id", id);
     },
   };
 
@@ -450,12 +498,28 @@ export function StoreProvider({ children }) {
       }
       return updateTaskOptimistic(id, payload);
     },
+    // Удаление = в корзину (мягко): ставим deleted_at, строка остаётся в базе и
+    // в стейте, но из сетки/панели/поиска исчезает (везде фильтр !deleted_at).
+    // Отмена возвращает её, восстановление из корзины — тоже снимает deleted_at.
     remove: (id) => {
+      // Незавершённая (tmp) задача в базу ещё не попала — просто убираем из стейта.
+      if (typeof id === "string" && id.startsWith("tmp-")) return deleteRow("tasks", id, "tasks");
+      const at = new Date().toISOString();
       const prev = state.tasks.find(t => t.id === id);
       if (prev) record("удаление задачи",
-        () => reinsertRow("tasks", prev, "tasks"),
-        () => deleteRow("tasks", id, "tasks"));
-      return deleteRow("tasks", id, "tasks");
+        () => updateTaskOptimistic(id, { deleted_at: null }),
+        () => updateTaskOptimistic(id, { deleted_at: at }));
+      return updateTaskOptimistic(id, { deleted_at: at });
+    },
+    // Вернуть из корзины.
+    restore: (id) => updateTaskOptimistic(id, { deleted_at: null }),
+    // Удалить из корзины навсегда (жёстко из базы).
+    purge: (id) => deleteRow("tasks", id, "tasks"),
+    // Очистить корзину целиком.
+    emptyTrash: async () => {
+      const trashed = state.tasks.filter(t => t.deleted_at);
+      trashed.forEach(t => dispatch({ type: "removeOne", key: "tasks", id: t.id }));
+      if (trashed.length) await supabase.from("tasks").delete().not("deleted_at", "is", null);
     },
     // Отметить/снять подзадачу прямо в сетке (без открытия редактора).
     toggleSub: (taskId, subId) => {
@@ -526,7 +590,7 @@ export function StoreProvider({ children }) {
   const markWrites = (obj) => Object.fromEntries(
     Object.entries(obj).map(([k, fn]) => [k, (...a) => { writeAt.current = Date.now(); return fn(...a); }]));
   const value = { ...state, toasts, pushToast, undo, redo, batch, auth, setTheme,
-    actions: { taskLists: markWrites(taskLists), tasks: markWrites(tasks) } };
+    actions: { taskLists: markWrites(taskLists), tasks: markWrites(tasks), areas: markWrites(areas) } };
   return h(StoreContext.Provider, { value }, children);
 }
 

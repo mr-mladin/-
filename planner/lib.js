@@ -190,7 +190,7 @@ export function occursOn(tmpl, dateISO) {
 function base(t) {
   return {
     title: t.title, notes: t.notes || "", color: t.color || null, icon: t.icon || null,
-    list_id: t.list_id || null, start_min: t.start_min, duration_min: t.duration_min,
+    list_id: t.list_id || null, area_id: t.area_id || null, start_min: t.start_min, duration_min: t.duration_min,
     subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
   };
 }
@@ -233,6 +233,7 @@ function recurItem(tmpl, ov, occDate, off, keyDate) {
     notes: (ov ? pick(ov.notes, tmpl.notes) : tmpl.notes) || "",
     color: ov ? pick(ov.color, tmpl.color) : tmpl.color,
     list_id: ov ? pick(ov.list_id, tmpl.list_id) : tmpl.list_id,
+    area_id: ov ? pick(ov.area_id, tmpl.area_id) : tmpl.area_id,
     start_min: start, duration_min: dur,
     subtasks: Array.isArray(tmpl.subtasks) ? tmpl.subtasks : [],
     vTop: sg.vTop, vEnd: sg.vEnd, spanTop: sg.spanTop, spanBottom: sg.spanBottom, cont: sg.cont,
@@ -246,6 +247,7 @@ export function itemsForDate(tasks, dateISO) {
     if (t.recurrence_parent && t.occ_date) overrides.set(t.recurrence_parent + "|" + t.occ_date, t);
   }
   for (const t of tasks) {
+    if (t.deleted_at) continue; // в корзине — в сетке дня не показываем
     if (!t.recurrence && !t.recurrence_parent) {
       if (!t.date) continue;
       const off = daysBetween(t.date, dateISO);
@@ -273,7 +275,21 @@ export function itemsForDate(tasks, dateISO) {
 }
 
 export function unscheduledTasks(tasks) {
-  return tasks.filter(t => !t.recurrence_parent && !t.recurrence && !t.date);
+  return tasks.filter(t => !t.recurrence_parent && !t.recurrence && !t.date && !t.deleted_at);
+}
+
+// Принадлежит ли задача/проект текущему фильтру боковой панели. Работает и над
+// «сырой» задачей, и над элементом дня — нужны лишь поля list_id/area_id.
+// areaOfList(list_id) → area_id проекта (или null). Спецфильтры done/trash сюда
+// не попадают — у них своя логика (показ по done/deleted_at, а не по проекту).
+export function matchesFilter(t, filter, areaOfList) {
+  if (filter === "all") return true;
+  if (filter === "inbox") return !t.list_id && !t.area_id;
+  if (filter && filter.startsWith("area:")) {
+    const aid = filter.slice(5);
+    return t.area_id === aid || (t.list_id ? areaOfList(t.list_id) === aid : false);
+  }
+  return t.list_id === filter;
 }
 
 // ---------- Тема ----------
@@ -326,6 +342,8 @@ export const Icon = {
   check: () => wrap(html`<path d="M5 13l4 4L19 7"/>`),
   calendar: () => wrap(html`<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4"/>`),
   inbox: () => wrap(html`<path d="M5 5h14l2 7v7H3v-7z"/><path d="M3 12h5l2 3h4l2-3h5"/>`),
+  folder: () => wrap(html`<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`),
+  restore: () => wrap(html`<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>`),
   clock: () => wrap(html`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`),
   repeat: () => wrap(html`<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>`),
   dot: () => wrap(html`<circle cx="12" cy="12" r="3" fill="currentColor"/>`),

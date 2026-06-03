@@ -86,7 +86,7 @@ export function SearchModal({ onClose, onPick }) {
   const listById = Object.fromEntries(lists.map(l => [l.id, l]));
   const term = q.trim().toLowerCase();
   const results = term
-    ? store.tasks.filter(t => !t.recurrence_parent && (t.title || "").toLowerCase().includes(term))
+    ? store.tasks.filter(t => !t.recurrence_parent && !t.deleted_at && (t.title || "").toLowerCase().includes(term))
         .sort((a, b) => (a.done - b.done)).slice(0, 60)
     : [];
   return html`
@@ -143,6 +143,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   const _end = _hasStart ? src.start_min + (src.duration_min || 0) : null;
   const [title, setTitle] = useState(src.title || "");
   const [listId, setListId] = useState(src.list_id || "");
+  const [areaId, setAreaId] = useState(src.area_id || "");
   const [date, setDate] = useState(src.date || "");
   const [startTime, setStartTime] = useState(_hasStart ? minToHHMM(src.start_min) : "");
   const [endDate, setEndDate] = useState(src.date && _end != null ? addDaysISO(src.date, Math.floor(_end / 1440)) : (src.date || ""));
@@ -160,8 +161,12 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   const [confirmDel, setConfirmDel] = useState(false);
 
   const lists = [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+  const areas = [...(store.areas || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const list = lists.find(l => l.id === listId);
-  const dotColor = list?.color || "var(--text-mute)";
+  const area = areas.find(a => a.id === areaId);
+  // Цель задачи: проект, либо область напрямую, либо «Входящие».
+  const targetName = list ? list.name : area ? area.name : "Входящие";
+  const dotColor = list?.color || (area ? "var(--accent)" : "var(--text-mute)");
   const subDone = subtasks.filter(s => s.done).length;
 
   const cardRef = useRef(null);
@@ -186,7 +191,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
   function payload() {
     const cleanSubs = subtasks.map(s => ({ id: s.id, title: (s.title || "").trim(), done: !!s.done })).filter(s => s.title);
-    if (!date) return { title: title.trim(), list_id: listId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null, subtasks: cleanSubs };
+    if (!date) return { title: title.trim(), list_id: listId || null, area_id: areaId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null, subtasks: cleanSubs };
     const startMin = startTime ? hhmmToMin(startTime) : null;
     let duration = null;
     if (startMin !== null) {
@@ -197,7 +202,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
     }
     const recur = recurrence ? recurrence : null;
     return {
-      title: title.trim(), list_id: listId || null, date,
+      title: title.trim(), list_id: listId || null, area_id: areaId || null, date,
       start_min: startMin, duration_min: startMin !== null ? duration : null,
       recurrence: recur, recurrence_until: recur ? (until || null) : null,
       notes: notes.trim() || null, subtasks: cleanSubs,
@@ -269,15 +274,18 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
         <div class="ed-field">
           <button class="ed-proj" type="button" onClick=${() => setProjOpen(o => !o)}>
             <span class="ed-dot" style=${`background:${dotColor};`}></span>
-            <span class="ed-proj-name">${list ? list.name : "Входящие"}</span>
+            <span class="ed-proj-name">${targetName}</span>
           </button>
           ${projOpen && html`
             <div class="ed-menu">
-              <button class=${"ed-menu-item" + (!listId ? " sel" : "")} type="button"
-                onClick=${() => { setListId(""); setProjOpen(false); }}>
+              <button class=${"ed-menu-item" + (!listId && !areaId ? " sel" : "")} type="button"
+                onClick=${() => { setListId(""); setAreaId(""); setProjOpen(false); }}>
                 <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
+              ${areas.map(a => html`<button class=${"ed-menu-item" + (!listId && areaId === a.id ? " sel" : "")} type="button" key=${"a" + a.id}
+                onClick=${() => { setAreaId(a.id); setListId(""); setProjOpen(false); }}>
+                <span class="ed-menu-ico">${Icon.folder()}</span> ${a.name}</button>`)}
               ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
-                onClick=${() => { setListId(l.id); setProjOpen(false); }}>
+                onClick=${() => { setListId(l.id); setAreaId(""); setProjOpen(false); }}>
                 <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
             </div>`}
         </div>
@@ -359,20 +367,23 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
     </div>`;
 }
 
-export function ListForm({ initial, onDelete, onClose }) {
+export function ListForm({ initial, defaultArea, onDelete, onClose }) {
   const store = useStore();
   const editing = !!initial;
   const [name, setName] = useState(initial?.name || "");
   const [color, setColor] = useState(initial?.color || COLORS[0]);
+  const [areaId, setAreaId] = useState(initial?.area_id || defaultArea || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const areas = [...(store.areas || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   async function submit(e) {
     e?.preventDefault();
-    if (!name.trim()) { setError("Введите название списка"); return; }
+    if (!name.trim()) { setError("Введите название проекта"); return; }
     setBusy(true);
     try {
-      if (editing) await store.actions.taskLists.update(initial.id, { name: name.trim(), color });
-      else await store.actions.taskLists.create({ name: name.trim(), color });
+      const payload = { name: name.trim(), color, area_id: areaId || null };
+      if (editing) await store.actions.taskLists.update(initial.id, payload);
+      else await store.actions.taskLists.create(payload);
       onClose();
     } catch (e) { setError(dbHint(e.message)); } finally { setBusy(false); }
   }
@@ -389,10 +400,68 @@ export function ListForm({ initial, onDelete, onClose }) {
             ${COLORS.map(c => html`<button type="button" key=${c} onClick=${() => setColor(c)}
               style=${`width:28px;height:28px;border-radius:50%;border:2px solid ${color === c ? "var(--text)" : "transparent"};background:${c};cursor:pointer;`}></button>`)}
           </div></div>
+        ${areas.length > 0 && html`<div class="field"><label>Область</label>
+          <select class="input" value=${areaId} onChange=${e => setAreaId(e.target.value)}>
+            <option value="">Без области</option>
+            ${areas.map(a => html`<option key=${a.id} value=${a.id}>${a.name}</option>`)}
+          </select></div>`}
         ${error && html`<div class="notice error">${error}</div>`}
         ${editing && onDelete && html`<button type="button" class="btn ghost danger" style="align-self:flex-start;"
           onClick=${onDelete}>${Icon.trash()} Удалить проект</button>`}
       </form>
+    <//>`;
+}
+
+export function AreaForm({ initial, onClose }) {
+  const store = useStore();
+  const editing = !!initial;
+  const [name, setName] = useState(initial?.name || "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function submit(e) {
+    e?.preventDefault();
+    if (!name.trim()) { setError("Введите название области"); return; }
+    setBusy(true);
+    try {
+      if (editing) await store.actions.areas.update(initial.id, { name: name.trim() });
+      else await store.actions.areas.create({ name: name.trim() });
+      onClose();
+    } catch (e) { setError(dbHint(e.message)); } finally { setBusy(false); }
+  }
+  return html`
+    <${Modal} title=${editing ? "Область" : "Новая область"} onClose=${onClose}
+      footer=${html`
+        <button class="btn ghost" onClick=${onClose}>Отмена</button>
+        <button class="btn primary" disabled=${busy} onClick=${submit}>Сохранить</button>`}>
+      <form onSubmit=${submit} class="form">
+        <div class="field"><label>Название</label>
+          <input class="input" autofocus placeholder="Например: Личное" value=${name} onInput=${e => setName(e.target.value)} /></div>
+        <p class="muted small">Область группирует проекты. Задачи можно класть и прямо в область.</p>
+        ${error && html`<div class="notice error">${error}</div>`}
+      </form>
+    <//>`;
+}
+
+// Удаление проекта: спрашиваем, куда переместить его задачи (другой проект или
+// «Входящие»), чтобы они не потерялись.
+export function MoveTasksModal({ list, lists, taskCount, onCancel, onConfirm }) {
+  const [moveTo, setMoveTo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const others = (lists || []).filter(l => l.id !== list.id);
+  return html`
+    <${Modal} title="Удалить проект?" onClose=${onCancel}
+      footer=${html`
+        <button class="btn ghost" onClick=${onCancel}>Отмена</button>
+        <button class="btn danger" disabled=${busy} onClick=${async () => { setBusy(true); await onConfirm(moveTo || null); }}>Удалить</button>`}>
+      ${taskCount > 0
+        ? html`<div class="field">
+            <label>Куда переместить задачи (${taskCount})?</label>
+            <select class="input" value=${moveTo} onChange=${e => setMoveTo(e.target.value)}>
+              <option value="">Входящие</option>
+              ${others.map(l => html`<option key=${l.id} value=${l.id}>${l.name}</option>`)}
+            </select>
+          </div>`
+        : html`<div class="muted">В проекте нет задач — он будет просто удалён.</div>`}
     <//>`;
 }
 

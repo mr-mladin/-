@@ -3,17 +3,25 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "preact/ho
 import { useStore } from "./store.js";
 import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
-  minRangeLabel, minToHHMM, itemsForDate,
+  minRangeLabel, minToHHMM, itemsForDate, matchesFilter,
   monthMatrix, weekRangeLabel, weekStart,
   durHuman, doneFeedback, haptic,
 } from "./lib.js";
-import { ConfirmModal, Toasts, TaskEditor, ListForm, AuthForm, SettingsModal, SearchModal } from "./components.js";
+import { ConfirmModal, Toasts, TaskEditor, ListForm, AreaForm, MoveTasksModal, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
 const VIEWS = [["day", "День"], ["week", "Неделя"], ["month", "Месяц"]];
 const WD_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 function readView() {
   try { const v = localStorage.getItem("planner.view"); return VIEWS.some(x => x[0] === v) ? v : "day"; }
   catch (e) { return "day"; }
+}
+// Свёрнутые области панели — помним между сессиями (id → свёрнута).
+function readCollapsed() {
+  try { return new Set(JSON.parse(localStorage.getItem("planner.areasCollapsed") || "[]")); }
+  catch (e) { return new Set(); }
+}
+function writeCollapsed(set) {
+  try { localStorage.setItem("planner.areasCollapsed", JSON.stringify([...set])); } catch (e) {}
 }
 
 const ALLDAY_COLS = 3;
@@ -49,7 +57,7 @@ export function App() {
 
 function Planner() {
   const store = useStore();
-  const { tasks, taskLists } = store;
+  const { tasks, taskLists, areas } = store;
 
   const [date, setDate] = useState(todayISO());
   // Дата, выбранная свайпом, до завершения анимации переезда: полоса недели и
@@ -59,6 +67,8 @@ function Planner() {
   dateRef.current = date;
   const [view, setView] = useState(readView());
   const [filter, setFilter] = useState("all");
+  // "done"/"trash" — спецразделы (плоские списки): прячут календарь и его жесты.
+  const special = filter === "done" || filter === "trash";
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
   const [edClosing, setEdClosing] = useState(false); // форма закрывается — проигрываем анимацию ухода перед размонтированием
@@ -82,6 +92,11 @@ function Planner() {
   const [subEdit, setSubEdit] = useState(null);     // { key, subId, value } — встроенная правка подзадачи
   const [listModal, setListModal] = useState(null);
   const [delList, setDelList] = useState(null);
+  const [areaModal, setAreaModal] = useState(null); // "new" | область — форма области
+  const [delArea, setDelArea] = useState(null);      // область к удалению
+  const [emptyTrash, setEmptyTrash] = useState(false); // подтверждение очистки корзины
+  const [areaCollapsed, setAreaCollapsed] = useState(readCollapsed);
+  const toggleArea = (id) => setAreaCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); writeCollapsed(n); return n; });
   const [hourPx, setHourPx] = useState(readHourPx());
   // Соседние дни карусели рисуем только во время горизонтального свайпа —
   // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
@@ -254,7 +269,7 @@ function Planner() {
       window.removeEventListener("resize", fitNow);
       window.removeEventListener("orientationchange", fitNow);
     };
-  }, [view]);
+  }, [view, special]);
 
   // Надёжное вписывание: ResizeObserver ловит МОМЕНТ, когда высота контейнера сетки
   // окончательно устаканилась (на iOS это бывает позже первых кадров), и дотягивает
@@ -267,7 +282,7 @@ function Planner() {
     const ro = new ResizeObserver(() => { if (zoomedRef.current || liftDragRef.current || createActiveRef.current) return; setHourPx(fitMinPx()); });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [view]);
+  }, [view, special]);
 
   // Сетка дня: горизонтальный свайп между днями обрабатывает САМ браузер через
   // CSS scroll-snap — лента из 3 панелей (вчера/сегодня/завтра) с обязательным
@@ -320,7 +335,7 @@ function Planner() {
       el.removeEventListener("gesturechange", onGChange);
       el.removeEventListener("gestureend", onGEnd);
     };
-  }, [view]);
+  }, [view, special]);
 
   // Свайп дней — карусель на CSS transform (ручное управление, без нативного скролла
   // по горизонтали). Браузер не вмешивается → можем дать живой драг, низкий порог
@@ -407,7 +422,7 @@ function Planner() {
       clearTimeout(endTimer);
       el.removeEventListener("wheel", onWheel);
     };
-  }, [view]);
+  }, [view, special]);
 
   // После смены даты (от свайпа или клика по дню) сбрасываем смещение карусели
   // в 0: новая «текущая» панель уже в центре, dx должен быть 0.
@@ -488,13 +503,16 @@ function Planner() {
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => { clearTimeout(decideTimer); clearTimeout(resetTimer); el.removeEventListener("wheel", onWheel); };
-  }, [view]);
+  }, [view, special]);
 
   const lists = useMemo(() => [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [taskLists]);
   const listById = useMemo(() => Object.fromEntries(lists.map(l => [l.id, l])), [lists]);
-  const matches = (lid) => filter === "all" || (filter === "inbox" ? !lid : lid === filter);
+  const areasSorted = useMemo(() => [...areas].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)), [areas]);
+  const areaById = useMemo(() => Object.fromEntries(areasSorted.map(a => [a.id, a])), [areasSorted]);
+  const areaOfList = (lid) => listById[lid]?.area_id || null;
+  const matches = (i) => matchesFilter(i, filter, areaOfList);
 
-  const dayItems = useMemo(() => itemsForDate(tasks, date).filter(i => matches(i.list_id)), [tasks, date, filter]);
+  const dayItems = useMemo(() => itemsForDate(tasks, date).filter(i => matches(i)), [tasks, date, filter, taskLists]);
   const timed = dayItems.filter(i => i.start_min !== null && i.start_min !== undefined);
   // Порядок задач «весь день» задаётся sort_order строки; на drag перезаписываем его.
   const sortOrderById = useMemo(() => {
@@ -515,11 +533,18 @@ function Planner() {
   // Боковая панель: задачи проекта, которых нет в сетке этого дня (без времени,
   // другого дня или вовсе без даты). Без дублей повторений (только шаблоны).
   const projTasks = useMemo(() => tasks
-    .filter(t => !t.recurrence_parent && matches(t.list_id))
+    .filter(t => !t.recurrence_parent && !t.deleted_at && matches(t))
     .sort((a, b) => (a.done - b.done)
       || ((a.date || "9999-99") < (b.date || "9999-99") ? -1 : (a.date || "9999-99") > (b.date || "9999-99") ? 1 : 0)
       || ((a.start_min ?? 1e9) - (b.start_min ?? 1e9))
-      || ((a.sort_order || 0) - (b.sort_order || 0))), [tasks, filter]);
+      || ((a.sort_order || 0) - (b.sort_order || 0))), [tasks, filter, taskLists]);
+  // Спецразделы: завершённые и корзина — плоские списки во весь контент.
+  const doneTasks = useMemo(() => tasks
+    .filter(t => t.done && !t.deleted_at && !t.recurrence_parent && !t.recurrence)
+    .sort((a, b) => (b.done_at || "").localeCompare(a.done_at || "")), [tasks]);
+  const trashTasks = useMemo(() => tasks
+    .filter(t => t.deleted_at)
+    .sort((a, b) => (b.deleted_at || "").localeCompare(a.deleted_at || "")), [tasks]);
   const trayTasks = projTasks.filter(t => !gridIds.has(t.id) && !allDayIds.has(t.id));
 
   const week = useMemo(() => {
@@ -538,14 +563,14 @@ function Planner() {
     if (view !== "month" || !monthWeeks) return null;
     const map = {};
     for (const wk of monthWeeks) for (const c of wk) {
-      map[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i.list_id))
+      map[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i))
         .sort((a, b) => {
           const at = a.start_min ?? 1e9, bt = b.start_min ?? 1e9;
           return at - bt;
         });
     }
     return map;
-  }, [view, monthWeeks, tasks, filter]);
+  }, [view, monthWeeks, tasks, filter, taskLists]);
 
   const weekDays = useMemo(() => {
     if (view !== "week") return null;
@@ -554,7 +579,7 @@ function Planner() {
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       const iso = toISO(dd);
-      const items = itemsForDate(tasks, iso).filter(i => matches(i.list_id));
+      const items = itemsForDate(tasks, iso).filter(i => matches(i));
       const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
       return {
         iso, day: dd.getDate(), short: WD[k], isToday: iso === todayISO(),
@@ -562,7 +587,7 @@ function Planner() {
         untimed: items.filter(i => i.start_min === null || i.start_min === undefined),
       };
     });
-  }, [view, date, tasks, filter]);
+  }, [view, date, tasks, filter, taskLists]);
 
   useEffect(() => {
     // Свайп дня — позицию сетки восстанавливает useLayoutEffect ниже (до отрисовки).
@@ -581,7 +606,7 @@ function Planner() {
     apply();
     const id = requestAnimationFrame(() => requestAnimationFrame(apply));
     return () => cancelAnimationFrame(id);
-  }, [view, date]);
+  }, [view, date, special]);
 
   // После переключения дня свайпом лента уехала к соседней панели — мгновенно
   // (до отрисовки) возвращаем её в центр, где уже отрисован новый текущий день.
@@ -744,7 +769,7 @@ function Planner() {
       // Клавиатуру на iOS поднимаем синхронно в pointerup скрытым полем; фокус уедет на название.
       if (touch) primeKeyboard();
       setCreating({ date: dateRef.current, start_min: clamp(start, 0, 1440 - dur), duration_min: dur,
-        list_id: filter !== "all" && filter !== "inbox" ? filter : null });
+        ...newTaskTarget() });
     };
     const up = (ev) => { if (ev.pointerId === pid) finish(true); };
     const cancel = (ev) => { if (ev.pointerId === pid) finish(false); };
@@ -1217,6 +1242,13 @@ function Planner() {
     const base = relLabel(t.date) || `${dd.getDate()} ${monthGen(dd)}`;
     return t.start_min !== null && t.start_min !== undefined ? `${base}, ${minToHHMM(t.start_min)}` : base;
   }
+  // Куда положить новую задачу с учётом текущего фильтра панели: в проект,
+  // прямо в область (area:<id>) или во «Входящие» (Все/Входящие/спецразделы).
+  function newTaskTarget() {
+    if (filter && filter.startsWith("area:")) return { list_id: null, area_id: filter.slice(5) };
+    if (filter === "all" || filter === "inbox" || special) return { list_id: null, area_id: null };
+    return { list_id: filter, area_id: null };
+  }
   function quickSchedule(t) {
     const now = new Date();
     const start = date === todayISO() ? clamp(snap(now.getHours() * 60 + now.getMinutes() + 5), 0, 1440 - 60) : 9 * 60;
@@ -1645,7 +1677,7 @@ function Planner() {
   // Чтобы зона «весь день» уезжала вместе со свайпом, она лежит внутри каждой панели.
   function dayPeekPane(pd) {
     const all = itemsForDate(tasks, pd)
-      .filter(i => (i.start_min === null || i.start_min === undefined) && matches(i.list_id));
+      .filter(i => (i.start_min === null || i.start_min === undefined) && matches(i));
     const rowIdOfX = (i) => i.kind === "occurrence" ? i.templateId : i.id;
     all.sort((a, b) => ((sortOrderById.get(rowIdOfX(a)) ?? 0) - (sortOrderById.get(rowIdOfX(b)) ?? 0))
       || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
@@ -1667,7 +1699,7 @@ function Planner() {
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       const iso = toISO(dd);
-      const items = itemsForDate(tasks, iso).filter(i => matches(i.list_id));
+      const items = itemsForDate(tasks, iso).filter(i => matches(i));
       const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
       return { iso, day: dd.getDate(), short: WD_SHORT[k], isToday: iso === todayISO(),
         timed: layoutColumns(t, null), untimed: items.filter(i => i.start_min === null || i.start_min === undefined) };
@@ -1677,7 +1709,7 @@ function Planner() {
     const weeks = monthMatrix(baseISO);
     const items = {};
     for (const wk of weeks) for (const c of wk)
-      items[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i.list_id))
+      items[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i))
         .sort((a, b) => ((a.start_min ?? 1e9) - (b.start_min ?? 1e9)));
     return { weeks, items };
   }
@@ -1750,15 +1782,43 @@ function Planner() {
   const monthPrevISO = (() => { const x = fromISO(date); x.setDate(1); x.setMonth(x.getMonth() - 1); return toISO(x); })();
   const monthNextISO = (() => { const x = fromISO(date); x.setDate(1); x.setMonth(x.getMonth() + 1); return toISO(x); })();
 
+  // Подпись текущего фильтра в шапке панели.
+  const filterName = filter === "all" ? "Все задачи" : filter === "inbox" ? "Входящие"
+    : filter === "done" ? "Завершено" : filter === "trash" ? "Корзина"
+    : (filter && filter.startsWith("area:")) ? (areaById[filter.slice(5)]?.name || "Область")
+    : (listById[filter]?.name || "Проект");
+  const filterColor = filter === "inbox" ? "#64748b"
+    : (filter && filter.startsWith("area:")) ? "var(--accent)"
+    : (listById[filter]?.color || "var(--accent)");
+  const filterIcon = filter === "all" ? Icon.calendar() : filter === "inbox" ? Icon.inbox()
+    : filter === "done" ? Icon.check() : filter === "trash" ? Icon.trash()
+    : (filter && filter.startsWith("area:")) ? Icon.folder() : Icon.dot();
+  // Проекты без области (или область удалена) показываем отдельной группой снизу.
+  const looseProjects = lists.filter(l => !l.area_id || !areaById[l.area_id]);
+
+  // Строка проекта в меню — общая для проектов внутри области и «без области».
+  const projRowEl = (l) => html`
+    <div class=${"proj-row" + (swipeId === l.id ? " swipe-open" : "")} key=${l.id}>
+      <div class="proj-row-actions">
+        <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); setProjOpen(false); }}>${Icon.edit()}</button>
+        <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); setProjOpen(false); }}>${Icon.trash()}</button>
+      </div>
+      <button class=${"proj-opt" + (filter === l.id ? " active" : "")}
+        onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
+        onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
+        <span class="proj-opt-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
+        <span class="proj-opt-name">${l.name}</span>
+        <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>
+    </div>`;
+
   return html`
     <div class="app">
       <div class=${"planner" + (asideOpen ? " aside-open" : "")}>
         <aside class="planner-aside" ref=${asideRef} onTouchStart=${onAsideSwipeStart}>
           <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
             <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
-              <span class="proj-current-ico" style=${`color:${filter === "all" ? "var(--accent)" : filter === "inbox" ? "#64748b" : (listById[filter]?.color || "var(--accent)")};`}>
-                ${filter === "all" ? Icon.calendar() : filter === "inbox" ? Icon.inbox() : Icon.dot()}</span>
-              <span class="proj-current-name">${filter === "all" ? "Все задачи" : filter === "inbox" ? "Входящие" : (listById[filter]?.name || "Проект")}</span>
+              <span class="proj-current-ico" style=${`color:${filterColor};`}>${filterIcon}</span>
+              <span class="proj-current-name">${filterName}</span>
               <span class="proj-caret">${Icon.right()}</span>
             </button>
             <div class="proj-menu">
@@ -1769,26 +1829,52 @@ function Planner() {
                 <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
                 <span class="proj-opt-name">Входящие</span>
                 <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
-              ${lists.map(l => html`
-                <div class=${"proj-row" + (swipeId === l.id ? " swipe-open" : "")} key=${l.id}>
-                  <div class="proj-row-actions">
-                    <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); setProjOpen(false); }}>${Icon.edit()}</button>
-                    <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); setProjOpen(false); }}>${Icon.trash()}</button>
+              <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => { setFilter("done"); setProjOpen(false); }}>
+                <span class="proj-opt-ico" style="color:#16a34a;">${Icon.check()}</span>
+                <span class="proj-opt-name">Завершено</span></button>
+              <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => { setFilter("trash"); setProjOpen(false); }}>
+                <span class="proj-opt-ico" style="color:#94a3b8;">${Icon.trash()}</span>
+                <span class="proj-opt-name">Корзина</span>
+                <span class="proj-opt-count">${trashTasks.length || ""}</span></button>
+
+              ${areasSorted.map(a => html`
+                <div class="area-group" key=${a.id}>
+                  <div class="area-head">
+                    <button class="area-toggle" title=${areaCollapsed.has(a.id) ? "Развернуть" : "Свернуть"}
+                      onClick=${() => toggleArea(a.id)}>
+                      <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
+                    <button class=${"proj-opt area-opt" + (filter === "area:" + a.id ? " active" : "")}
+                      onClick=${() => { setFilter("area:" + a.id); setProjOpen(false); }}
+                      onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
+                      <span class="proj-opt-ico" style="color:var(--accent);">${Icon.folder()}</span>
+                      <span class="proj-opt-name">${a.name}</span>
+                      <span class="proj-opt-count">${countArea(tasks, a.id, areaOfList)}</span></button>
+                    <div class="area-actions">
+                      <button class="edit" title="Изменить" onClick=${() => { setAreaModal(a); setProjOpen(false); }}>${Icon.edit()}</button>
+                      <button class="del" title="Удалить" onClick=${() => { setDelArea(a); setProjOpen(false); }}>${Icon.trash()}</button>
+                    </div>
                   </div>
-                  <button class=${"proj-opt" + (filter === l.id ? " active" : "")}
-                    onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
-                    onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
-                    <span class="proj-opt-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
-                    <span class="proj-opt-name">${l.name}</span>
-                    <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>
+                  ${!areaCollapsed.has(a.id) && html`<div class="area-projects">
+                    ${lists.filter(l => l.area_id === a.id).map(projRowEl)}
+                    <button class="proj-opt proj-opt-new sm" onClick=${() => { setListModal({ area_id: a.id }); setProjOpen(false); }}>
+                      <span class="proj-opt-ico">${Icon.plus()}</span>
+                      <span class="proj-opt-name">Проект в области</span></button>
+                  </div>`}
                 </div>`)}
+
+              ${looseProjects.length > 0 && areasSorted.length > 0 && html`<div class="proj-sep">Проекты</div>`}
+              ${looseProjects.map(projRowEl)}
+
               <button class="proj-opt proj-opt-new" onClick=${() => { setListModal("new"); setProjOpen(false); }}>
                 <span class="proj-opt-ico">${Icon.plus()}</span>
                 <span class="proj-opt-name">Новый проект</span></button>
+              <button class="proj-opt proj-opt-new" onClick=${() => { setAreaModal("new"); setProjOpen(false); }}>
+                <span class="proj-opt-ico">${Icon.folder()}</span>
+                <span class="proj-opt-name">Новая область</span></button>
             </div>
           </div>
 
-          <div class="proj-tasks">
+          ${!special && html`<div class="proj-tasks">
             ${trayTasks.length === 0
               ? html`<div class="muted small" style="padding:10px 6px;">Здесь пока нет задач.</div>`
               : trayTasks.map(t => (editing && edTask && !edTask.date && edTask.id === t.id)
@@ -1810,40 +1896,66 @@ function Planner() {
                 </div>`)}
             ${creating && !creating.date && editorEl}
             ${!(creating && !creating.date) && html`<button class="btn sm ghost proj-add"
-              onClick=${() => setCreating({ list_id: filter !== "all" && filter !== "inbox" ? filter : null })}>
+              onClick=${() => setCreating(newTaskTarget())}>
               ${Icon.plus()} Добавить задачу</button>`}
-          </div>
+          </div>`}
         </aside>
 
         <div class="planner-content" ref=${contentRef}>
           <div class="planner-head">
             <div class="planner-nav">
-              <button class="icon-btn cal-btn" title="Выбрать дату"
-                onClick=${() => { const el = dateInputRef.current; el?.showPicker ? el.showPicker() : el?.focus(); }}>
-                ${Icon.calendar()}
-                <input class="planner-date-input" type="date" ref=${dateInputRef} value=${date}
-                  onInput=${e => e.target.value && setDate(e.target.value)} />
-              </button>
-              ${view !== "day" ? html`<span class="planner-date-main">${headLabel}</span>` : ""}
+              ${special
+                ? html`<span class="planner-date-main">${filterName}</span>`
+                : html`
+                  <button class="icon-btn cal-btn" title="Выбрать дату"
+                    onClick=${() => { const el = dateInputRef.current; el?.showPicker ? el.showPicker() : el?.focus(); }}>
+                    ${Icon.calendar()}
+                    <input class="planner-date-input" type="date" ref=${dateInputRef} value=${date}
+                      onInput=${e => e.target.value && setDate(e.target.value)} />
+                  </button>
+                  ${view !== "day" ? html`<span class="planner-date-main">${headLabel}</span>` : ""}`}
             </div>
             <div class="planner-head-actions">
-              <button class=${"btn sm ghost" + (isToday ? " hidden-keep" : "")} onClick=${() => setDate(todayISO())}>Сегодня</button>
-              <button class="btn sm ghost view-cycle" title="Сменить режим"
+              ${filter === "trash" && trashTasks.length > 0 && html`<button class="btn sm ghost" onClick=${() => setEmptyTrash(true)}>Очистить</button>`}
+              ${!special && html`<button class=${"btn sm ghost" + (isToday ? " hidden-keep" : "")} onClick=${() => setDate(todayISO())}>Сегодня</button>`}
+              ${!special && html`<button class="btn sm ghost view-cycle" title="Сменить режим"
                 onClick=${() => { const i = VIEWS.findIndex(([v]) => v === view); setView(VIEWS[(i + 1) % VIEWS.length][0]); }}>
-                ${(VIEWS.find(([v]) => v === view) || VIEWS[0])[1]}</button>
+                ${(VIEWS.find(([v]) => v === view) || VIEWS[0])[1]}</button>`}
               <button class="icon-btn" title="Поиск" onClick=${() => setSearchOpen(true)}>${Icon.search()}</button>
               <button class="icon-btn" title="Настройки" onClick=${() => setSettingsOpen(true)}>${Icon.gear()}</button>
             </div>
           </div>
 
-          ${view === "day" && html`<div class="planner-week">
+          ${special && html`<div class="special-list">
+            ${(filter === "done" ? doneTasks : trashTasks).length === 0
+              ? html`<div class="special-empty">${filter === "done" ? "Пока нет завершённых задач." : "Корзина пуста."}</div>`
+              : (filter === "done" ? doneTasks : trashTasks).map(t => html`
+                <div class=${"special-item" + (filter === "done" ? " done" : "")} key=${t.id}>
+                  ${filter === "done"
+                    ? html`<button class="task-check on" title="Вернуть в активные"
+                        style=${`background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};`}
+                        onClick=${() => toggleDone({ kind: "concrete", id: t.id, done: t.done })}>${Icon.check()}</button>`
+                    : html`<button class="icon-btn sm" title="Восстановить"
+                        onClick=${() => { store.actions.tasks.restore(t.id).catch(showErr); store.pushToast("Задача восстановлена", "success"); }}>${Icon.restore()}</button>`}
+                  <button class="special-body" onClick=${() => { if (filter === "done") setEditing({ task: t, occ: null }); }}>
+                    <span class="special-title">${t.title}</span>
+                    <span class="special-meta">
+                      ${t.list_id ? html`<span style=${`color:${listById[t.list_id]?.color};`}>${listById[t.list_id]?.name} · </span>`
+                        : t.area_id ? html`<span style="color:var(--accent);">${areaById[t.area_id]?.name || "Область"} · </span>` : ""}${taskMeta(t)}</span>
+                  </button>
+                  ${filter === "trash" && html`<button class="icon-btn sm danger" title="Удалить навсегда"
+                    onClick=${() => { store.actions.tasks.purge(t.id).catch(showErr); store.pushToast("Удалено навсегда", "success"); }}>${Icon.trash()}</button>`}
+                </div>`)}
+          </div>`}
+
+          ${!special && view === "day" && html`<div class="planner-week">
             ${week.map(w => html`<button key=${w.iso}
               class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
               onClick=${() => setDate(w.iso)}>
               <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
           </div>`}
 
-          ${view === "day" && html`<div class="planner-body">
+          ${!special && view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class="tl-track" ref=${trackRef}>
@@ -2008,7 +2120,7 @@ function Planner() {
             </div>
           </div>`}
 
-          ${view === "week" && html`<div class="week-scroll" ref=${weekScrollRef} onTouchStart=${onCarouselSwipeStart}>
+          ${!special && view === "week" && html`<div class="week-scroll" ref=${weekScrollRef} onTouchStart=${onCarouselSwipeStart}>
             <div class="tl-track" ref=${trackRef}>
               <div class="tl-pane">${peek ? weekPane(buildWeekDays(weekPrevISO)) : null}</div>
               <div class="tl-pane">${weekPane(weekDays)}</div>
@@ -2016,7 +2128,7 @@ function Planner() {
             </div>
           </div>`}
 
-          ${view === "month" && html`<div class="month" ref=${monthRef} onTouchStart=${onCarouselSwipeStart}>
+          ${!special && view === "month" && html`<div class="month" ref=${monthRef} onTouchStart=${onCarouselSwipeStart}>
             <div class="tl-track" ref=${trackRef}>
               <div class="tl-pane">${peek ? monthPane(buildMonth(monthPrevISO)) : null}</div>
               <div class="tl-pane">${monthPane({ weeks: monthWeeks, items: monthItems })}</div>
@@ -2045,8 +2157,13 @@ function Planner() {
     })()}
     ${ctx && html`<div class="ctx-back" onPointerDown=${() => setCtx(null)} onContextMenu=${e => { e.preventDefault(); setCtx(null); }}>
       <div class="ctx-menu" style=${`left:${Math.min(ctx.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 176)}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
-        <button class="ctx-item" onClick=${() => { setListModal(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
-        <button class="ctx-item danger" onClick=${() => { setDelList(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.trash()} Удалить</button>
+        ${ctx.area
+          ? html`
+            <button class="ctx-item" onClick=${() => { setAreaModal(ctx.area); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
+            <button class="ctx-item danger" onClick=${() => { setDelArea(ctx.area); setCtx(null); setProjOpen(false); }}>${Icon.trash()} Удалить</button>`
+          : html`
+            <button class="ctx-item" onClick=${() => { setListModal(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.edit()} Изменить</button>
+            <button class="ctx-item danger" onClick=${() => { setDelList(ctx.list); setCtx(null); setProjOpen(false); }}>${Icon.trash()} Удалить</button>`}
       </div>
     </div>`}
     ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
@@ -2071,14 +2188,29 @@ function Planner() {
     })()}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
     ${edFloat && html`<div ref=${edBackRef} class=${"ed-float-back" + (edClosing ? " closing" : "") + (edAnchorMobile ? " anchored" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
-    ${listModal && html`<${ListForm} initial=${listModal === "new" ? null : listModal}
-      onDelete=${listModal !== "new" ? () => { setDelList(listModal); setListModal(null); } : null}
+    ${listModal && html`<${ListForm}
+      initial=${(listModal !== "new" && listModal.id) ? listModal : null}
+      defaultArea=${listModal !== "new" && !listModal.id ? listModal.area_id : null}
+      onDelete=${(listModal !== "new" && listModal.id) ? () => { setDelList(listModal); setListModal(null); } : null}
       onClose=${() => setListModal(null)} />`}
-    ${delList && html`<${ConfirmModal} title="Удалить проект?"
-      message="Задачи из проекта переедут во «Входящие», не пропадут."
+    ${delList && html`<${MoveTasksModal} list=${delList} lists=${lists}
+      taskCount=${tasks.filter(t => t.list_id === delList.id && !t.deleted_at).length}
       onCancel=${() => setDelList(null)}
-      onConfirm=${async () => { await store.actions.taskLists.remove(delList.id);
-        if (filter === delList.id) setFilter("all"); setDelList(null); store.pushToast("Проект удалён", "success"); }} />`}
+      onConfirm=${async (moveTo) => { const id = delList.id; setDelList(null);
+        await store.actions.taskLists.remove(id, moveTo);
+        if (filter === id) setFilter(moveTo || "all"); store.pushToast("Проект удалён", "success"); }} />`}
+    ${areaModal && html`<${AreaForm} initial=${areaModal === "new" ? null : areaModal}
+      onClose=${() => setAreaModal(null)} />`}
+    ${delArea && html`<${ConfirmModal} title="Удалить область?"
+      message="Проекты внутри останутся (станут «без области»), а задачи прямо из области переедут во «Входящие». Ничего не пропадёт."
+      onCancel=${() => setDelArea(null)}
+      onConfirm=${async () => { const id = delArea.id; setDelArea(null);
+        await store.actions.areas.remove(id);
+        if (filter === "area:" + id) setFilter("all"); store.pushToast("Область удалена", "success"); }} />`}
+    ${emptyTrash && html`<${ConfirmModal} title="Очистить корзину?"
+      message="Все задачи из корзины будут удалены навсегда, без возможности восстановления."
+      onCancel=${() => setEmptyTrash(false)}
+      onConfirm=${async () => { setEmptyTrash(false); await store.actions.tasks.emptyTrash(); store.pushToast("Корзина очищена", "success"); }} />`}
   `;
 }
 
@@ -2107,6 +2239,13 @@ function layoutColumns(items, drag) {
 }
 
 function countOpen(tasks, listId) {
-  const n = tasks.filter(t => !t.recurrence_parent && !t.done && (listId ? t.list_id === listId : !t.list_id)).length;
+  const n = tasks.filter(t => !t.recurrence_parent && !t.done && !t.deleted_at
+    && (listId ? t.list_id === listId : (!t.list_id && !t.area_id))).length;
+  return n || "";
+}
+// Незавершённые задачи области: и прямо на области, и во всех её проектах.
+function countArea(tasks, areaId, areaOfList) {
+  const n = tasks.filter(t => !t.recurrence_parent && !t.done && !t.deleted_at
+    && (t.area_id === areaId || (t.list_id && areaOfList(t.list_id) === areaId))).length;
   return n || "";
 }
