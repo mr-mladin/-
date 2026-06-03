@@ -1918,11 +1918,8 @@ function Planner() {
                   // ленте НЕ удаляем (иначе iOS шлёт pointercancel → перенос срывается) — прячем
                   // через visibility:hidden, место и касание сохраняются.
                   const hiddenLift = liftDrag && !liftDrag.done && i.key === liftDrag.key;
-                  // Призрак перетаскиваемой задачи, накрывший чужие капсулы, уводит свою
-                  // капсулу вбок (.flowing + --lane) — обтекает их. Соседи не двигаются.
-                  const flowing = isLiveDragKey && ghostOverlap > 0;
-                  return html`<div class=${"tl-event" + density + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (flowing ? " flowing" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}${flowing ? `--lane:${ghostOverlap};` : ""}`}
+                  return html`<div class=${"tl-event" + density + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}`}
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
@@ -1979,7 +1976,7 @@ function Planner() {
                   // «весь день» призрак прячем — задача уйдёт туда.
                   const it = liftItemRef.current, dur = it.duration_min || 0;
                   const lm = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
-                  return html`<div class="tl-ghost lift-target" style=${`top:${(lm / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dur / 60) * hourPx)}px;--c:${colorOf(it)};`}>
+                  return html`<div class=${"tl-ghost lift-target" + (ghostOverlap > 0 ? " flowing" : "")} style=${`top:${(lm / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dur / 60) * hourPx)}px;--c:${colorOf(it)};--lane:${ghostOverlap};`}>
                     <div class="tl-ghost-pill"></div>
                     <div class="tl-ghost-label">${minRangeLabel(lm, dur)}</div></div>`;
                 })()}
@@ -2063,8 +2060,8 @@ function Planner() {
       const dur = it.duration_min || 0;
       const liftMin = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
       const density = g.height >= 44 ? "" : g.height >= 24 ? " compact" : " mini";
-      return html`<div class=${"tl-event tl-lift-overlay" + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted") + (ghostOverlap > 0 ? " flowing" : "")}
-        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};--lane:${ghostOverlap};transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
+      return html`<div class=${"tl-event tl-lift-overlay" + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted")}
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
         <div class="tl-pill"><button class=${"tl-pill-check" + (it.done ? " on" : "")} type="button">${Icon.check()}</button></div>
         <div class="tl-body"><div class="tl-text">
           <div class="tl-titlerow"><div class="tl-title">${it.title}${it.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div></div>

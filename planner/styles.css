@@ -411,11 +411,6 @@ textarea.input { resize: vertical; }
 .tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
   background: color-mix(in srgb, var(--c) 88%, transparent); cursor: default; touch-action: pan-y;
   display: flex; flex-direction: column; align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }
-/* Обтекание: капсула перетаскиваемого призрака, накрывшая чужие задачи, плавно
-   уезжает вбок (на --lane «полос» по 44px), огибая их капсулы как капля. Двигается
-   ТОЛЬКО капсула призрака — соседние задачи стоят на месте. */
-.tl-event.flowing .tl-pill { transform: translateX(calc(var(--lane, 0) * 44px));
-  transition: transform .32s cubic-bezier(.34, 1.3, .5, 1); }
 /* Переходящая через полночь задача: плоский край там, где она продолжается. */
 .tl-event.span-top .tl-pill { border-top-left-radius: 5px; border-top-right-radius: 5px; }
 .tl-event.span-bottom .tl-pill { border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }
@@ -498,7 +493,7 @@ textarea.input { resize: vertical; }
 .tl-titlerow { display: flex; align-items: center; gap: 20px; min-width: 0; }
 .tl-body .task-check { flex: none; cursor: default; border-color: var(--c); }
 .tl-body .task-check.on { background: var(--c); border-color: var(--c); }
-.tl-meta { font-size: 12px; color: var(--text-mute); display: flex; align-items: center; gap: 4px;
+.tl-meta { font-size: 10.5px; color: var(--text-mute); display: flex; align-items: center; gap: 4px;
   font-variant-numeric: tabular-nums; }
 .tl-rep { display: inline-flex; }
 .tl-rep .ico { width: 12px; height: 12px; color: var(--c); }
@@ -550,6 +545,11 @@ textarea.input { resize: vertical; }
   box-sizing: border-box; background: color-mix(in srgb, var(--c) 22%, var(--surface));
   border: 1px dashed var(--c); animation: ghostPop .18s cubic-bezier(.2,.8,.3,1.2); }
 @keyframes ghostPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+/* Обтекание: призрак приземления, накрывший по времени чужие задачи, плавно уводит
+   свою капсулу вбок (на --lane «полос» по 44px), огибая их капсулы как капля.
+   Двигается ТОЛЬКО капсула призрака — реальные задачи в сетке стоят на месте. */
+.tl-ghost.flowing .tl-ghost-pill { transform: translateX(calc(var(--lane, 0) * 44px));
+  animation: none; transition: transform .32s cubic-bezier(.34, 1.3, .5, 1); }
 .tl-ghost-label { position: absolute; left: 108px; top: 2px; font-size: 12px; color: var(--text-mute);
   font-variant-numeric: tabular-nums; }
 /* Создание новой задачи на мобильном: вместо пунктира — сплошная «приподнятая» капсула
