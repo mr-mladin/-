@@ -367,11 +367,14 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
     </div>`;
 }
 
+const EMOJIS = ["📁", "💼", "🏠", "🎯", "📌", "🛒", "💰", "❤️", "🧠", "🐝", "📚", "✈️", "🎨", "⚙️", "📞", "🧑", "👩", "🤝", "📋", "🔥", "⭐", "✅", "🏃", "🍿"];
+
 export function ListForm({ initial, defaultArea, onDelete, onClose }) {
   const store = useStore();
   const editing = !!initial;
   const [name, setName] = useState(initial?.name || "");
   const [color, setColor] = useState(initial?.color || COLORS[0]);
+  const [emoji, setEmoji] = useState(initial?.emoji || "");
   const [areaId, setAreaId] = useState(initial?.area_id || defaultArea || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -382,6 +385,10 @@ export function ListForm({ initial, defaultArea, onDelete, onClose }) {
     setBusy(true);
     try {
       const payload = { name: name.trim(), color, area_id: areaId || null };
+      // Поле emoji шлём, только когда оно есть (или нужно очистить ранее заданное),
+      // чтобы создание проекта работало и до миграции колонки emoji в базе.
+      if (emoji.trim()) payload.emoji = emoji.trim();
+      else if (editing && initial.emoji) payload.emoji = null;
       if (editing) await store.actions.taskLists.update(initial.id, payload);
       else await store.actions.taskLists.create(payload);
       onClose();
@@ -395,6 +402,16 @@ export function ListForm({ initial, defaultArea, onDelete, onClose }) {
       <form onSubmit=${submit} class="form">
         <div class="field"><label>Название</label>
           <input class="input" autofocus placeholder="Например: Работа" value=${name} onInput=${e => setName(e.target.value)} /></div>
+        <div class="field"><label>Иконка (эмодзи)</label>
+          <div class="emoji-row">
+            <input class="input emoji-input" maxlength="4" placeholder="🙂" value=${emoji}
+              onInput=${e => setEmoji(e.target.value)} />
+            ${emoji && html`<button type="button" class="btn ghost sm" onClick=${() => setEmoji("")}>Убрать</button>`}
+          </div>
+          <div class="emoji-grid">
+            ${EMOJIS.map(em => html`<button type="button" key=${em} class=${"emoji-opt" + (emoji === em ? " sel" : "")}
+              onClick=${() => setEmoji(em)}>${em}</button>`)}
+          </div></div>
         <div class="field"><label>Цвет</label>
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${COLORS.map(c => html`<button type="button" key=${c} onClick=${() => setColor(c)}

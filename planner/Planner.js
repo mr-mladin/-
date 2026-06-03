@@ -97,6 +97,9 @@ function Planner() {
   const [emptyTrash, setEmptyTrash] = useState(false); // подтверждение очистки корзины
   const [areaCollapsed, setAreaCollapsed] = useState(readCollapsed);
   const toggleArea = (id) => setAreaCollapsed(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); writeCollapsed(n); return n; });
+  // Проекты с раскрытым третьим уровнем (задачи под проектом) в дереве панели.
+  const [expandedLists, setExpandedLists] = useState(() => new Set());
+  const toggleListExpand = (id) => setExpandedLists(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
   const [hourPx, setHourPx] = useState(readHourPx());
   // Соседние дни карусели рисуем только во время горизонтального свайпа —
   // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
@@ -1292,8 +1295,15 @@ function Planner() {
   function selectProj(l) {
     if (swipedRef.current) { swipedRef.current = false; return; }
     if (swipeId === l.id) { setSwipeId(null); return; }
-    setFilter(l.id); setProjOpen(false);
+    // Клик по проекту: выбираем его и раскрываем/сворачиваем его задачи (третий
+    // уровень). Меню НЕ закрываем — задачи остаются видны прямо в дереве.
+    setFilter(l.id); toggleListExpand(l.id);
   }
+  // Открытые задачи проекта — третий уровень дерева панели.
+  const openTasksOfList = (lid) => tasks
+    .filter(t => !t.recurrence_parent && !t.deleted_at && !t.done && t.list_id === lid)
+    .sort((a, b) => ((a.date || "9999-99") < (b.date || "9999-99") ? -1 : (a.date || "9999-99") > (b.date || "9999-99") ? 1 : 0)
+      || ((a.start_min ?? 1e9) - (b.start_min ?? 1e9)) || ((a.sort_order || 0) - (b.sort_order || 0)));
   function shift(delta) {
     const d = fromISO(dateRef.current);
     if (view === "month") d.setMonth(d.getMonth() + delta);
@@ -1793,23 +1803,54 @@ function Planner() {
   const filterIcon = filter === "all" ? Icon.calendar() : filter === "inbox" ? Icon.inbox()
     : filter === "done" ? Icon.check() : filter === "trash" ? Icon.trash()
     : (filter && filter.startsWith("area:")) ? Icon.folder() : Icon.dot();
+  const filterList = (filter && listById[filter]) || null;
+  // Иконка проекта — эмодзи в кружке (цвет проекта тонирует фон). Без эмодзи —
+  // маленький кружок в цвете проекта.
+  const projTint = (c) => `color-mix(in srgb, ${c || "var(--accent)"} 20%, var(--surface))`;
+  const projIconEl = (l) => l && l.emoji
+    ? html`<span class="proj-emoji" style=${`background:${projTint(l.color)};`}>${l.emoji}</span>`
+    : html`<span class="proj-emoji empty" style=${`--pc:${(l && l.color) || "var(--accent)"};`}></span>`;
   // Проекты без области (или область удалена) показываем отдельной группой снизу.
   const looseProjects = lists.filter(l => !l.area_id || !areaById[l.area_id]);
 
   // Строка проекта в меню — общая для проектов внутри области и «без области».
-  const projRowEl = (l) => html`
-    <div class=${"proj-row" + (swipeId === l.id ? " swipe-open" : "")} key=${l.id}>
-      <div class="proj-row-actions">
-        <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); setProjOpen(false); }}>${Icon.edit()}</button>
-        <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); setProjOpen(false); }}>${Icon.trash()}</button>
+  // Раскрывается третьим уровнем: задачи проекта прямо под его названием.
+  const projRowEl = (l) => {
+    const open = expandedLists.has(l.id);
+    const sub = open ? openTasksOfList(l.id) : null;
+    return html`
+    <div class="proj-row-wrap" key=${l.id}>
+      <div class=${"proj-row" + (swipeId === l.id ? " swipe-open" : "")}>
+        <div class="proj-row-actions">
+          <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); setProjOpen(false); }}>${Icon.edit()}</button>
+          <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); setProjOpen(false); }}>${Icon.trash()}</button>
+        </div>
+        <button class=${"proj-opt" + (filter === l.id ? " active" : "") + (open ? " expanded" : "")}
+          onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
+          onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
+          <span class=${"proj-disc" + (open ? " open" : "")}>${Icon.right()}</span>
+          ${projIconEl(l)}
+          <span class="proj-opt-name">${l.name}</span>
+          <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>
       </div>
-      <button class=${"proj-opt" + (filter === l.id ? " active" : "")}
-        onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
-        onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
-        <span class="proj-opt-ico" style=${`color:${l.color || "var(--accent)"};`}>${Icon.dot()}</span>
-        <span class="proj-opt-name">${l.name}</span>
-        <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>
+      ${open && html`<div class="tree-tasks">
+        ${sub.length === 0
+          ? html`<div class="tree-empty">Нет открытых задач</div>`
+          : sub.map(t => html`
+            <div class=${"tree-task" + (t.done ? " done" : "")} key=${t.id}>
+              <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
+                style=${t.done ? `background:${l.color || "var(--accent)"};border-color:${l.color || "var(--accent)"};` : ""}
+                onClick=${e => { e.stopPropagation(); if (!t.done) popConfetti("tree:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>
+                ${Icon.check()}${confettiEl("tree:" + t.id, "center")}</button>
+              <button class="tree-task-body" onClick=${() => { setProjOpen(false); setEditing({ task: t, occ: null }); }}>
+                <span class="tree-task-title">${t.title}</span>
+                <span class="tree-task-meta">${taskMeta(t)}</span></button>
+            </div>`)}
+        <button class="tree-add" onClick=${() => { setFilter(l.id); setProjOpen(false); setCreating({ list_id: l.id, area_id: null }); }}>
+          ${Icon.plus()} Добавить задачу</button>
+      </div>`}
     </div>`;
+  };
 
   return html`
     <div class="app">
@@ -1817,25 +1858,29 @@ function Planner() {
         <aside class="planner-aside" ref=${asideRef} onTouchStart=${onAsideSwipeStart}>
           <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
             <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
-              <span class="proj-current-ico" style=${`color:${filterColor};`}>${filterIcon}</span>
+              <span class="proj-current-ico" style=${`color:${filterColor};`}>${filterList ? projIconEl(filterList) : filterIcon}</span>
               <span class="proj-current-name">${filterName}</span>
               <span class="proj-caret">${Icon.right()}</span>
             </button>
             <div class="proj-menu">
-              <button class=${"proj-opt" + (filter === "all" ? " active" : "")} onClick=${() => { setFilter("all"); setProjOpen(false); }}>
-                <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
-                <span class="proj-opt-name">Все задачи</span></button>
-              <button class=${"proj-opt" + (filter === "inbox" ? " active" : "")} onClick=${() => { setFilter("inbox"); setProjOpen(false); }}>
-                <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
-                <span class="proj-opt-name">Входящие</span>
-                <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
-              <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => { setFilter("done"); setProjOpen(false); }}>
-                <span class="proj-opt-ico" style="color:#16a34a;">${Icon.check()}</span>
-                <span class="proj-opt-name">Завершено</span></button>
-              <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => { setFilter("trash"); setProjOpen(false); }}>
-                <span class="proj-opt-ico" style="color:#94a3b8;">${Icon.trash()}</span>
-                <span class="proj-opt-name">Корзина</span>
-                <span class="proj-opt-count">${trashTasks.length || ""}</span></button>
+              <div class="tree-default">
+                <button class=${"proj-opt" + (filter === "all" ? " active" : "")} onClick=${() => { setFilter("all"); setProjOpen(false); }}>
+                  <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
+                  <span class="proj-opt-name">Все задачи</span></button>
+                <button class=${"proj-opt" + (filter === "inbox" ? " active" : "")} onClick=${() => { setFilter("inbox"); setProjOpen(false); }}>
+                  <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
+                  <span class="proj-opt-name">Входящие</span>
+                  <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
+                <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => { setFilter("done"); setProjOpen(false); }}>
+                  <span class="proj-opt-ico" style="color:#16a34a;">${Icon.check()}</span>
+                  <span class="proj-opt-name">Завершено</span></button>
+                <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => { setFilter("trash"); setProjOpen(false); }}>
+                  <span class="proj-opt-ico" style="color:#94a3b8;">${Icon.trash()}</span>
+                  <span class="proj-opt-name">Корзина</span>
+                  <span class="proj-opt-count">${trashTasks.length || ""}</span></button>
+              </div>
+
+              <div class="tree-sep">Области и проекты</div>
 
               ${areasSorted.map(a => html`
                 <div class="area-group" key=${a.id}>
