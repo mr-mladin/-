@@ -1626,9 +1626,9 @@ function Planner() {
   // standalone-PWA это гасит клавиатуру). Поэтому на телефоне форма — оверлей вне
   // сетки, который мы позиционируем по блоку через useLayoutEffect ниже.
   const edGridMin = !isMobile ? edAnchorMin : null;
-  // В боковой панели — для задач без даты/времени (если они в текущей панели).
-  const edPanel = (editing && edTask && !edTask.date && trayTasks.some(t => t.id === edTask.id))
-    || (creating && !creating.date);
+  // Задачи без даты (и быстрое создание) теперь правим/создаём отдельной плавающей
+  // карточкой — отдельного нижнего списка в панели больше нет.
+  const edPanel = false;
   // Плавающая карточка — всё остальное (другой день, не «День», и т.п.).
   const edFloat = !!(editing || creating) && edGridMin == null && !edPanel;
   // На мобильном привязываем оверлей формы к блоку задачи: карточка встаёт на уровень
@@ -1837,16 +1837,18 @@ function Planner() {
         ${sub.length === 0
           ? html`<div class="tree-empty">Нет открытых задач</div>`
           : sub.map(t => html`
-            <div class=${"tree-task" + (t.done ? " done" : "")} key=${t.id}>
+            <div class=${"tree-task" + (t.done ? " done" : "")} key=${t.id} onPointerDown=${e => startTrayDrag(e, t)}>
               <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
                 style=${t.done ? `background:${l.color || "var(--accent)"};border-color:${l.color || "var(--accent)"};` : ""}
+                onPointerDown=${e => e.stopPropagation()}
                 onClick=${e => { e.stopPropagation(); if (!t.done) popConfetti("tree:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>
                 ${Icon.check()}${confettiEl("tree:" + t.id, "center")}</button>
-              <button class="tree-task-body" onClick=${() => { setProjOpen(false); setEditing({ task: t, occ: null }); }}>
+              <button class="tree-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
                 <span class="tree-task-title">${t.title}</span>
                 <span class="tree-task-meta">${taskMeta(t)}</span></button>
+              ${!t.date ? html`<button class="btn-mini" title="Запланировать на этот день" onPointerDown=${e => e.stopPropagation()} onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>` : ""}
             </div>`)}
-        <button class="tree-add" onClick=${() => { setFilter(l.id); setProjOpen(false); setCreating({ list_id: l.id, area_id: null }); }}>
+        <button class="tree-add" onClick=${() => { setFilter(l.id); setCreating({ list_id: l.id, area_id: null }); }}>
           ${Icon.plus()} Добавить задачу</button>
       </div>`}
     </div>`;
@@ -1856,94 +1858,61 @@ function Planner() {
     <div class="app">
       <div class=${"planner" + (asideOpen ? " aside-open" : "")}>
         <aside class="planner-aside" ref=${asideRef} onTouchStart=${onAsideSwipeStart}>
-          <div class=${"proj-select" + (projOpen ? " open" : "")} ref=${projRef}>
-            <button class="proj-current" onClick=${() => setProjOpen(o => !o)}>
-              <span class="proj-current-ico" style=${`color:${filterColor};`}>${filterList ? projIconEl(filterList) : filterIcon}</span>
-              <span class="proj-current-name">${filterName}</span>
-              <span class="proj-caret">${Icon.right()}</span>
-            </button>
-            <div class="proj-menu">
-              <div class="tree-default">
-                <button class=${"proj-opt" + (filter === "all" ? " active" : "")} onClick=${() => { setFilter("all"); setProjOpen(false); }}>
-                  <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
-                  <span class="proj-opt-name">Все задачи</span></button>
-                <button class=${"proj-opt" + (filter === "inbox" ? " active" : "")} onClick=${() => { setFilter("inbox"); setProjOpen(false); }}>
-                  <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
-                  <span class="proj-opt-name">Входящие</span>
-                  <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
-                <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => { setFilter("done"); setProjOpen(false); }}>
-                  <span class="proj-opt-ico" style="color:#16a34a;">${Icon.check()}</span>
-                  <span class="proj-opt-name">Завершено</span></button>
-                <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => { setFilter("trash"); setProjOpen(false); }}>
-                  <span class="proj-opt-ico" style="color:#94a3b8;">${Icon.trash()}</span>
-                  <span class="proj-opt-name">Корзина</span>
-                  <span class="proj-opt-count">${trashTasks.length || ""}</span></button>
-              </div>
-
-              <div class="tree-sep">Области и проекты</div>
-
-              ${areasSorted.map(a => html`
-                <div class="area-group" key=${a.id}>
-                  <div class="area-head">
-                    <button class="area-toggle" title=${areaCollapsed.has(a.id) ? "Развернуть" : "Свернуть"}
-                      onClick=${() => toggleArea(a.id)}>
-                      <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
-                    <button class=${"proj-opt area-opt" + (filter === "area:" + a.id ? " active" : "")}
-                      onClick=${() => { setFilter("area:" + a.id); setProjOpen(false); }}
-                      onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
-                      <span class="proj-opt-ico" style="color:var(--accent);">${Icon.folder()}</span>
-                      <span class="proj-opt-name">${a.name}</span>
-                      <span class="proj-opt-count">${countArea(tasks, a.id, areaOfList)}</span></button>
-                    <div class="area-actions">
-                      <button class="edit" title="Изменить" onClick=${() => { setAreaModal(a); setProjOpen(false); }}>${Icon.edit()}</button>
-                      <button class="del" title="Удалить" onClick=${() => { setDelArea(a); setProjOpen(false); }}>${Icon.trash()}</button>
-                    </div>
-                  </div>
-                  ${!areaCollapsed.has(a.id) && html`<div class="area-projects">
-                    ${lists.filter(l => l.area_id === a.id).map(projRowEl)}
-                    <button class="proj-opt proj-opt-new sm" onClick=${() => { setListModal({ area_id: a.id }); setProjOpen(false); }}>
-                      <span class="proj-opt-ico">${Icon.plus()}</span>
-                      <span class="proj-opt-name">Проект в области</span></button>
-                  </div>`}
-                </div>`)}
-
-              ${looseProjects.length > 0 && areasSorted.length > 0 && html`<div class="proj-sep">Проекты</div>`}
-              ${looseProjects.map(projRowEl)}
-
-              <button class="proj-opt proj-opt-new" onClick=${() => { setListModal("new"); setProjOpen(false); }}>
-                <span class="proj-opt-ico">${Icon.plus()}</span>
-                <span class="proj-opt-name">Новый проект</span></button>
-              <button class="proj-opt proj-opt-new" onClick=${() => { setAreaModal("new"); setProjOpen(false); }}>
-                <span class="proj-opt-ico">${Icon.folder()}</span>
-                <span class="proj-opt-name">Новая область</span></button>
+          <div class="planner-tree">
+            <div class="tree-default">
+              <button class=${"proj-opt" + (filter === "all" ? " active" : "")} onClick=${() => setFilter("all")}>
+                <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
+                <span class="proj-opt-name">Все задачи</span></button>
+              <button class=${"proj-opt" + (filter === "inbox" ? " active" : "")} onClick=${() => setFilter("inbox")}>
+                <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
+                <span class="proj-opt-name">Входящие</span>
+                <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
+              <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => setFilter("done")}>
+                <span class="proj-opt-ico" style="color:#16a34a;">${Icon.check()}</span>
+                <span class="proj-opt-name">Завершено</span></button>
+              <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => setFilter("trash")}>
+                <span class="proj-opt-ico" style="color:#94a3b8;">${Icon.trash()}</span>
+                <span class="proj-opt-name">Корзина</span>
+                <span class="proj-opt-count">${trashTasks.length || ""}</span></button>
             </div>
-          </div>
 
-          ${!special && html`<div class="proj-tasks">
-            ${trayTasks.length === 0
-              ? html`<div class="muted small" style="padding:10px 6px;">Здесь пока нет задач.</div>`
-              : trayTasks.map(t => (editing && edTask && !edTask.date && edTask.id === t.id)
-                ? html`<div key=${t.id}>${editorEl}</div>`
-                : html`
-                <div class="tray-task-wrap" key=${t.id} onPointerDown=${e => startTrayDrag(e, t)}>
-                  <div class=${"tray-task" + (t.done ? " done" : "")}>
-                  <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
-                    style=${t.done ? `background:${listById[t.list_id]?.color || "var(--accent)"};border-color:${listById[t.list_id]?.color || "var(--accent)"};` : ""}
-                    onPointerDown=${e => e.stopPropagation()}
-                    onClick=${() => { if (!t.done) popConfetti("tray:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>${Icon.check()}${confettiEl("tray:" + t.id, "center")}</button>
-                  <button class="tray-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
-                    <span class="tray-task-title">${t.title}</span>
-                    <span class="tray-task-meta">
-                      ${filter === "all" && t.list_id ? html`<span class="tray-task-list" style=${`color:${listById[t.list_id]?.color};`}>${listById[t.list_id]?.name} · </span>` : ""}${taskMeta(t)}</span>
-                  </button>
-                  ${!t.date ? html`<button class="btn-mini" title="Запланировать на этот день" onPointerDown=${e => e.stopPropagation()} onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>` : ""}
+            <div class="tree-sep">Области и проекты</div>
+
+            ${areasSorted.map(a => html`
+              <div class="area-group" key=${a.id}>
+                <div class="area-head">
+                  <button class="area-toggle" title=${areaCollapsed.has(a.id) ? "Развернуть" : "Свернуть"}
+                    onClick=${() => toggleArea(a.id)}>
+                    <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
+                  <button class=${"proj-opt area-opt" + (filter === "area:" + a.id ? " active" : "")}
+                    onClick=${() => setFilter("area:" + a.id)}
+                    onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
+                    <span class="proj-opt-ico" style="color:var(--accent);">${Icon.folder()}</span>
+                    <span class="proj-opt-name">${a.name}</span>
+                    <span class="proj-opt-count">${countArea(tasks, a.id, areaOfList)}</span></button>
+                  <div class="area-actions">
+                    <button class="edit" title="Изменить" onClick=${() => setAreaModal(a)}>${Icon.edit()}</button>
+                    <button class="del" title="Удалить" onClick=${() => setDelArea(a)}>${Icon.trash()}</button>
                   </div>
-                </div>`)}
-            ${creating && !creating.date && editorEl}
-            ${!(creating && !creating.date) && html`<button class="btn sm ghost proj-add"
-              onClick=${() => setCreating(newTaskTarget())}>
-              ${Icon.plus()} Добавить задачу</button>`}
-          </div>`}
+                </div>
+                ${!areaCollapsed.has(a.id) && html`<div class="area-projects">
+                  ${lists.filter(l => l.area_id === a.id).map(projRowEl)}
+                  <button class="proj-opt proj-opt-new sm" onClick=${() => setListModal({ area_id: a.id })}>
+                    <span class="proj-opt-ico">${Icon.plus()}</span>
+                    <span class="proj-opt-name">Проект в области</span></button>
+                </div>`}
+              </div>`)}
+
+            ${looseProjects.length > 0 && areasSorted.length > 0 && html`<div class="proj-sep">Проекты</div>`}
+            ${looseProjects.map(projRowEl)}
+
+            <button class="proj-opt proj-opt-new" onClick=${() => setListModal("new")}>
+              <span class="proj-opt-ico">${Icon.plus()}</span>
+              <span class="proj-opt-name">Новый проект</span></button>
+            <button class="proj-opt proj-opt-new" onClick=${() => setAreaModal("new")}>
+              <span class="proj-opt-ico">${Icon.folder()}</span>
+              <span class="proj-opt-name">Новая область</span></button>
+          </div>
         </aside>
 
         <div class="planner-content" ref=${contentRef}>
@@ -1966,6 +1935,7 @@ function Planner() {
               ${!special && html`<button class="btn sm ghost view-cycle" title="Сменить режим"
                 onClick=${() => { const i = VIEWS.findIndex(([v]) => v === view); setView(VIEWS[(i + 1) % VIEWS.length][0]); }}>
                 ${(VIEWS.find(([v]) => v === view) || VIEWS[0])[1]}</button>`}
+              ${!special && html`<button class="icon-btn" title="Новая задача" onClick=${() => setCreating(newTaskTarget())}>${Icon.plus()}</button>`}
               <button class="icon-btn" title="Поиск" onClick=${() => setSearchOpen(true)}>${Icon.search()}</button>
               <button class="icon-btn" title="Настройки" onClick=${() => setSettingsOpen(true)}>${Icon.gear()}</button>
             </div>

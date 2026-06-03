@@ -90,14 +90,14 @@ html[data-theme="dark"].is-scrolling .planner-grid-scroll::-webkit-scrollbar-thu
 html[data-theme="dark"].is-scrolling .planner-tray::-webkit-scrollbar-thumb, html[data-theme="dark"].is-scrolling .planner-aside::-webkit-scrollbar-thumb {
   background-color: rgba(255, 255, 255, 0.28);
 }
-.proj-tasks, .proj-menu { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 0.4s ease; }
-html.is-scrolling .proj-tasks, html.is-scrolling .proj-menu { scrollbar-color: rgba(15, 23, 42, 0.30) transparent; }
-html[data-theme="dark"].is-scrolling .proj-tasks, html[data-theme="dark"].is-scrolling .proj-menu { scrollbar-color: rgba(255, 255, 255, 0.28) transparent; }
-.proj-tasks::-webkit-scrollbar, .proj-menu::-webkit-scrollbar { width: 10px; height: 10px; }
-.proj-tasks::-webkit-scrollbar-thumb, .proj-menu::-webkit-scrollbar-thumb {
+.planner-tree { scrollbar-width: thin; scrollbar-color: transparent transparent; transition: scrollbar-color 0.4s ease; }
+html.is-scrolling .planner-tree { scrollbar-color: rgba(15, 23, 42, 0.30) transparent; }
+html[data-theme="dark"].is-scrolling .planner-tree { scrollbar-color: rgba(255, 255, 255, 0.28) transparent; }
+.planner-tree::-webkit-scrollbar { width: 10px; height: 10px; }
+.planner-tree::-webkit-scrollbar-thumb {
   background-color: transparent; border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; transition: background-color 0.4s ease; }
-html.is-scrolling .proj-tasks::-webkit-scrollbar-thumb, html.is-scrolling .proj-menu::-webkit-scrollbar-thumb { background-color: rgba(15, 23, 42, 0.30); }
-html[data-theme="dark"].is-scrolling .proj-tasks::-webkit-scrollbar-thumb, html[data-theme="dark"].is-scrolling .proj-menu::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.28); }
+html.is-scrolling .planner-tree::-webkit-scrollbar-thumb { background-color: rgba(15, 23, 42, 0.30); }
+html[data-theme="dark"].is-scrolling .planner-tree::-webkit-scrollbar-thumb { background-color: rgba(255, 255, 255, 0.28); }
 
 .muted { color: var(--text-mute); }
 .small { font-size: 12px; }
@@ -230,26 +230,8 @@ textarea.input { resize: vertical; }
   70%  { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 16px color-mix(in srgb, var(--accent) 0%, transparent); }
   100% { box-shadow: 0 8px 22px color-mix(in srgb, var(--accent) 45%, transparent), 0 0 0 0 color-mix(in srgb, var(--accent) 0%, transparent); }
 }
-/* Выбор проекта (раскрывается при наведении) */
-.proj-select { position: relative; flex: none; }
-.proj-current { display: flex; align-items: center; gap: 10px; width: 100%; padding: 12px 14px;
-  border: 1px solid transparent; border-radius: var(--radius-lg); background: var(--bg-soft);
-  cursor: pointer; color: var(--text); font-family: inherit; transition: background .15s; }
-.proj-current:hover { background: color-mix(in srgb, var(--bg-soft) 70%, var(--border)); }
-.proj-current-ico { display: inline-flex; }
-.proj-current-ico .ico { width: 18px; height: 18px; }
-.proj-current-name { flex: 1; min-width: 0; text-align: left; font-weight: 600; font-size: 15px;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.proj-caret { display: inline-flex; color: var(--text-mute); transform: rotate(90deg); transition: transform 0.2s ease; }
-.proj-caret .ico { width: 16px; height: 16px; }
-.proj-select.open .proj-caret { transform: rotate(-90deg); }
-
-.proj-menu { position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 20;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.2); padding: 6px; display: flex; flex-direction: column; gap: 2px;
-  max-height: 60vh; overflow-y: auto; opacity: 0; transform: translateY(-6px); pointer-events: none;
-  transition: opacity 0.18s ease, transform 0.18s ease; }
-.proj-select.open .proj-menu { opacity: 1; transform: none; pointer-events: auto; }
+/* Дерево областей/проектов — постоянно видимый список во всю высоту панели. */
+.planner-tree { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .proj-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: none; background: transparent;
   border-radius: var(--radius-sm); cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; text-align: left; width: 100%; }
 .proj-opt:hover { background: var(--bg-soft); }
@@ -297,7 +279,7 @@ textarea.input { resize: vertical; }
 
 /* Верхняя группа дефолтных разделов — выделена плашкой и отделена отступом
    от пользовательских областей/проектов. */
-.tree-default { background: var(--bg-soft); border-radius: var(--radius-sm); padding: 4px; display: flex; flex-direction: column; gap: 1px; }
+.tree-default { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 1px; }
 .tree-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
   color: var(--text-mute); padding: 12px 10px 4px; }
 
@@ -752,9 +734,9 @@ textarea.input { resize: vertical; }
   .planner-aside { transform: scale(.94); filter: brightness(.62); transform-origin: left center;
     transition: transform .4s cubic-bezier(.2,.7,.3,1), filter .45s ease; }
   .planner.aside-open .planner-aside { transform: none; filter: none; }
-  /* Список задач панели — единственный скроллер слоя. Нижний отступ с учётом
-     home-indicator, чтобы последняя задача не пряталась под ним. */
-  .proj-tasks { max-height: none; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+  /* Дерево панели — единственный скроллер слоя. Нижний отступ с учётом
+     home-indicator, чтобы последний проект не прятался под ним. */
+  .planner-tree { max-height: none; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
   /* Сетка дня — во всю ширину экрана, без рамки/тени/скруглений: выглядит как
      часть страницы, а не отдельная карточка. Боковые отрицательные поля гасят
      боковые отступы .planner, чтобы дойти до краёв экрана. */
