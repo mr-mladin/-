@@ -374,7 +374,7 @@ textarea.input { resize: vertical; }
    текст справа от пилюли. */
 .tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 0; user-select: none; -webkit-user-select: none; }
 .tl-spine { display: none; }
-.tl-event.sel .tl-pill { box-shadow: 0 0 0 4px color-mix(in srgb, var(--c) 30%, transparent); }
+.tl-event.sel::before { box-shadow: 0 0 0 2px var(--c), 0 0 0 5px color-mix(in srgb, var(--c) 28%, transparent); }
 .tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
   background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
@@ -393,10 +393,10 @@ textarea.input { resize: vertical; }
 .tl-event.dragging { z-index: 6; transition: none; }
 /* Плавающая копия (overlay): едет ровно за пальцем, без перехода; крупнее, с тенью. */
 .tl-event.lifted { z-index: 12; transition: none; }
-.tl-event.lifted .tl-pill { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+.tl-event.lifted::before { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
 /* «Доезд» на отпускании: плавно везём transform к слоту (или назад к 0 при отмене). */
 .tl-event.landing { z-index: 12; transition: transform .2s cubic-bezier(.2,.8,.3,1); }
-.tl-event.landing .tl-pill { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+.tl-event.landing::before { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
 /* Оригинал поднятой задачи в ленте: невидим, но НЕ удалён (сохраняет место и касание —
    иначе iOS шлёт pointercancel и перенос срывается). Видимое — плавающая копия поверх. */
 .tl-event.lift-hidden { visibility: hidden; }
@@ -408,24 +408,28 @@ textarea.input { resize: vertical; }
 .tl-ghost.lift-target { opacity: 0.5; z-index: 4; transition: top .08s linear; }
 .tl-ghost.lift-target .tl-ghost-pill { background: var(--c); border: 0; }
 .tl-ghost.lift-target .tl-ghost-label { color: var(--text); }
-.tl-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
-  background: color-mix(in srgb, var(--c) 88%, transparent); cursor: default; touch-action: pan-y;
-  display: flex; flex-direction: column; align-items: center; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.10); }
+/* Капсула-бар убрана: .tl-pill — невидимый держатель кружка-галочки на всю высоту
+   блока (высота нужна для падения шарика). Цвет задачи несёт плашка-фон (::before). */
+.tl-pill { position: absolute; left: 60px; width: 22px; top: 0; bottom: 0; border-radius: 999px;
+  background: none; cursor: default; touch-action: pan-y;
+  display: flex; flex-direction: column; align-items: center; }
 /* Переходящая через полночь задача: плоский край там, где она продолжается. */
 .tl-event.span-top .tl-pill { border-top-left-radius: 5px; border-top-right-radius: 5px; }
 .tl-event.span-bottom .tl-pill { border-bottom-left-radius: 5px; border-bottom-right-radius: 5px; }
-.tl-event.dragging .tl-pill { box-shadow: 0 6px 18px rgba(15, 23, 42, 0.20); }
+.tl-event.dragging::before { box-shadow: 0 6px 18px rgba(15, 23, 42, 0.20); }
 .tl-pill-icon { width: 26px; height: 26px; margin-top: 6px; border-radius: 50%; flex: none;
   background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center;
   font-size: 14px; line-height: 1; }
 /* Чекбокс-«шарик»: вверху капсулы — не сделано, внизу — сделано (как тумблер).
    Позиция через независимое свойство translate, пульс — через scale (чтобы они
    не конфликтовали между собой во время анимации выполнения). */
-.tl-pill-check { position: absolute; top: 7px; left: 50%; width: 20px; height: 20px; border-radius: 50%;
-  flex: none; border: 0; padding: 0; background: rgba(255,255,255,0.95); box-shadow: 0 1px 2px rgba(15,23,42,0.18);
+.tl-pill-check { position: absolute; top: 7px; left: 50%; width: 19px; height: 19px; border-radius: 50%;
+  flex: none; padding: 0; background: var(--surface); border: 2px solid var(--c);
+  box-shadow: 0 1px 2px rgba(15,23,42,0.12); box-sizing: border-box;
   display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 3;
-  translate: -50% 0; scale: 1; transition: translate .9s cubic-bezier(.34,1.2,.5,1); }
-.tl-pill-check .ico { width: 13px; height: 13px; color: var(--c); opacity: 0; transition: opacity .3s ease; }
+  translate: -50% 0; scale: 1; transition: translate .9s cubic-bezier(.34,1.2,.5,1), background .2s ease; }
+.tl-pill-check.on { background: var(--c); }
+.tl-pill-check .ico { width: 12px; height: 12px; color: #fff; opacity: 0; transition: opacity .3s ease; }
 .tl-pill-check.on .ico { opacity: 1; }
 /* Выполнено — шарик покоится внизу капсулы (как тумблер вниз). */
 .tl-event.done .tl-pill-check { translate: -50% var(--drop, 0px); }
@@ -487,7 +491,7 @@ textarea.input { resize: vertical; }
 /* На десктопе (мышь) точки-ручки не нужны — курсор сам показывает, что можно тянуть. */
 @media (hover: hover) and (pointer: fine) { .tl-dot { display: none; } }
 .tl.busy { touch-action: none; }
-.tl-body { position: absolute; left: 108px; right: 16px; top: 0; bottom: 0; display: flex; align-items: flex-start;
+.tl-body { position: absolute; left: 90px; right: 14px; top: 0; bottom: 0; display: flex; align-items: flex-start;
   padding-top: 7px; cursor: default; touch-action: pan-y; }
 .tl-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .tl-titlerow { display: flex; align-items: center; gap: 20px; min-width: 0; }
@@ -502,7 +506,7 @@ textarea.input { resize: vertical; }
   background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat;
   background-position: 0 55%; background-size: 0% 1.5px;
   transition: background-size .7s cubic-bezier(.4,0,.2,1), color .7s ease; }
-.tl-event.done .tl-pill { opacity: 0.5; }
+.tl-event.done .tl-pill-check { opacity: 0.7; }
 /* Сжатие сетки: чем короче задача на экране, тем компактнее её карточка.
    compact — низкая капсула без времени; mini — капсула становится кружком,
    название уменьшается шрифтом, но остаётся видимым. Высота всегда строго по
@@ -511,16 +515,18 @@ textarea.input { resize: vertical; }
 .zooming .tl-pill, .zooming .tl-pill-icon { transition: none; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
-.tl-event.compact .tl-pill-check { width: 20px; height: 20px; margin-top: 0; }
-.tl-event.compact .tl-pill-check .ico { width: 13px; height: 13px; }
+.tl-event.compact .tl-pill-check { width: 19px; height: 19px; margin-top: 0; }
+.tl-event.compact .tl-pill-check .ico { width: 12px; height: 12px; }
 .tl-event.compact .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
 .tl-event.compact .tl-meta { display: none; }
 .tl-event.compact .tl-title { -webkit-line-clamp: 1; font-size: 14px; }
-.tl-event.mini .tl-pill { left: 70px; width: 14px; height: 14px; top: 50%; bottom: auto; transform: translateY(-50%);
-  justify-content: center; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.18); }
+/* mini — короткая задача: кружок-галочка по центру, название мелким шрифтом. */
+.tl-event.mini .tl-pill { left: 60px; width: 22px; top: 50%; bottom: auto; height: auto; transform: translateY(-50%);
+  justify-content: center; }
+.tl-event.mini .tl-pill-check { display: flex; position: static; translate: none; width: 15px; height: 15px; }
+.tl-event.mini .tl-pill-check .ico { width: 10px; height: 10px; }
 .tl-event.mini .tl-pill-icon { display: none; }
-.tl-event.mini .tl-pill-check { display: none; }
-.tl-event.mini .tl-body { left: 92px; top: 0; bottom: 0; padding-top: 0; align-items: center; }
+.tl-event.mini .tl-body { left: 86px; top: 0; bottom: 0; padding-top: 0; align-items: center; }
 .tl-event.mini .tl-meta { display: none; }
 .tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 11px; }
 .tl-event.mini .task-check { display: none; }
@@ -532,25 +538,25 @@ textarea.input { resize: vertical; }
 .tl-event.columned { left: calc(56px + (100% - 56px) / var(--cols) * var(--col));
   width: calc((100% - 56px) / var(--cols) - 3px); right: auto; }
 .tl-event.columned::before { left: 0; right: 0; }
-.tl-event.columned .tl-pill { left: 3px; }
-.tl-event.columned .tl-handle { left: 3px; }
-@media (hover: hover) and (pointer: fine) { .tl-event.columned .tl-handle { left: 3px; right: 0; width: auto; } }
-.tl-event.columned .tl-body { left: 48px; right: 6px; }
-.tl-event.columned.mini .tl-pill { left: 8px; }
-.tl-event.columned.mini .tl-body { left: 28px; }
+.tl-event.columned .tl-pill { left: 4px; }
+.tl-event.columned .tl-handle { left: 4px; }
+@media (hover: hover) and (pointer: fine) { .tl-event.columned .tl-handle { left: 4px; right: 0; width: auto; } }
+.tl-event.columned .tl-body { left: 32px; right: 6px; }
+.tl-event.columned.mini .tl-pill { left: 4px; }
+.tl-event.columned.mini .tl-body { left: 26px; }
 .tl-gap { position: absolute; left: 108px; right: 36px; transform: translateY(-50%);
   font-size: 12px; font-style: italic; color: var(--text-mute); }
 .tl-ghost { position: absolute; left: 0; right: 0; pointer-events: none; z-index: 5; --c: var(--accent); }
-.tl-ghost-pill { position: absolute; left: 58px; width: 38px; top: 0; bottom: 0; border-radius: 999px;
-  box-sizing: border-box; background: color-mix(in srgb, var(--c) 22%, var(--surface));
+.tl-ghost-pill { position: absolute; left: 58px; right: 8px; top: 1px; bottom: 1px; border-radius: 12px;
+  box-sizing: border-box; background: color-mix(in srgb, var(--c) 18%, var(--surface));
   border: 1px dashed var(--c); animation: ghostPop .18s cubic-bezier(.2,.8,.3,1.2); }
-@keyframes ghostPop { from { transform: scale(.6); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+@keyframes ghostPop { from { transform: scale(.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 /* Обтекание: призрак приземления, накрывший по времени чужие задачи, плавно уводит
-   свою капсулу вбок (на --lane «полос» по 44px), огибая их капсулы как капля.
-   Двигается ТОЛЬКО капсула призрака — реальные задачи в сетке стоят на месте. */
+   свою плашку вбок (на --lane «полос» по 44px), огибая их как капля. Двигается
+   ТОЛЬКО призрак — реальные задачи в сетке стоят на месте. */
 .tl-ghost.flowing .tl-ghost-pill { transform: translateX(calc(var(--lane, 0) * 44px));
   animation: none; transition: transform .32s cubic-bezier(.34, 1.3, .5, 1); }
-.tl-ghost-label { position: absolute; left: 108px; top: 2px; font-size: 12px; color: var(--text-mute);
+.tl-ghost-label { position: absolute; left: 90px; top: 2px; font-size: 12px; color: var(--text-mute);
   font-variant-numeric: tabular-nums; }
 /* Создание новой задачи на мобильном: вместо пунктира — сплошная «приподнятая» капсула
    (как поднятая задача), едет за пальцем, без поля ввода. Форма открывается на отпускании. */
