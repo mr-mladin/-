@@ -1825,7 +1825,7 @@ function Planner() {
   // Чтобы зона «весь день» уезжала вместе со свайпом, она лежит внутри каждой панели.
   function dayPeekPane(pd) {
     const all = itemsForDate(tasks, pd)
-      .filter(i => (i.start_min === null || i.start_min === undefined) && matches(i));
+      .filter(i => (i.start_min === null || i.start_min === undefined));
     const rowIdOfX = (i) => i.kind === "occurrence" ? i.templateId : i.id;
     all.sort((a, b) => ((sortOrderById.get(rowIdOfX(a)) ?? 0) - (sortOrderById.get(rowIdOfX(b)) ?? 0))
       || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
@@ -1847,7 +1847,7 @@ function Planner() {
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       const iso = toISO(dd);
-      const items = itemsForDate(tasks, iso).filter(i => matches(i));
+      const items = itemsForDate(tasks, iso);
       const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
       return { iso, day: dd.getDate(), short: WD_SHORT[k], isToday: iso === todayISO(),
         timed: layoutColumns(t, null), untimed: items.filter(i => i.start_min === null || i.start_min === undefined) };
@@ -1857,7 +1857,7 @@ function Planner() {
     const weeks = monthMatrix(baseISO);
     const items = {};
     for (const wk of weeks) for (const c of wk)
-      items[c.iso] = itemsForDate(tasks, c.iso).filter(i => matches(i))
+      items[c.iso] = itemsForDate(tasks, c.iso)
         .sort((a, b) => ((a.start_min ?? 1e9) - (b.start_min ?? 1e9)));
     return { weeks, items };
   }
@@ -1882,7 +1882,7 @@ function Planner() {
       <div class="week-grid" style=${`height:${24 * hourPx}px;`}>
         ${Array.from({ length: 24 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
           <span class="grid-hour-label">${String(h).padStart(2, "0")}:00</span></div>`)}
-        ${wdays.map((wd, di) => html`<div class="week-col" key=${wd.iso}
+        ${wdays.map((wd, di) => html`<div class=${"week-col" + (wd.isToday ? " today" : "")} key=${wd.iso}
           style=${`left:calc(${GUTTER}px + (100% - ${GUTTER}px) / 7 * ${di});width:calc((100% - ${GUTTER}px) / 7);`}
           onClick=${() => openDay(wd.iso)}>
           ${wd.isToday && html`<div class="grid-now col" style=${`top:${(nowMin / 60) * hourPx}px;`}><span class="grid-now-dot"></span></div>`}
@@ -1996,7 +1996,7 @@ function Planner() {
           <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); }}>${Icon.edit()}</button>
           <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); }}>${Icon.trash()}</button>
         </div>
-        <button class=${"proj-opt" + (open ? " active expanded" : "")}
+        <button class=${"proj-opt" + (open ? " expanded" : "")}
           onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
           onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
           <span class=${"proj-disc" + (open ? " open" : "")}>${Icon.right()}</span>
@@ -2018,7 +2018,7 @@ function Planner() {
                 <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
                 <span class="proj-opt-name">Все задачи</span></button>
               <div class="proj-row-wrap">
-                <button class=${"proj-opt" + (expandedLists.has("inbox") ? " active expanded" : "")} onClick=${() => toggleListExpand("inbox")}>
+                <button class=${"proj-opt" + (expandedLists.has("inbox") ? " expanded" : "")} onClick=${() => toggleListExpand("inbox")}>
                   <span class=${"proj-disc" + (expandedLists.has("inbox") ? " open" : "")}>${Icon.right()}</span>
                   <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
                   <span class="proj-opt-name">Входящие</span>

@@ -232,15 +232,16 @@ textarea.input { resize: vertical; }
 }
 /* Дерево областей/проектов — постоянно видимый список во всю высоту панели. */
 .planner-tree { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
-.proj-opt { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: none; background: transparent;
-  border-radius: var(--radius-sm); cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; text-align: left; width: 100%; }
+.proj-opt { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: none; background: transparent;
+  border-radius: 10px; cursor: pointer; color: var(--text); font-family: inherit; font-size: 14px; text-align: left; width: 100%;
+  transition: background .13s ease, color .13s ease; }
 .proj-opt:hover { background: var(--bg-soft); }
-.proj-opt.active { background: var(--accent-soft); color: var(--accent); }
+.proj-opt.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
 .proj-opt-ico { display: inline-flex; }
 .proj-opt-ico .ico { width: 18px; height: 18px; }
 .proj-opt-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.proj-opt-count { color: var(--text-mute); font-size: 12px; font-variant-numeric: tabular-nums; }
-.proj-opt-new { color: var(--text-soft); margin-top: 2px; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius-sm) var(--radius-sm); padding-top: 10px; }
+.proj-opt-count { color: var(--text-mute); font-size: 12.5px; font-variant-numeric: tabular-nums; min-width: 16px; text-align: right; }
+.proj-opt-new { color: var(--text-soft); margin-top: 2px; border-radius: 10px; }
 .proj-opt-new .ico { width: 16px; height: 16px; }
 
 /* Строка проекта со свайпом (тач) и кнопками под ней */
@@ -250,16 +251,17 @@ textarea.input { resize: vertical; }
 .proj-row-actions .edit { background: #64748b; }
 .proj-row-actions .del { background: var(--danger); }
 .proj-row-actions .ico { width: 18px; height: 18px; }
-.proj-row .proj-opt { position: relative; background: var(--surface); touch-action: pan-y;
-  transition: transform 0.22s cubic-bezier(.2,.7,.3,1); }
-.proj-row .proj-opt.active { background: color-mix(in srgb, var(--accent) 14%, var(--surface)); color: var(--accent); }
+.proj-row .proj-opt { position: relative; background: var(--bg); touch-action: pan-y;
+  transition: transform 0.22s cubic-bezier(.2,.7,.3,1), background .13s ease; }
+.proj-row .proj-opt:hover { background: var(--bg-soft); }
+.proj-row .proj-opt.active { background: var(--accent-soft); color: var(--accent); }
 .proj-row.swipe-open .proj-opt { transform: translateX(-132px); }
 .proj-opt-new.sm { margin-top: 0; border-top: none; padding-top: 8px; font-size: 13px; color: var(--text-mute); }
 
 /* Области (группы проектов) */
-.proj-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--text-mute); padding: 10px 10px 4px; }
-.area-group { margin-top: 4px; }
+.proj-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-mute); padding: 14px 10px 6px; }
+.area-group { margin-top: 2px; }
 .area-head { display: flex; align-items: center; gap: 2px; }
 .area-head .proj-opt { flex: 1; min-width: 0; font-weight: 600; }
 .area-toggle { border: none; background: transparent; cursor: pointer; color: var(--text-mute);
@@ -274,14 +276,16 @@ textarea.input { resize: vertical; }
 .area-actions button:hover { color: var(--text); }
 .area-actions .del:hover { color: var(--danger); }
 .area-actions .ico { width: 15px; height: 15px; }
-.area-projects { margin-left: 16px; padding-left: 6px; border-left: 1px solid var(--border);
+.area-projects { margin-left: 15px; padding-left: 9px; border-left: 1.5px solid color-mix(in srgb, var(--border) 55%, transparent);
   display: flex; flex-direction: column; gap: 1px; }
 
 /* Верхняя группа дефолтных разделов — выделена плашкой и отделена отступом
    от пользовательских областей/проектов. */
-.tree-default { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4px; display: flex; flex-direction: column; gap: 1px; }
-.tree-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
-  color: var(--text-mute); padding: 12px 10px 4px; }
+.tree-default { background: var(--surface); border-radius: 14px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
+  box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04), 0 6px 20px rgba(2, 6, 23, 0.05); }
+[data-theme="dark"] .tree-default { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+.tree-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
+  color: var(--text-mute); padding: 16px 10px 6px; }
 
 /* Иконка проекта: эмодзи в кружке (фон тонируется цветом проекта). */
 .proj-emoji { flex: none; width: 22px; height: 22px; border-radius: 50%; display: inline-flex;
@@ -469,7 +473,10 @@ textarea.input { resize: vertical; }
    текст справа от пилюли. */
 .tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 0; user-select: none; -webkit-user-select: none; }
 .tl-spine { display: none; }
-.tl-event.sel::before { box-shadow: 0 0 0 2px var(--c), 0 0 0 5px color-mix(in srgb, var(--c) 28%, transparent); }
+/* Выделенный блок: чуть плотнее заливка, тонкий аккуратный контур внутри и мягкая
+   тень-приподнятость — без жирной обводки. */
+.tl-event.sel::before { background: color-mix(in srgb, var(--c) 22%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 48%, transparent), 0 8px 22px rgba(2, 6, 23, 0.14); }
 .tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
   background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
@@ -672,33 +679,38 @@ textarea.input { resize: vertical; }
 .week-scroll { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; background: var(--surface);
   border: 1px solid var(--border); border-radius: var(--radius-lg); position: relative; touch-action: pan-y; }
 .week-pane { position: relative; }
-.week-head { display: flex; position: sticky; top: 0; z-index: 6; background: var(--surface); border-bottom: 1px solid var(--border); }
+.week-head { display: flex; position: sticky; top: 0; z-index: 6;
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+  backdrop-filter: saturate(1.6) blur(10px); -webkit-backdrop-filter: saturate(1.6) blur(10px);
+  border-bottom: 1px solid var(--border); }
 .week-gutter-cell { width: 56px; flex: none; }
 .week-gutter-cell.small { font-size: 9px; line-height: 1.05; color: var(--text-mute); text-align: right;
   padding: 4px 6px 0 0; text-transform: uppercase; }
-.week-day-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 1px;
-  padding: 7px 0; border: none; border-left: 1px solid var(--border); background: transparent; cursor: pointer;
-  font-family: inherit; color: var(--text); }
-.week-day-head:first-of-type { border-left: none; }
-.week-day-name { font-size: 11px; color: var(--text-mute); text-transform: uppercase; }
-.week-day-num { font-size: 15px; font-weight: 600; min-width: 26px; height: 26px; line-height: 26px; border-radius: 50%; font-variant-numeric: tabular-nums; }
+.week-day-head { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 9px 0 8px; border: none; background: transparent; cursor: pointer; font-family: inherit; color: var(--text); }
+.week-day-name { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: .03em; }
+.week-day-num { font-size: 16px; font-weight: 600; min-width: 30px; height: 30px; line-height: 30px; border-radius: 50%;
+  font-variant-numeric: tabular-nums; transition: background .15s ease; }
+.week-day-head:hover .week-day-num { background: var(--bg-soft); }
+.week-day-head.today .week-day-name { color: var(--accent); }
 .week-day-head.today .week-day-num { background: var(--accent); color: #fff; }
 .week-allday { display: flex; border-bottom: 1px solid var(--border); }
-.week-allday-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px; border-left: 1px solid var(--border); }
-.week-allday-cell:first-of-type { border-left: none; }
-.week-chip, .week-more { font-size: 11px; text-align: left; padding: 2px 5px; border-radius: 4px; border: none;
+.week-allday-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px; }
+.week-chip, .week-more { font-size: 11px; text-align: left; padding: 2px 6px; border-radius: 6px; border: none;
   cursor: pointer; font-family: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.week-chip { background: color-mix(in srgb, var(--c) 16%, var(--surface));
-  color: color-mix(in srgb, var(--c) 65%, var(--text)); border-left: 2px solid var(--c); }
+.week-chip { background: color-mix(in srgb, var(--c) 18%, var(--surface));
+  color: color-mix(in srgb, var(--c) 70%, var(--text)); }
 .week-more { color: var(--text-mute); background: none; }
 .week-grid { position: relative; width: 100%; margin-top: 14px; user-select: none; }
-.week-col { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--border); }
+.week-col { position: absolute; top: 0; bottom: 0; border-left: 1px solid color-mix(in srgb, var(--border) 55%, transparent); }
 .week-col:first-of-type { border-left: none; }
-.week-block { position: absolute; box-sizing: border-box; border-radius: 4px; padding: 1px 4px; overflow: hidden;
-  background: color-mix(in srgb, var(--c) 16%, var(--surface)); border-left: 2px solid var(--c); cursor: pointer;
-  text-align: left; font-family: inherit; }
-.week-block-title { font-size: 11px; font-weight: 600; line-height: 1.2; display: block; overflow: hidden;
-  color: color-mix(in srgb, var(--c) 65%, var(--text)); }
+.week-col.today { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.week-block { position: absolute; box-sizing: border-box; border-radius: 7px; padding: 2px 7px; overflow: hidden;
+  background: color-mix(in srgb, var(--c) 20%, var(--surface)); box-shadow: inset 2.5px 0 0 var(--c); cursor: pointer;
+  text-align: left; font-family: inherit; transition: filter .12s ease; }
+.week-block:hover { filter: brightness(0.97); }
+.week-block-title { font-size: 11.5px; font-weight: 600; line-height: 1.25; display: block; overflow: hidden;
+  color: color-mix(in srgb, var(--c) 72%, var(--text)); }
 .week-block.done { opacity: 0.5; }
 .week-block.done .week-block-title { text-decoration: line-through; }
 .grid-now.col { left: 0; right: 0; }
@@ -711,26 +723,28 @@ textarea.input { resize: vertical; }
 .month .tl-pane { display: flex; flex-direction: column; min-height: 0; }
 .month-pane { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 .month-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); border-bottom: 1px solid var(--border); }
-.month-weekdays > div { text-align: center; padding: 8px 0; font-size: 11px; text-transform: uppercase; color: var(--text-mute); }
+.month-weekdays > div { text-align: center; padding: 10px 0; font-size: 11px; text-transform: uppercase;
+  letter-spacing: .04em; color: var(--text-mute); }
 .month-weeks { flex: 1; display: flex; flex-direction: column; min-height: 0; }
-.month-week { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--border); min-height: 0; }
+.month-week { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr);
+  border-top: 1px solid color-mix(in srgb, var(--border) 60%, transparent); min-height: 0; }
 .month-week:first-child { border-top: none; }
-.month-cell { border-left: 1px solid var(--border); padding: 4px 4px 2px; min-width: 0; overflow: hidden;
-  cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.month-cell { border-left: 1px solid color-mix(in srgb, var(--border) 60%, transparent); padding: 5px 5px 3px; min-width: 0; overflow: hidden;
+  cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: background .12s ease; }
 .month-cell:first-child { border-left: none; }
 .month-cell:hover { background: var(--bg-soft); }
-.month-cell.out { background: var(--bg); }
-.month-cell.out .month-cell-num { color: var(--text-mute); }
+.month-cell.out { background: color-mix(in srgb, var(--bg) 55%, transparent); }
+.month-cell.out .month-cell-num { color: var(--text-mute); opacity: .75; }
 .month-cell.sel { background: var(--accent-soft); }
-.month-cell-num { align-self: flex-start; font-size: 13px; font-weight: 600; min-width: 24px; height: 24px;
-  line-height: 24px; text-align: center; border-radius: 50%; font-variant-numeric: tabular-nums; }
+.month-cell-num { align-self: flex-start; font-size: 13px; font-weight: 600; min-width: 26px; height: 26px;
+  line-height: 26px; text-align: center; border-radius: 50%; font-variant-numeric: tabular-nums; transition: background .12s ease; }
 .month-cell-num.today { background: var(--accent); color: #fff; }
 .month-cell-items { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
-.month-chip { display: flex; align-items: center; gap: 4px; font-size: 11px; padding: 1px 5px; border-radius: 4px;
+.month-chip { display: flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 6px; border-radius: 6px;
   border: none; cursor: pointer; width: 100%; text-align: left; font-family: inherit;
-  background: color-mix(in srgb, var(--c) 15%, var(--surface)); color: color-mix(in srgb, var(--c) 65%, var(--text)); }
+  background: color-mix(in srgb, var(--c) 16%, var(--surface)); color: color-mix(in srgb, var(--c) 70%, var(--text)); }
 .month-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--c); flex: none; }
-.month-chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.month-chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .month-chip.done { opacity: 0.5; }
 .month-chip.done .month-chip-title { text-decoration: line-through; }
 .month-more { font-size: 10px; color: var(--text-mute); padding: 0 5px; }
