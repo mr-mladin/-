@@ -269,8 +269,11 @@ textarea.input { resize: vertical; }
 .area-chev { display: inline-flex; transition: transform 0.18s ease; }
 .area-chev .ico { width: 15px; height: 15px; }
 .area-chev.open { transform: rotate(90deg); }
-.area-actions { display: flex; flex: none; opacity: 0.5; transition: opacity 0.15s ease; }
+.area-actions { display: flex; flex: none; opacity: 0; transition: opacity 0.15s ease; }
 .area-head:hover .area-actions { opacity: 1; }
+/* На тач-устройствах навести нельзя — оставляем кнопки видимыми (других путей к
+   правке области там нет). На десктопе они проявляются только при наведении. */
+@media (hover: none) { .area-actions { opacity: 0.5; } }
 .area-actions button { border: none; background: transparent; cursor: pointer; color: var(--text-mute);
   display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 32px; }
 .area-actions button:hover { color: var(--text); }
