@@ -353,50 +353,33 @@ function Planner() {
   useEffect(() => {
     const el = scrollRef.current, track = trackRef.current;
     if (view !== "day" || !el || !track) return;
-    let dx = 0;             // смещение ленты (px); минус = ушли влево, виден следующий день
-    let vx = 0;             // сглаженная скорость жеста (px/мс) — для броска (флика)
-    let lastT = 0, lastDx = 0; // для расчёта скорости
-    let lastInputT = 0;     // время последнего ввода (wheel) — распознавание нового жеста
+    let dx = 0;             // текущее смещение ленты в пикселях (минус = ушли влево, видно следующий день)
+    let lastInputT = 0;     // время последнего пользовательского события
     let endTimer = null;    // таймер «жест с инерцией закончился»
     let animFrame = null;
     let animating = false;
-    const W = () => el.clientWidth || 1;
     const apply = () => { track.style.transition = "none"; track.style.transform = `translateX(calc(-100% + ${dx}px))`; };
     const cancelAnim = () => { if (animFrame) cancelAnimationFrame(animFrame); animFrame = null; animating = false; };
-    // Двигаем ленту за пальцем и попутно считаем скорость жеста (для физики броска).
-    const setPos = (v) => {
-      const w = W();
-      v = Math.max(-w, Math.min(w, v));
-      const now = performance.now(), dt = now - lastT;
-      if (dt > 0 && dt < 120) vx = vx * 0.6 + ((v - lastDx) / dt) * 0.4;
-      else vx = 0; // пауза / новый жест — скорость с нуля
-      lastT = now; lastDx = v; dx = v; apply();
-    };
-    // Доводка к цели пружиной с критическим демпфированием: учитывает скорость
-    // броска (быстрый флик доезжает быстрее), плавно тормозит без отскока. Это и есть
-    // «индустриальный стандарт» физики листания (как в Apple-календаре).
-    const spring = (target, v0) => {
+    const animateTo = (target, duration) => {
       cancelAnim();
-      const omega = 24;                 // собственная частота (рад/с): доезд ~0.3–0.4 c
-      let x = dx, v = (v0 || 0) * 1000;  // px/мс → px/с
-      let t0 = performance.now();
-      const w = W();
+      if (Math.abs(target - dx) < 0.5) { dx = target; apply(); finishCommit(target); schedulePeekOff(); return; }
+      // Длительность зависит от остатка пути: полноэкранный доезд плавный (как
+      // переход недели/месяца), короткая дотяжка — быстрая. Жёсткие 320мс на любой
+      // путь делали доезд от низкого порога слишком резким (большой путь за то же время).
+      const w = el.clientWidth || 1;
+      if (duration == null) duration = clamp(Math.round(280 + (Math.abs(target - dx) / w) * 180), 280, 460);
+      const start = dx, diff = target - dx, t0 = performance.now();
       animating = true;
-      const stepFn = (now) => {
+      const step = (now) => {
         if (!animating) return;
-        let dt = (now - t0) / 1000; t0 = now;
-        if (dt > 0.032) dt = 0.032;     // ограничиваем большой кадр (стабильность)
-        const a = -(omega * omega) * (x - target) - 2 * omega * v; // критическое демпфирование
-        v += a * dt; x += v * dt;
-        x = Math.max(-w, Math.min(w, x)); // не выходим за пределы соседнего дня
-        dx = x; apply();
-        if (Math.abs(x - target) < 1 && Math.abs(v) < 80) {
-          dx = target; apply(); animating = false; animFrame = null;
-          finishCommit(target); schedulePeekOff(); return;
-        }
-        animFrame = requestAnimationFrame(stepFn);
+        const t = Math.min((now - t0) / duration, 1);
+        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
+        dx = start + diff * ease;
+        apply();
+        if (t < 1) animFrame = requestAnimationFrame(step);
+        else { animating = false; animFrame = null; finishCommit(target); schedulePeekOff(); }
       };
-      animFrame = requestAnimationFrame(stepFn);
+      animFrame = requestAnimationFrame(step);
     };
     const finishCommit = (target) => {
       if (Math.abs(target) < 1) return; // вернулись в центр — день не меняем
@@ -406,27 +389,20 @@ function Planner() {
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
-    // Решение «листать или вернуться»: по скорости броска ИЛИ по расстоянию (≥40%).
-    // Явный бросок в обратную сторону — отмена (как в Apple-календаре).
     const triggerSnap = () => {
-      const w = W();
-      if (performance.now() - lastT > 70) vx = 0; // палец замер перед отпусканием → скорость 0
-      const V = 0.45, DIST = 0.4;
+      const w = el.clientWidth;
+      if (!w) return;
+      const threshold = w * 0.12; // низкий порог — даже короткий свайп листает
       let target = 0;
-      if (dx < 0) {
-        if (vx > V) target = 0;
-        else if (vx < -V || dx < -w * DIST) target = -w;
-      } else if (dx > 0) {
-        if (vx < -V) target = 0;
-        else if (vx > V || dx > w * DIST) target = w;
-      }
-      if (target !== 0) haptic();
-      spring(target, vx);
+      if (dx < -threshold) target = -w;
+      else if (dx > threshold) target = w;
+      if (target !== 0) haptic(); // лёгкая вибрация в начале листания (как в неделе/месяце)
+      animateTo(target);
     };
     daySwipeStateRef.current = {
-      reset: () => { cancelAnim(); dx = 0; vx = 0; lastT = 0; track.style.transition = "none"; track.style.transform = "translateX(-100%)"; },
+      reset: () => { cancelAnim(); dx = 0; track.style.transition = "none"; track.style.transform = "translateX(-100%)"; },
       getDx: () => dx,
-      setDx: (v) => { cancelAnim(); setPos(v); },
+      setDx: (v) => { cancelAnim(); const w = el.clientWidth; dx = Math.max(-w, Math.min(w, v)); apply(); },
       snap: () => { clearTimeout(endTimer); triggerSnap(); },
       cancel: () => { cancelAnim(); clearTimeout(endTimer); },
     };
@@ -436,14 +412,17 @@ function Planner() {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
       clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни — только на время жеста
-      const now = performance.now(), gap = now - lastInputT;
-      // Новый жест поверх анимации — отменяем доводку и драгаем с текущего места.
+      const now = performance.now();
+      const gap = now - lastInputT;
+      // Новый жест поверх анимации (большой gap от прошлого ввода) — отменяем доезд
+      // и начинаем драгать с того места, где была анимация.
       if (animating && gap > 130) cancelAnim();
-      if (gap > 130) { vx = 0; lastT = 0; } // новый жест — скорость с нуля
       lastInputT = now;
-      setPos(dx - e.deltaX);
+      const w = el.clientWidth;
+      dx = Math.max(-w, Math.min(w, dx - e.deltaX));
+      apply();
       clearTimeout(endTimer);
-      // ~80мс после последнего события (инерция тачпада тоже сюда) → snap.
+      // ~80мс после последнего события (инерция тачпада тоже сюда падает) → snap.
       endTimer = setTimeout(triggerSnap, 80);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
