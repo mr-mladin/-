@@ -412,18 +412,18 @@ function Planner() {
       if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
       e.preventDefault();
       clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни — только на время жеста
-      const now = performance.now();
-      const gap = now - lastInputT;
-      // Новый жест поверх анимации (большой gap от прошлого ввода) — отменяем доезд
-      // и начинаем драгать с того места, где была анимация.
-      if (animating && gap > 130) cancelAnim();
-      lastInputT = now;
+      lastInputT = performance.now();
+      // Любое новое событие колеса прерывает идущую доводку и продолжает тянуть ленту
+      // с текущего места — иначе доводка-анимация дерётся с жестом (зависание + рывок).
+      if (animating) cancelAnim();
       const w = el.clientWidth;
       dx = Math.max(-w, Math.min(w, dx - e.deltaX));
       apply();
       clearTimeout(endTimer);
-      // ~80мс после последнего события (инерция тачпада тоже сюда падает) → snap.
-      endTimer = setTimeout(triggerSnap, 80);
+      // У трекпада нет события «отпустил пальцы» — считаем, что жест закончился, когда
+      // события колеса прекратились на ~160мс (сюда же попадает затухание инерции).
+      // Пауза заметно больше прежних 80мс, чтобы лента не уезжала при замедлении свайпа.
+      endTimer = setTimeout(triggerSnap, 160);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
