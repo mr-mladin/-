@@ -2223,6 +2223,10 @@ function Planner() {
                   const sel = selected.has(i.key);
                   const top = (vTop / 60) * hourPx;
                   const height = Math.max(MIN_EVENT_PX, (vDur / 60) * hourPx);
+                  // Высота зоны-ресайза (десктоп): тонкая (≤8px, у самого края) и не больше
+                  // ~трети блока, чтобы в середине всегда оставалось место «взять и перенести»
+                  // даже у тонких блоков. На мобильном — как в CSS (не трогаем).
+                  const handleStyle = isMobile ? "" : `height:${Math.max(0, Math.min(8, (height - 12) / 2))}px`;
                   const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
                   // Колонки при пересечении: задача занимает свою долю ширины и сдвигается
                   // вправо. При переносе/растягивании одной задачи её слот живой (обтекает
@@ -2252,8 +2256,8 @@ function Planner() {
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>
-                    ${!spanning && html`<div class="tl-handle top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
-                    ${!spanning && html`<div class="tl-handle bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
+                    ${!spanning && html`<div class="tl-handle top" style=${handleStyle} onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
+                    ${!spanning && html`<div class="tl-handle bottom" style=${handleStyle} onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     <div class="tl-body">
                       <div class="tl-text">
                         <div class="tl-titlerow">
