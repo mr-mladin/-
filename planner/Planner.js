@@ -1315,13 +1315,15 @@ function Planner() {
   }
   // Открытые задачи раздела для бокового списка — ТОЛЬКО без даты. Задачи с датой
   // живут в сетке дня и в боковом списке не показываются (без дублирования).
-  // target: id проекта, либо "inbox" (без проекта/области).
+  // target: id проекта, "inbox" (без проекта/области), либо "area:<id>" (прямо в области).
   const openTasksOfList = (target) => tasks
     .filter(t => !t.recurrence_parent && !t.deleted_at && !t.done && !t.date
-      && (target === "inbox" ? (!t.list_id && !t.area_id) : t.list_id === target))
+      && (target === "inbox" ? (!t.list_id && !t.area_id)
+        : (typeof target === "string" && target.indexOf("area:") === 0) ? (!t.list_id && t.area_id === target.slice(5))
+        : t.list_id === target))
     .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0)
       || (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0));
-  const treeTarget = (t) => (t.list_id || "inbox");
+  const treeTarget = (t) => t.list_id ? t.list_id : (t.area_id ? "area:" + t.area_id : "inbox");
 
   // Новый порядок задач без даты внутри раздела: переставленную вставляем на overIndex,
   // всем строкам пишем sort_order по новому порядку.
@@ -1347,29 +1349,39 @@ function Planner() {
     const r = rowEl.getBoundingClientRect();
     const sx = e.clientX, sy = e.clientY;
     const offX = sx - r.left, offY = sy - r.top;
-    const target = treeTarget(t);
+    const source = treeTarget(t);
     const color = listById[t.list_id]?.color || "var(--inbox)";
     const dur = 60;
+    // У боковых задач дата в .date, у элементов «весь день» — в .occDate.
+    const dated = !!(t.date || t.occDate);
     let active = false, hold = null;
+    // Куда сейчас целимся: сетка дня, зона «весь день», раздел (проект/область/входящие)
+    // или перестановка внутри своего списка. «Весь день» проверяем ДО сетки (он внутри неё).
     const overAt = (cx, cy) => {
       const el = document.elementFromPoint(cx, cy);
-      if (el && el.closest(".planner-grid-scroll") && innerRef.current) {
-        return { zone: "grid", gridMin: clamp(snap(yToMin(cy)), 0, 1440 - dur), overIndex: null };
+      if (!el) return { zone: null };
+      if (el.closest(".allday")) return { zone: "allday" };
+      if (el.closest(".planner-grid-scroll") && innerRef.current)
+        return { zone: "grid", gridMin: clamp(snap(yToMin(cy)), 0, 1440 - dur) };
+      const cont = el.closest("[data-listtasks]");
+      const row = el.closest("[data-droplist]");
+      const dropList = cont ? cont.dataset.listtasks : row ? row.dataset.droplist : null;
+      if (dropList != null) {
+        // Без даты + свой список → перестановка; иначе — перенос в раздел.
+        if (!dated && dropList === source && cont) {
+          const rows = [...cont.querySelectorAll("[data-treekey]")].filter(n => n.dataset.treekey !== t.id && n.dataset.treekey !== "__ph__");
+          let idx = rows.findIndex(n => { const rr = n.getBoundingClientRect(); return cy < rr.top + rr.height / 2; });
+          if (idx === -1) idx = rows.length;
+          return { zone: "tree", overIndex: idx };
+        }
+        return { zone: "section", dropList };
       }
-      const cont = document.querySelector(`[data-listtasks="${target}"]`);
-      if (cont) {
-        const rows = [...cont.querySelectorAll("[data-treekey]")].filter(n => n.dataset.treekey !== t.id && n.dataset.treekey !== "__ph__");
-        let idx = rows.findIndex(n => { const rr = n.getBoundingClientRect(); return cy < rr.top + rr.height / 2; });
-        if (idx === -1) idx = rows.length;
-        return { zone: "tree", overIndex: idx, gridMin: null };
-      }
-      return { zone: "tree", overIndex: null, gridMin: null };
+      return { zone: null };
     };
     const begin = (cx, cy) => {
       active = true; trayClickGuard.current = true; haptic();
-      const o = overAt(cx, cy);
-      setTreeDrag({ id: t.id, listId: target, title: t.title, color, w: r.width, h: r.height,
-        offX, offY, x: cx, y: cy, dur, ...o });
+      setTreeDrag({ id: t.id, source, title: t.title, color, w: r.width, h: r.height,
+        offX, offY, x: cx, y: cy, dur, ...overAt(cx, cy) });
     };
     const onTouchMove = (ev) => { if (active) ev.preventDefault(); };
     const move = (ev) => {
@@ -1379,9 +1391,9 @@ function Planner() {
         begin(ev.clientX, ev.clientY);
       }
       ev.preventDefault();
-      const o = overAt(ev.clientX, ev.clientY);
-      setTreeDrag(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...o }));
+      setTreeDrag(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...overAt(ev.clientX, ev.clientY) }));
     };
+    const endCard = () => { setTreeDrag(d => d && ({ ...d, dropping: true })); setTimeout(() => setTreeDrag(null), 150); };
     const up = (ev) => {
       clearTimeout(hold); cleanup();
       if (!active) { setTreeDrag(null); setTimeout(() => { trayClickGuard.current = false; }, 0); return; }
@@ -1392,11 +1404,27 @@ function Planner() {
         // «Приземление»: карточка плавно доезжает в слот сетки, затем фиксируем задачу.
         setTreeDrag(d => d && ({ ...d, landing: true, landX: g.left, landY: g.top + (o.gridMin / 60) * hourPx, landW: g.width, landH: h }));
         setTimeout(() => {
-          store.actions.tasks.update(t.id, { date, start_min: o.gridMin, duration_min: dur }).catch(showErr);
+          store.actions.tasks.update(t.id, { date: dateRef.current, start_min: o.gridMin, duration_min: dur }).catch(showErr);
           setTreeDrag(null);
         }, 240);
+      } else if (o.zone === "allday") {
+        // В «весь день» текущего дня: дата дня, без времени; проект/область сохраняем.
+        store.actions.tasks.update(t.id, { date: dateRef.current, start_min: null, duration_min: null }).catch(showErr);
+        endCard();
+      } else if (o.zone === "section") {
+        const dl = o.dropList;
+        const clear = { date: null, start_min: null, duration_min: null };
+        let patch;
+        if (dl === "inbox") patch = { list_id: null, area_id: null, ...clear };
+        else if (dl.indexOf("area:") === 0) patch = { area_id: dl.slice(5), list_id: null, ...clear };
+        else patch = { list_id: dl, area_id: null, ...clear };
+        store.actions.tasks.update(t.id, patch).catch(showErr);
+        // Раскрываем цель, чтобы перенесённая задача сразу была видна.
+        if (dl.indexOf("area:") === 0) setAreaCollapsed(prev => { const n = new Set(prev); n.delete(dl.slice(5)); writeCollapsed(n); return n; });
+        else setExpandedLists(prev => { const n = new Set(prev); n.add(dl); return n; });
+        endCard();
       } else if (o.zone === "tree" && o.overIndex != null) {
-        persistTreeOrder(target, t.id, o.overIndex);
+        persistTreeOrder(source, t.id, o.overIndex);
         setTreeDrag(null);
       } else {
         setTreeDrag(null);
@@ -1967,10 +1995,10 @@ function Planner() {
         onPointerDown=${e => e.stopPropagation()} onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>
     </div>`;
 
-  // Список задач раздела (третий уровень). target — id проекта или "inbox".
+  // Список задач раздела (третий уровень). target — id проекта, "inbox" или "area:<id>".
   const treeTasksEl = (target, color) => {
     const sub = openTasksOfList(target);
-    const dragHere = treeDrag && treeDrag.listId === target;
+    const dragHere = treeDrag && treeDrag.source === target;
     const others = dragHere ? sub.filter(x => x.id !== treeDrag.id) : sub;
     const rows = others.map(x => ({ ph: false, t: x }));
     if (dragHere && treeDrag.zone === "tree") {
@@ -1982,7 +2010,10 @@ function Planner() {
         : rows.map((row, i) => row.ph
           ? html`<div class="tree-ph" data-treekey="__ph__" key="__ph__" style=${`height:${treeDrag.h}px;`}></div>`
           : taskRowEl(row.t, color))}
-      <button class="tree-add" onClick=${() => setCreating(target === "inbox" ? { list_id: null, area_id: null } : { list_id: target, area_id: null })}>
+      <button class="tree-add" onClick=${() => setCreating(
+        target === "inbox" ? { list_id: null, area_id: null }
+        : (typeof target === "string" && target.indexOf("area:") === 0) ? { list_id: null, area_id: target.slice(5) }
+        : { list_id: target, area_id: null })}>
         ${Icon.plus()} Добавить задачу</button>
     </div>`;
   };
@@ -1997,7 +2028,8 @@ function Planner() {
           <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); }}>${Icon.edit()}</button>
           <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); }}>${Icon.trash()}</button>
         </div>
-        <button class=${"proj-opt" + (open ? " expanded" : "")}
+        <button class=${"proj-opt" + (open ? " expanded" : "") + (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === l.id ? " drop-target" : "")}
+          data-droplist=${l.id}
           onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
           onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
           <span class=${"proj-disc" + (open ? " open" : "")}>${Icon.right()}</span>
@@ -2019,7 +2051,8 @@ function Planner() {
                 <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
                 <span class="proj-opt-name">Все задачи</span></button>
               <div class="proj-row-wrap">
-                <button class=${"proj-opt" + (expandedLists.has("inbox") ? " expanded" : "")} onClick=${() => toggleListExpand("inbox")}>
+                <button class=${"proj-opt" + (expandedLists.has("inbox") ? " expanded" : "") + (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === "inbox" ? " drop-target" : "")}
+                  data-droplist="inbox" onClick=${() => toggleListExpand("inbox")}>
                   <span class=${"proj-disc" + (expandedLists.has("inbox") ? " open" : "")}>${Icon.right()}</span>
                   <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
                   <span class="proj-opt-name">Входящие</span>
@@ -2043,7 +2076,8 @@ function Planner() {
                   <button class="area-toggle" title=${areaCollapsed.has(a.id) ? "Развернуть" : "Свернуть"}
                     onClick=${() => toggleArea(a.id)}>
                     <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
-                  <button class="proj-opt area-opt"
+                  <button class=${"proj-opt area-opt" + (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === "area:" + a.id ? " drop-target" : "")}
+                    data-droplist=${"area:" + a.id}
                     onClick=${() => toggleArea(a.id)}
                     onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
                     <span class="proj-opt-ico" style="color:var(--accent);">${Icon.folder()}</span>
@@ -2055,6 +2089,7 @@ function Planner() {
                   </div>
                 </div>
                 ${!areaCollapsed.has(a.id) && html`<div class="area-projects">
+                  ${openTasksOfList("area:" + a.id).length > 0 && treeTasksEl("area:" + a.id, "var(--accent)")}
                   ${lists.filter(l => l.area_id === a.id).map(projRowEl)}
                   <button class="proj-opt proj-opt-new sm" onClick=${() => setListModal({ area_id: a.id })}>
                     <span class="proj-opt-ico">${Icon.plus()}</span>
@@ -2135,11 +2170,11 @@ function Planner() {
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
-              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}>
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}>
                 ${(() => {
                   const cell = (i) => html`
-                    <div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key} data-adkey=${i.key}
-                      onPointerDown=${e => { if (i.id) startAllDayDrag(e, i); }}>
+                    <div class=${"allday-item" + (i.done ? " done" : "") + (treeDrag && treeDrag.id === i.id ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
+                      onPointerDown=${e => { if (i.id) startTreeDrag(e, i); }}>
                       <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
                         style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
                         onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>
@@ -2366,7 +2401,7 @@ function Planner() {
       const top = g.top + (treeDrag.gridMin / 60) * hourPx;
       return html`<div class="tree-grid-ghost" style=${`left:${g.left}px;top:${top}px;width:${g.width}px;height:${h}px;--c:${treeDrag.color};`}></div>`;
     })()}
-    ${treeDrag && html`<div class=${"tree-drag-card" + (treeDrag.landing ? " landing" : "")}
+    ${treeDrag && html`<div class=${"tree-drag-card" + (treeDrag.landing ? " landing" : "") + (treeDrag.dropping ? " dropping" : "")}
       style=${treeDrag.landing
         ? `left:${treeDrag.landX}px;top:${treeDrag.landY}px;width:${treeDrag.landW}px;height:${treeDrag.landH}px;--c:${treeDrag.color};`
         : `left:${treeDrag.x - treeDrag.offX}px;top:${treeDrag.y - treeDrag.offY}px;width:${treeDrag.w}px;height:${treeDrag.h}px;--c:${treeDrag.color};`}>
