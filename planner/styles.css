@@ -819,7 +819,7 @@ textarea.input { resize: vertical; }
   .allday.empty { padding: 6px 10px 6px 12px; }
   .allday.grid { column-gap: 10px; row-gap: 6px; }
   .allday-item { gap: 7px; }
-  .allday-check { width: 17px; height: 17px; border-width: 2px; }
+  .allday-check { width: 17px; height: 17px; border-width: 1.5px; }
   .allday-check .ico { width: 9px; height: 9px; }
   .allday-title, .allday-float .allday-title { font-size: 13px; }
   .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
@@ -1113,7 +1113,7 @@ textarea.input { resize: vertical; }
 .allday-float .allday-title { font-size: 14px; font-weight: 600; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Тонкое кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
-.allday-check { flex: none; width: 19px; height: 19px; border-radius: 50%; border: 2px solid currentColor;
+.allday-check { flex: none; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid currentColor;
   background: var(--surface); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 .allday-check .ico { width: 11px; height: 11px; opacity: 0; transition: opacity .25s ease; }
 .allday-check.on .ico { opacity: 1; }
@@ -1127,6 +1127,20 @@ textarea.input { resize: vertical; }
 .allday-handle { display: none; }
 .allday-edit { min-width: 8ch; border: 0; background: none; outline: none; font-family: inherit;
   font-size: 15px; font-weight: 600; color: var(--text); padding: 0; user-select: text; -webkit-user-select: text; }
+
+/* Десктоп: зону «весь день» выравниваем по колонке таймблоков (та же геометрия,
+   что у .tl: центрируется, сдвиг 32px, левый край контента = 58px как у блоков,
+   правый = 8px) и делаем задачи компактнее. */
+@media (min-width: 861px) {
+  .allday { box-sizing: border-box; position: relative; left: 32px; width: 100%; max-width: 720px;
+    margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
+  .allday.empty { padding: 5px 8px 5px 58px; }
+  .allday.grid { column-gap: 10px; row-gap: 5px; }
+  .allday-item { gap: 7px; }
+  .allday-title, .allday-float .allday-title { font-size: 12.5px; font-weight: 500; }
+  .allday-check { width: 15px; height: 15px; }
+  .allday-check .ico { width: 9px; height: 9px; }
+}
 
 /* Спиннер первой загрузки в сетке дня (когда кэша ещё нет). */
 .grid-loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 30;

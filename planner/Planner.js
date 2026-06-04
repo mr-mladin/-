@@ -534,8 +534,9 @@ function Planner() {
   }, [tasks]);
   const rowIdOf = (i) => (i.kind === "occurrence" ? i.templateId : i.id);
   // Задачи этого дня без времени — показываем в зоне «весь день» над сеткой.
+  // Выполненные сюда не попадают (висят только невыполненные).
   const allDay = dayItems
-    .filter(i => i.start_min === null || i.start_min === undefined)
+    .filter(i => (i.start_min === null || i.start_min === undefined) && !i.done)
     .sort((a, b) => ((sortOrderById.get(rowIdOf(a)) ?? 0) - (sortOrderById.get(rowIdOf(b)) ?? 0))
       || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
   const allDayIds = new Set(allDay.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
@@ -1825,7 +1826,7 @@ function Planner() {
   // Чтобы зона «весь день» уезжала вместе со свайпом, она лежит внутри каждой панели.
   function dayPeekPane(pd) {
     const all = itemsForDate(tasks, pd)
-      .filter(i => (i.start_min === null || i.start_min === undefined));
+      .filter(i => (i.start_min === null || i.start_min === undefined) && !i.done);
     const rowIdOfX = (i) => i.kind === "occurrence" ? i.templateId : i.id;
     all.sort((a, b) => ((sortOrderById.get(rowIdOfX(a)) ?? 0) - (sortOrderById.get(rowIdOfX(b)) ?? 0))
       || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
