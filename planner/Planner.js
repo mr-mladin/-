@@ -24,7 +24,6 @@ function writeCollapsed(set) {
   try { localStorage.setItem("planner.areasCollapsed", JSON.stringify([...set])); } catch (e) {}
 }
 
-const ALLDAY_COLS = 3;
 const HOUR_DEFAULT = 80;
 const HOUR_MIN = 14;
 const HOUR_MAX = 220;
@@ -80,7 +79,6 @@ function Planner() {
   const liftGeomRef = useRef(null);               // позиция плавающей копии (фикс. координаты вьюпорта)
   const landTimerRef = useRef(null);              // таймер «доезда» задачи на место
   const [dnd, setDnd] = useState(null);
-  const [adDrag, setAdDrag] = useState(null); // перетаскивание-перестановка в зоне «весь день»
   const [adH, setAdH] = useState(AD_COLLAPSED); // высота шторки «весь день» (px), тянется ручкой
   const adHRef = useRef(AD_COLLAPSED); // актуальная высота шторки для fitMinPx (без устаревания замыкания)
   const setAdHeight = (v) => { adHRef.current = v; setAdH(v); }; // менять высоту шторки только так
@@ -155,7 +153,6 @@ function Planner() {
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
   const adGridRef = useRef(null);   // контейнер зоны «весь день»
-  const adChipRef = useRef(null);   // плавающая карточка при перестановке
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
 
@@ -678,7 +675,7 @@ function Planner() {
       adRects.current.set(key, r);
     });
     for (const k of [...adRects.current.keys()]) if (!seen.has(k)) adRects.current.delete(k);
-  }, [allDay.map(i => i.key).join(",") + "|" + (adDrag ? adDrag.key + ":" + adDrag.overIndex : ""), view]);
+  }, [allDay.map(i => i.key).join(","), view]);
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
   // Цель правки: у повтора — шаблон, иначе сама задача.
   const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
@@ -1125,122 +1122,6 @@ function Planner() {
     if (touch) hold = setTimeout(() => begin(), HOLD_MS);
   }
 
-  // Сохранить новый порядок задач «весь день»: переставленную задачу вставляем на
-  // позицию overIndex, всем строкам присваиваем sort_order по новому порядку.
-  function persistAllDayOrder(draggedKey, overIndex) {
-    const keys = allDay.map(i => i.key);
-    const order = keys.filter(k => k !== draggedKey);
-    order.splice(clamp(overIndex, 0, order.length), 0, draggedKey);
-    store.batch("порядок", () => {
-      order.forEach((k, idx) => {
-        const it = allDay.find(x => x.key === k);
-        if (!it) return;
-        const rid = rowIdOf(it);
-        if ((sortOrderById.get(rid) ?? 0) !== idx) store.actions.tasks.update(rid, { sort_order: idx }).catch(showErr);
-      });
-    });
-  }
-
-  // Перетаскивание карточки «весь день»: внутри зоны — перестановка (3 столбца),
-  // вниз в сетку — назначить время (как из боковой панели).
-  function startAllDayDrag(e, item) {
-    if (e.pointerType !== "touch" && e.button !== 0) return;
-    const touch = e.pointerType === "touch";
-    const srcEl = e.target.closest(".allday-item");
-    const fromIndex = allDay.findIndex(x => x.key === item.key);
-    if (fromIndex < 0 || !srcEl) return;
-    const sx = e.clientX, sy = e.clientY;
-    const dur = 60;
-    let active = false, mode = null, hold = null, overIndex = fromIndex;
-    let grab = { dx: 0, dy: 0 }, metrics = null;
-
-    const measure = (ev) => {
-      const r = srcEl.getBoundingClientRect();
-      grab = { dx: ev.clientX - r.left, dy: ev.clientY - r.top };
-      const first = adGridRef.current.querySelector(".allday-item") || srcEl;
-      const fr = first.getBoundingClientRect();
-      const cs = getComputedStyle(adGridRef.current);
-      metrics = { left: fr.left, top: fr.top, cw: r.width, ch: r.height,
-        gx: parseFloat(cs.columnGap) || 0, gy: parseFloat(cs.rowGap) || 0, w: r.width, h: r.height };
-    };
-    const floatTo = (ev) => { const el = adChipRef.current; if (el) el.style.transform = `translate(${ev.clientX - grab.dx}px, ${ev.clientY - grab.dy}px) scale(1.04)`; };
-    const idxAt = (ev) => {
-      const col = clamp(Math.floor((ev.clientX - metrics.left) / (metrics.cw + metrics.gx)), 0, ALLDAY_COLS - 1);
-      const row = Math.max(0, Math.floor((ev.clientY - metrics.top) / (metrics.ch + metrics.gy)));
-      return clamp(row * ALLDAY_COLS + col, 0, allDay.length - 1);
-    };
-    const beginReorder = (ev) => {
-      active = true; mode = "reorder"; trayClickGuard.current = true;
-      measure(ev);
-      overIndex = fromIndex;
-      setDnd(null);
-      setAdDrag({ key: item.key, fromIndex, overIndex, w: metrics.w, h: metrics.h,
-        title: item.title, color: colorOf(item), done: item.done, icon: item.icon });
-      requestAnimationFrame(() => floatTo(ev));
-    };
-    const move = (ev) => {
-      if (!active) {
-        if (touch) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(hold); cleanup(); } return; }
-        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 6) return;
-        beginReorder(ev);
-      }
-      ev.preventDefault();
-      const zone = dndZoneAt(ev.clientX, ev.clientY);
-      if (zone === "grid" && item.kind === "concrete" && innerRef.current) {
-        if (mode !== "schedule") { mode = "schedule"; setAdDrag(null);
-          const gr = innerRef.current.getBoundingClientRect(); dndGeomRef.current = { left: gr.left, width: gr.width, startX: ev.clientX }; }
-        const gridMin = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
-        setDnd({ source: "tray", title: item.title, color: colorOf(item), x: ev.clientX, y: ev.clientY, zone: "grid", gridMin, dur });
-        return;
-      }
-      if (mode !== "reorder") {
-        mode = "reorder"; setDnd(null);
-        setAdDrag({ key: item.key, fromIndex, overIndex, w: metrics.w, h: metrics.h,
-          title: item.title, color: colorOf(item), done: item.done, icon: item.icon });
-      }
-      floatTo(ev);
-      const ni = idxAt(ev);
-      if (ni !== overIndex) { overIndex = ni; haptic(); setAdDrag(d => d ? { ...d, overIndex: ni } : d); }
-    };
-    const up = (ev) => {
-      clearTimeout(hold); cleanup();
-      if (!active) return;
-      const zone = dndZoneAt(ev.clientX, ev.clientY);
-      const releaseGuard = () => setTimeout(() => { trayClickGuard.current = false; }, 0);
-      if (mode === "schedule" && zone === "grid" && innerRef.current) {
-        const start = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
-        store.actions.tasks.update(item.id, { date, start_min: start, duration_min: dur }).catch(showErr);
-        setAdDrag(null); setDnd(null); releaseGuard();
-        return;
-      }
-      setDnd(null);
-      const moved = mode === "reorder" && overIndex !== fromIndex;
-      // Плавная посадка: карточка доезжает до своего места, затем фиксируем порядок.
-      const ph = adGridRef.current && adGridRef.current.querySelector('[data-adkey="__adph"]');
-      const el = adChipRef.current;
-      if (el && ph) {
-        const r = ph.getBoundingClientRect();
-        el.style.transition = "transform .26s cubic-bezier(.2,.9,.25,1), box-shadow .26s ease";
-        el.style.boxShadow = "0 2px 8px rgba(15,23,42,.10)";
-        el.style.transform = `translate(${r.left}px, ${r.top}px) scale(1)`;
-        setTimeout(() => { if (moved) persistAllDayOrder(item.key, overIndex); setAdDrag(null); }, 270);
-      } else {
-        if (moved) persistAllDayOrder(item.key, overIndex);
-        setAdDrag(null);
-      }
-      releaseGuard();
-    };
-    const cleanup = () => {
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-      document.removeEventListener("pointercancel", up);
-    };
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", up);
-    document.addEventListener("pointercancel", up);
-    if (touch) hold = setTimeout(() => beginReorder({ clientX: sx, clientY: sy }), HOLD_MS);
-  }
-
   function onResizePointerDown(e, item) {
     e.stopPropagation();
     if (e.button !== 0) return;
@@ -1601,6 +1482,7 @@ function Planner() {
     const finalize = () => {
       if (commitFinalizeRef.current !== finalize) return;
       commitFinalizeRef.current = null;
+      clearTimeout(safety);
       track.removeEventListener("transitionend", finalize);
       swipingRef.current = false;
       keepScrollRef.current = true;
@@ -1613,6 +1495,9 @@ function Planner() {
     void track.offsetWidth;
     track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
     track.addEventListener("transitionend", finalize);
+    // Подстраховка: если transitionend не придёт (вкладка ушла в фон, переход
+    // прервали) — доводим вручную, чтобы карусель не зависла.
+    const safety = setTimeout(finalize, 420);
   }
   // Свайпа не хватило — лента плавно возвращается в центр (день не меняется).
   function daySwipeSnapBack() {
@@ -1622,8 +1507,9 @@ function Planner() {
     track.style.transition = "transform .28s cubic-bezier(.22,.61,.36,1)";
     void track.offsetWidth;
     track.style.transform = "translateX(-100%)";
-    const onBack = () => { track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; schedulePeekOff(); };
+    const onBack = () => { clearTimeout(safety); track.removeEventListener("transitionend", onBack); track.style.transition = ""; track.style.transform = ""; schedulePeekOff(); };
     track.addEventListener("transitionend", onBack);
+    const safety = setTimeout(onBack, 380); // на случай, если transitionend не сработает
   }
 
   // Панель проектов — нижний слой, всегда под экраном «День». Жест тянет ВЕРХНИЙ
@@ -2268,18 +2154,7 @@ function Planner() {
                             onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
                       <span class="allday-title">${i.title}</span>
                     </div>`;
-                  if (!adDrag) return allDay.map(cell);
-                  const rest = allDay.filter(i => i.key !== adDrag.key);
-                  const slots = rest.slice(0, adDrag.overIndex).map(cell);
-                  slots.push(html`<div class="allday-item ad-placeholder" key="__adph" data-adkey="__adph" style=${`height:${adDrag.h}px;`}></div>`);
-                  rest.slice(adDrag.overIndex).forEach(i => slots.push(cell(i)));
-                  const dragged = allDay.find(i => i.key === adDrag.key);
-                  slots.push(html`<div class="allday-float" key="__adfloat" ref=${adChipRef} style=${`width:${adDrag.w}px;`}>
-                    <button class=${"allday-check" + (adDrag.done ? " on" : "")} type="button"
-                      style=${`border-color:${adDrag.color};color:${adDrag.color};`}>${Icon.check()}</button>
-                    <span class="allday-title">${dragged ? dragged.title : adDrag.title}</span>
-                  </div>`);
-                  return slots;
+                  return allDay.map(cell);
                 })()}
               </div>
               <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
