@@ -1377,7 +1377,7 @@ function Planner() {
     };
     const begin = (cx, cy) => {
       active = true; trayClickGuard.current = true; haptic();
-      setTreeDrag({ id: t.id, source, title: t.title, color, w: r.width, h: r.height,
+      setTreeDrag({ id: t.id, source, title: t.title, color, isEvent: !!t.is_event, w: r.width, h: r.height,
         offX, offY, x: cx, y: cy, dur, ...overAt(cx, cy) });
     };
     const onTouchMove = (ev) => { if (active) ev.preventDefault(); };
@@ -2440,7 +2440,9 @@ function Planner() {
       style=${treeDrag.landing
         ? `left:${treeDrag.landX}px;top:${treeDrag.landY}px;width:${treeDrag.landW}px;height:${treeDrag.landH}px;--c:${treeDrag.color};`
         : `left:${treeDrag.x - treeDrag.offX}px;top:${treeDrag.y - treeDrag.offY}px;width:${treeDrag.w}px;height:${treeDrag.h}px;--c:${treeDrag.color};`}>
-      <span class="task-check"></span>
+      ${treeDrag.isEvent
+        ? html`<span class="tree-evmark" style=${`background:${treeDrag.color};`}></span>`
+        : html`<span class="task-check"></span>`}
       <span class="tree-task-title">${treeDrag.title}</span>
     </div>`}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
