@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate, matchesFilter,
   monthMatrix, weekRangeLabel, weekStart,
-  durHuman, doneFeedback, haptic,
+  durHuman, doneFeedback, haptic, waveDataUrl,
 } from "./lib.js";
 import { ConfirmModal, Toasts, TaskEditor, ListForm, AreaForm, MoveTasksModal, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
@@ -1984,11 +1984,13 @@ function Planner() {
   const taskRowEl = (t, color) => html`
     <div class=${"tree-task" + (t.done ? " done" : "") + (treeDrag && treeDrag.id === t.id ? " dragging" : "")}
       data-treekey=${t.id} key=${t.id} onPointerDown=${e => startTreeDrag(e, t)}>
-      <button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
-        style=${t.done ? `background:${color};border-color:${color};` : ""}
-        onPointerDown=${e => e.stopPropagation()}
-        onClick=${e => { e.stopPropagation(); if (!t.done) popConfetti("tree:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>
-        ${Icon.check()}${confettiEl("tree:" + t.id, "center")}</button>
+      ${t.is_event
+        ? html`<span class="tree-evmark" style=${`background:${color};`}></span>`
+        : html`<button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
+            style=${t.done ? `background:${color};border-color:${color};` : ""}
+            onPointerDown=${e => e.stopPropagation()}
+            onClick=${e => { e.stopPropagation(); if (!t.done) popConfetti("tree:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>
+            ${Icon.check()}${confettiEl("tree:" + t.id, "center")}</button>`}
       <button class="tree-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
         <span class="tree-task-title">${t.title}</span></button>
       <button class="btn-mini tree-sched" title="Запланировать на этот день"
@@ -2175,9 +2177,11 @@ function Planner() {
                   const cell = (i) => html`
                     <div class=${"allday-item" + (i.done ? " done" : "") + (treeDrag && treeDrag.id === i.id ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
                       onPointerDown=${e => { if (i.id) startTreeDrag(e, i); }}>
-                      <button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
-                        style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
-                        onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>
+                      ${i.is_event
+                        ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
+                        : html`<button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                            style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
+                            onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
                       ${titleEdit && titleEdit.key === i.key
                         ? html`<input class="allday-edit" value=${titleEdit.value}
                             ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
@@ -2243,16 +2247,20 @@ function Planner() {
                   // ленте НЕ удаляем (иначе iOS шлёт pointercancel → перенос срывается) — прячем
                   // через visibility:hidden, место и касание сохраняются.
                   const hiddenLift = liftDrag && !liftDrag.done && i.key === liftDrag.key;
-                  return html`<div class=${"tl-event" + density + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
-                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}`}
+                  const isEv = i.is_event;
+                  const evCls = isEv ? " tl-ev tl-bar-" + (i.card_bar || "none") + " tl-bg-" + (i.card_bg || "clean") : "";
+                  const waveVar = (isEv && i.card_bg === "waves") ? "--wave:" + waveDataUrl(colorOf(i)) + ";" : "";
+                  return html`<div class=${"tl-event" + density + evCls + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                    style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}${waveVar}`}
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>
+                    ${isEv && i.card_bar && i.card_bar !== "none" && html`<div class=${"tl-evbar " + i.card_bar}></div>`}
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
-                      <button class=${"tl-pill-check" + (i.done ? " on" : "") + (fallKey === i.key ? " falling" : "")} type="button" title="Выполнено"
+                      ${!isEv && html`<button class=${"tl-pill-check" + (i.done ? " on" : "") + (fallKey === i.key ? " falling" : "")} type="button" title="Выполнено"
                         style=${`--drop:${Math.max(0, height - 34)}px;`}
                         onPointerDown=${e => e.stopPropagation()}
-                        onClick=${e => { e.stopPropagation(); completeToggle(i); }}>${Icon.check()}</button>
-                      ${confettiEl(i.key)}
+                        onClick=${e => { e.stopPropagation(); completeToggle(i); }}>${Icon.check()}</button>`}
+                      ${!isEv && confettiEl(i.key)}
                       ${sel && !spanning && html`<div class="tl-dot top" onPointerDown=${e => onResizeTopPointerDown(e, i)}></div>`}
                       ${sel && !spanning && html`<div class="tl-dot bottom" onPointerDown=${e => onResizePointerDown(e, i)}></div>`}
                     </div>

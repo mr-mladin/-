@@ -2,7 +2,11 @@ import { html } from "htm/preact";
 import { useState, useEffect, useRef } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
-import { minToHHMM, hhmmToMin } from "./lib.js";
+import { minToHHMM, hhmmToMin, waveDataUrl } from "./lib.js";
+
+// Варианты оформления карточки события
+const BAR_OPTS = [["none", "Нет"], ["solid", "Стандартная"], ["double", "Двойная"], ["line", "Тонкая"]];
+const BG_OPTS = [["clean", "Чистый"], ["waves", "Волны"], ["dots", "Точки"], ["header", "Заливка"]];
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
@@ -159,6 +163,10 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   const [projOpen, setProjOpen] = useState(false);
   const [repOpen, setRepOpen] = useState(false);
   const [confirmDel, setConfirmDel] = useState(false);
+  // Тип записи и оформление события
+  const [isEvent, setIsEvent] = useState(!!src.is_event);
+  const [cardBar, setCardBar] = useState(src.card_bar || "solid");
+  const [cardBg, setCardBg] = useState(src.card_bg || "clean");
 
   const lists = [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const areas = [...(store.areas || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -167,6 +175,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   // Цель задачи: проект, либо область напрямую, либо «Входящие».
   const targetName = list ? list.name : area ? area.name : "Входящие";
   const dotColor = list?.color || (area ? "var(--accent)" : "var(--text-mute)");
+  const evColor = list?.color || "var(--accent)";
   const subDone = subtasks.filter(s => s.done).length;
 
   const cardRef = useRef(null);
@@ -189,9 +198,16 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
   function setSub(id, patch) { setSubtasks(p => p.map(s => s.id === id ? { ...s, ...patch } : s)); }
   function delSub(id) { setSubtasks(p => p.filter(s => s.id !== id)); }
 
+  // Поля события шлём, только когда это событие (или когда снимаем флаг с
+  // ранее-события) — чтобы обычные задачи работали и до миграции колонок.
+  function evFields() {
+    if (isEvent) return { is_event: true, card_bar: cardBar === "none" ? null : cardBar, card_bg: cardBg === "clean" ? null : cardBg };
+    if (editing && initial && initial.is_event) return { is_event: false, card_bar: null, card_bg: null };
+    return {};
+  }
   function payload() {
     const cleanSubs = subtasks.map(s => ({ id: s.id, title: (s.title || "").trim(), done: !!s.done })).filter(s => s.title);
-    if (!date) return { title: title.trim(), list_id: listId || null, area_id: areaId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null, subtasks: cleanSubs };
+    if (!date) return { title: title.trim(), list_id: listId || null, area_id: areaId || null, date: null, start_min: null, duration_min: null, recurrence: null, recurrence_until: null, notes: notes.trim() || null, subtasks: cleanSubs, ...evFields() };
     const startMin = startTime ? hhmmToMin(startTime) : null;
     let duration = null;
     if (startMin !== null) {
@@ -205,7 +221,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
       title: title.trim(), list_id: listId || null, area_id: areaId || null, date,
       start_min: startMin, duration_min: startMin !== null ? duration : null,
       recurrence: recur, recurrence_until: recur ? (until || null) : null,
-      notes: notes.trim() || null, subtasks: cleanSubs,
+      notes: notes.trim() || null, subtasks: cleanSubs, ...evFields(),
     };
   }
   async function save() {
@@ -214,7 +230,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
     try {
       if (editing) await store.actions.tasks.update(initial.id, payload());
       else await store.actions.tasks.create(payload());
-      store.pushToast(editing ? "Задача обновлена" : "Задача добавлена", "success");
+      store.pushToast(isEvent ? (editing ? "Событие обновлено" : "Событие добавлено") : (editing ? "Задача обновлена" : "Задача добавлена"), "success");
       onClose();
     } catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); }
   }
@@ -233,12 +249,32 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
         <button class="ed-save" type="button" disabled=${busy} onClick=${save}>Готово</button>
       </div>
 
+      <div class="ed-typeseg">
+        <button class=${"ed-typebtn" + (!isEvent ? " on" : "")} type="button" onClick=${() => setIsEvent(false)}>Задача</button>
+        <button class=${"ed-typebtn" + (isEvent ? " on" : "")} type="button" onClick=${() => setIsEvent(true)}>Событие</button>
+      </div>
+
       ${error && html`<div class="ed-error">${error}</div>`}
 
-      <input class="ed-title" placeholder="Название задачи" enterkeyhint="done"
+      <input class="ed-title" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
         ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
         value=${title} onInput=${e => setTitle(e.target.value)}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
+
+      ${isEvent && html`<div class="ed-style">
+        <div class="ed-style-label">Полоса слева</div>
+        <div class="ed-style-row">
+          ${BAR_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBar === v ? " sel" : "")} onClick=${() => setCardBar(v)}>
+            <span class="ed-sw" style=${`--c:${evColor};`}>${v !== "none" ? html`<span class=${"ed-sw-bar " + v}></span>` : ""}</span>
+            <span class="ed-chip-l">${l}</span></button>`)}
+        </div>
+        <div class="ed-style-label">Фон карточки</div>
+        <div class="ed-style-row">
+          ${BG_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBg === v ? " sel" : "")} onClick=${() => setCardBg(v)}>
+            <span class=${"ed-sw bg-" + v} style=${`--c:${evColor};${v === "waves" ? "--wave:" + waveDataUrl(evColor) + ";" : ""}`}></span>
+            <span class="ed-chip-l">${l}</span></button>`)}
+        </div>
+      </div>`}
 
       ${notesOpen
         ? html`<textarea class="ed-notes" rows="2" placeholder="Заметка" autofocus

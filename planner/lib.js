@@ -192,12 +192,24 @@ function base(t) {
     title: t.title, notes: t.notes || "", color: t.color || null, icon: t.icon || null,
     list_id: t.list_id || null, area_id: t.area_id || null, start_min: t.start_min, duration_min: t.duration_min,
     subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+    is_event: !!t.is_event, card_bar: t.card_bar || null, card_bg: t.card_bg || null,
   };
 }
 // Прогресс подзадач: { done, total }.
 export function subProgress(subs) {
   const a = Array.isArray(subs) ? subs : [];
   return { done: a.filter(s => s && s.done).length, total: a.length };
+}
+// Фон-«волны» для карточки события: SVG-плитка цвета события (или нейтральная,
+// если цвет — CSS-переменная). Возвращает строку url(...) для background-image.
+function hexA(hex, a) {
+  const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+export function waveDataUrl(color) {
+  const stroke = (typeof color === "string" && color[0] === "#" && color.length >= 7) ? hexA(color, 0.34) : "rgba(100,116,139,0.34)";
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='16' height='10'><path d='M0 5 q4 -4 8 0 t8 0' fill='none' stroke='${stroke}' stroke-width='1.4'/></svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 // Видимый сегмент задачи в дне со смещением off (в днях от даты задачи). Задача
 // может тянуться за полночь: в свой день обрезается на 00:00, в следующий —
@@ -236,6 +248,7 @@ function recurItem(tmpl, ov, occDate, off, keyDate) {
     area_id: ov ? pick(ov.area_id, tmpl.area_id) : tmpl.area_id,
     start_min: start, duration_min: dur,
     subtasks: Array.isArray(tmpl.subtasks) ? tmpl.subtasks : [],
+    is_event: !!tmpl.is_event, card_bar: tmpl.card_bar || null, card_bg: tmpl.card_bg || null,
     vTop: sg.vTop, vEnd: sg.vEnd, spanTop: sg.spanTop, spanBottom: sg.spanBottom, cont: sg.cont,
   };
 }
