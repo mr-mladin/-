@@ -2030,7 +2030,7 @@ function Planner() {
   // Одна строка задачи в дереве (без даты). Вся строка — «ручка» перетаскивания.
   const taskRowEl = (t, color) => html`
     <div class=${"tree-task" + (t.done ? " done" : "") + (treeDrag && treeDrag.id === t.id ? " dragging" : "")}
-      data-treekey=${t.id} key=${t.id} onPointerDown=${e => startTreeDrag(e, t)}>
+      data-treekey=${t.id} key=${t.id} style=${`--c:${color};`} onPointerDown=${e => startTreeDrag(e, t)}>
       ${t.is_event
         ? html`<span class="tree-evmark" style=${`background:${color};`}></span>`
         : html`<button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"

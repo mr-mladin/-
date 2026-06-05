@@ -305,12 +305,19 @@ textarea.input { resize: vertical; }
 /* Третий уровень: задачи под проектом прямо в дереве. */
 .proj-row-wrap { display: flex; flex-direction: column; }
 .tree-tasks { margin: 1px 0 4px 30px; padding-left: 8px; border-left: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 1px; }
+  display: flex; flex-direction: column; gap: 3px; }
 .tree-empty { font-size: 12px; color: var(--text-mute); padding: 4px 8px; }
-.tree-task { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: var(--radius-sm);
-  touch-action: pan-y; cursor: grab; }
-.tree-task:hover { background: var(--bg-soft); }
+/* Задача в боковом списке — такая же мини-капсула в цвет проекта, как «весь день». */
+.tree-task { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 10px;
+  background-color: color-mix(in srgb, var(--c, var(--inbox)) 12%, var(--surface));
+  touch-action: pan-y; cursor: grab; transition: background .14s ease, box-shadow .14s ease; }
+.tree-task:hover { background-color: color-mix(in srgb, var(--c, var(--inbox)) 19%, var(--surface)); }
+.tree-task.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) 6%, var(--surface)); }
 .tree-task:active { cursor: grabbing; }
+/* Кружок-галочка — тонкое кольцо в цвет проекта, как в «весь день» и в сетке. */
+.tree-task .task-check { width: 18px; height: 18px; border-width: 1.5px;
+  border-color: color-mix(in srgb, var(--c, var(--border-strong)) 80%, transparent); }
+.tree-task .task-check .ico { width: 11px; height: 11px; }
 /* Кнопка «запланировать на день» — проявляется при наведении на строку. */
 .tree-sched { width: 28px; height: 28px; flex: none; opacity: 0; transition: opacity .15s ease; }
 .tree-sched .ico { width: 16px; height: 16px; }
@@ -1165,7 +1172,7 @@ textarea.input { resize: vertical; }
 .allday.drop .allday-hint { color: var(--accent); }
 /* Задача «весь день» — мини-капсула в цвет проекта (как уменьшённый таймблок). */
 .allday-item { position: relative; box-sizing: border-box; display: flex; align-items: center;
-  gap: 7px; min-width: 0; min-height: 28px; padding: 4px 10px; border-radius: 9px; cursor: default;
+  gap: 7px; min-width: 0; min-height: 28px; padding: 4px 10px; border-radius: 10px; cursor: default;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) 14%, var(--surface));
   user-select: none; -webkit-user-select: none; will-change: transform;
   transition: background .14s ease, box-shadow .14s ease, transform .14s ease; }
@@ -1201,7 +1208,7 @@ textarea.input { resize: vertical; }
     margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
-  .allday-item { gap: 6px; min-height: 24px; padding: 3px 9px; border-radius: 8px; }
+  .allday-item { gap: 6px; min-height: 24px; padding: 3px 9px; border-radius: 9px; }
   .allday-title { font-size: 12.5px; font-weight: 500; }
   .allday-check { width: 15px; height: 15px; }
   .allday-check .ico { width: 9px; height: 9px; }
