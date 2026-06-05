@@ -6,7 +6,7 @@ import { minToHHMM, hhmmToMin, waveDataUrl } from "./lib.js";
 
 // Варианты оформления карточки события
 const BAR_OPTS = [["none", "Нет"], ["solid", "Стандартная"], ["double", "Двойная"], ["line", "Тонкая"]];
-const BG_OPTS = [["clean", "Чистый"], ["waves", "Волны"], ["dots", "Точки"], ["header", "Заливка"]];
+const BG_OPTS = [["clean", "Чистый"], ["waves", "Волны"], ["waves2", "Волны 2"], ["dots", "Точки"], ["header", "Заливка"]];
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
@@ -271,7 +271,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
         <div class="ed-style-label">Фон карточки</div>
         <div class="ed-style-row">
           ${BG_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBg === v ? " sel" : "")} onClick=${() => setCardBg(v)}>
-            <span class=${"ed-sw bg-" + v} style=${`--c:${evColor};${v === "waves" ? "--wave:" + waveDataUrl(evColor) + ";" : ""}`}></span>
+            <span class=${"ed-sw bg-" + v} style=${`--c:${evColor};${v.indexOf("waves") === 0 ? "--wave:" + waveDataUrl(evColor, v) + ";" : ""}`}></span>
             <span class="ed-chip-l">${l}</span></button>`)}
         </div>
       </div>`}

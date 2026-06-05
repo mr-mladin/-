@@ -702,26 +702,32 @@ function Planner() {
     if (v) store.actions.tasks.updateSub(taskTargetId(i), sid, { title: v }).catch(showErr);
   }
 
+  // Свободная рамка-выделение (как в Finder): тянем прямоугольник в любую сторону,
+  // выделяются блоки, которых рамка касается. Пересечение считаем по реальным
+  // позициям блоков (DOM), поэтому ширина рамки свободная, без жёсткой привязки.
   function startRangeSelect(e) {
     e.preventDefault();
-    const anchor = clamp(yToMin(e.clientY), 0, 1440);
+    const gridEl = innerRef.current;
+    if (!gridEl) return;
+    const sx = e.clientX, sy = e.clientY;
     const base = new Set(selected);
-    const apply = (cur) => {
-      const lo = Math.min(anchor, cur), hi = Math.max(anchor, cur);
+    const apply = (cx, cy) => {
+      const g = gridEl.getBoundingClientRect();
+      const rx0 = Math.min(sx, cx), ry0 = Math.min(sy, cy), rx1 = Math.max(sx, cx), ry1 = Math.max(sy, cy);
       const n = new Set(base);
-      for (const it of dayTl) {
-        const s = it.start_min, en = s + (it.duration_min || 0);
-        if (s < hi && en > lo) n.add(it.key);
-      }
+      gridEl.querySelectorAll(".tl-event[data-key]").forEach(el => {
+        const r = el.getBoundingClientRect();
+        if (r.left < rx1 && r.right > rx0 && r.top < ry1 && r.bottom > ry0) n.add(el.dataset.key);
+      });
       setSelected(n);
-      setSelRange({ lo, hi });
+      setSelRange({ x: rx0 - g.left, y: ry0 - g.top, w: rx1 - rx0, h: ry1 - ry0 });
     };
-    const move = ev => { ev.preventDefault(); apply(clamp(yToMin(ev.clientY), 0, 1440)); };
+    const move = ev => { ev.preventDefault(); apply(ev.clientX, ev.clientY); };
     const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up); setSelRange(null); };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
-    apply(anchor);
+    apply(sx, sy);
   }
 
   // Создание задачи прямо в сетке (как в Apple Календаре). Долгое нажатие → задача
@@ -2211,8 +2217,8 @@ function Planner() {
                 <div class="tl-spine"></div>
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
-                ${selRange && html`<div class="tl-selrect"
-                  style=${`top:${(selRange.lo / 60) * hourPx}px;height:${((selRange.hi - selRange.lo) / 60) * hourPx}px;`}></div>`}
+                ${selRange && html`<div class="tl-marquee"
+                  style=${`left:${selRange.x}px;top:${selRange.y}px;width:${selRange.w}px;height:${selRange.h}px;`}></div>`}
                 ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
                 ${dayTl.map(i => {
                   // Переходящая через полночь задача рисуется сегментом дня и не
@@ -2249,8 +2255,8 @@ function Planner() {
                   const hiddenLift = liftDrag && !liftDrag.done && i.key === liftDrag.key;
                   const isEv = i.is_event;
                   const evCls = isEv ? " tl-ev tl-bar-" + (i.card_bar || "none") + " tl-bg-" + (i.card_bg || "clean") : "";
-                  const waveVar = (isEv && i.card_bg === "waves") ? "--wave:" + waveDataUrl(colorOf(i)) + ";" : "";
-                  return html`<div class=${"tl-event" + density + evCls + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key}
+                  const waveVar = (isEv && (i.card_bg === "waves" || i.card_bg === "waves2")) ? "--wave:" + waveDataUrl(colorOf(i), i.card_bg) + ";" : "";
+                  return html`<div class=${"tl-event" + density + evCls + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (dragging ? " dragging" : "") + (sel ? " sel" : "") + (hiddenLift ? " lift-hidden" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "") + (openSubs.has(i.key) ? " subs-open" : "")} key=${i.key} data-key=${i.key}
                     style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}${waveVar}`}
                     onPointerDown=${down}
                     onContextMenu=${e => { e.preventDefault(); e.stopPropagation(); openPreview(i); }}>

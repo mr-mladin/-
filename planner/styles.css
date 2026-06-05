@@ -482,12 +482,14 @@ textarea.input { resize: vertical; }
    текст справа от пилюли. */
 .tl { position: relative; left: 32px; width: 100%; max-width: 720px; margin: 14px auto 0; user-select: none; -webkit-user-select: none; }
 .tl-spine { display: none; }
-/* Выделенный блок: чуть плотнее заливка, тонкий аккуратный контур внутри и мягкая
-   тень-приподнятость — без жирной обводки. */
-.tl-event.sel::before { background: color-mix(in srgb, var(--c) 22%, transparent);
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--c) 48%, transparent), 0 8px 22px rgba(2, 6, 23, 0.14); }
-.tl-selrect { position: absolute; left: 52px; right: 30px; pointer-events: none; z-index: 4;
-  background: var(--accent-soft); border: 1px dashed var(--accent); border-radius: 12px; }
+/* Выделенный блок: без обводки — чуть приподнят над сеткой мягкой тенью. */
+.tl-event.sel { z-index: 6; }
+.tl-event.sel::before { background-color: color-mix(in srgb, var(--c) 18%, transparent);
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.18); }
+/* Свободная рамка-выделение (Finder-style): сплошная тонкая, без пунктира. */
+.tl-marquee { position: absolute; pointer-events: none; z-index: 8; border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 11%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
 .tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1),
     left .18s cubic-bezier(.2,.7,.3,1), width .18s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
@@ -505,15 +507,15 @@ textarea.input { resize: vertical; }
 .tl-ev .tl-body { left: 74px; }
 .tl-ev.mini .tl-body { left: 74px; }
 .tl-ev.tl-bar-none .tl-body { left: 70px; }
-/* полоса-якорь слева */
-.tl-evbar { position: absolute; left: 61px; top: 6px; bottom: 6px; border-radius: 3px; z-index: 1; pointer-events: none; }
-.tl-evbar.solid { width: 6px; background: var(--c); }
-.tl-evbar.line { width: 3px; background: var(--c); }
-.tl-evbar.double { width: 9px; background: linear-gradient(to right, var(--c) 0 3px, transparent 3px 6px, var(--c) 6px 9px); }
-.tl-event.compact .tl-evbar, .tl-event.mini .tl-evbar { top: 4px; bottom: 4px; }
+/* полоса-якорь слева — тонкая и аккуратная */
+.tl-evbar { position: absolute; left: 62px; top: 7px; bottom: 7px; border-radius: 2px; z-index: 1; pointer-events: none; }
+.tl-evbar.solid { width: 4px; background: var(--c); }
+.tl-evbar.line { width: 2px; background: var(--c); }
+.tl-evbar.double { width: 6px; background: linear-gradient(to right, var(--c) 0 2px, transparent 2px 4px, var(--c) 4px 6px); border-radius: 0; }
+.tl-event.compact .tl-evbar, .tl-event.mini .tl-evbar { top: 5px; bottom: 5px; }
 /* фоны карточки события (поверх базовой заливки ::before) */
 .tl-ev.tl-bg-dots::before { background-image: radial-gradient(circle, color-mix(in srgb, var(--c) 50%, transparent) 1.1px, transparent 1.3px); background-size: 9px 9px; }
-.tl-ev.tl-bg-waves::before { background-image: var(--wave); background-repeat: repeat; }
+.tl-ev.tl-bg-waves::before, .tl-ev.tl-bg-waves2::before { background-image: var(--wave); background-repeat: repeat; }
 .tl-ev.tl-bg-header::before { background-image: linear-gradient(var(--c), var(--c)); background-repeat: no-repeat; background-size: 100% 22px; }
 .tl-ev.tl-bg-header .tl-title { color: #fff; }
 .tl-ev.tl-bg-header.mini .tl-title { color: var(--text); }
@@ -979,7 +981,7 @@ textarea.input { resize: vertical; }
 .ed-sw-bar.line { width: 2.5px; background: var(--c); }
 .ed-sw-bar.double { width: 8px; background: linear-gradient(to right, var(--c) 0 2.5px, transparent 2.5px 5.5px, var(--c) 5.5px 8px); }
 .ed-sw.bg-dots { background-image: radial-gradient(circle, color-mix(in srgb, var(--c) 50%, transparent) 1px, transparent 1.2px); background-size: 8px 8px; }
-.ed-sw.bg-waves { background-image: var(--wave); background-repeat: repeat; }
+.ed-sw.bg-waves, .ed-sw.bg-waves2 { background-image: var(--wave); background-repeat: repeat; }
 .ed-sw.bg-header { background-image: linear-gradient(var(--c), var(--c)); background-repeat: no-repeat; background-size: 100% 12px; }
 
 /* Поля формы задачи — гарантированно доступны для ввода и каретки на iOS

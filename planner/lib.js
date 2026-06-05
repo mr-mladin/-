@@ -206,9 +206,17 @@ function hexA(hex, a) {
   const r = parseInt(hex.slice(1, 3), 16), g = parseInt(hex.slice(3, 5), 16), b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${a})`;
 }
-export function waveDataUrl(color) {
-  const stroke = (typeof color === "string" && color[0] === "#" && color.length >= 7) ? hexA(color, 0.34) : "rgba(100,116,139,0.34)";
-  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='16' height='10'><path d='M0 5 q4 -4 8 0 t8 0' fill='none' stroke='${stroke}' stroke-width='1.4'/></svg>`;
+export function waveDataUrl(color, kind) {
+  const ok = typeof color === "string" && color[0] === "#" && color.length >= 7;
+  const st = ok ? hexA(color, 0.26) : "rgba(100,116,139,0.26)";
+  let svg;
+  if (kind === "waves2") {
+    // Морские свеллы: шире, выше, мягче.
+    svg = `<svg xmlns='http://www.w3.org/2000/svg' width='28' height='14'><path d='M0 9 q7 -7 14 0 t14 0' fill='none' stroke='${st}' stroke-width='1.2'/></svg>`;
+  } else {
+    // Лёгкая рябь.
+    svg = `<svg xmlns='http://www.w3.org/2000/svg' width='20' height='10'><path d='M0 5 q5 -4 10 0 t10 0' fill='none' stroke='${st}' stroke-width='1.1'/></svg>`;
+  }
   return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
 }
 // Видимый сегмент задачи в дне со смещением off (в днях от даты задачи). Задача
