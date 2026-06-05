@@ -209,7 +209,7 @@ function Planner() {
   // дочерние обработчики останавливают всплытие (название, подзадачи).
   useEffect(() => {
     if (selected.size === 0) return;
-    const onDown = (e) => { const t = e.target; if (!(t && t.closest && t.closest(".tl-event"))) setSelected(new Set()); };
+    const onDown = (e) => { const t = e.target; if (!(t && t.closest && (t.closest(".tl-event") || t.closest(".allday-item")))) setSelected(new Set()); };
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [selected]);
@@ -702,25 +702,25 @@ function Planner() {
     if (v) store.actions.tasks.updateSub(taskTargetId(i), sid, { title: v }).catch(showErr);
   }
 
-  // Свободная рамка-выделение (как в Finder): тянем прямоугольник в любую сторону,
-  // выделяются блоки, которых рамка касается. Пересечение считаем по реальным
-  // позициям блоков (DOM), поэтому ширина рамки свободная, без жёсткой привязки.
+  // Свободная рамка-выделение (как в Finder): тянем прямоугольник в любую сторону —
+  // выделяются и блоки сетки дня, и задачи «весь день», которых рамка касается.
+  // Координаты — экранные (вьюпорт), пересечение по реальным позициям (DOM).
   function startRangeSelect(e) {
     e.preventDefault();
-    const gridEl = innerRef.current;
-    if (!gridEl) return;
+    const scope = scrollRef.current || document;
     const sx = e.clientX, sy = e.clientY;
     const base = new Set(selected);
     const apply = (cx, cy) => {
-      const g = gridEl.getBoundingClientRect();
       const rx0 = Math.min(sx, cx), ry0 = Math.min(sy, cy), rx1 = Math.max(sx, cx), ry1 = Math.max(sy, cy);
       const n = new Set(base);
-      gridEl.querySelectorAll(".tl-event[data-key]").forEach(el => {
+      scope.querySelectorAll(".tl-event[data-key], .allday-item[data-adkey]").forEach(el => {
+        const k = el.dataset.key || el.dataset.adkey;
+        if (!k || k === "__adph") return;
         const r = el.getBoundingClientRect();
-        if (r.left < rx1 && r.right > rx0 && r.top < ry1 && r.bottom > ry0) n.add(el.dataset.key);
+        if (r.left < rx1 && r.right > rx0 && r.top < ry1 && r.bottom > ry0) n.add(k);
       });
       setSelected(n);
-      setSelRange({ x: rx0 - g.left, y: ry0 - g.top, w: rx1 - rx0, h: ry1 - ry0 });
+      setSelRange({ x: rx0, y: ry0, w: rx1 - rx0, h: ry1 - ry0 });
     };
     const move = ev => { ev.preventDefault(); apply(ev.clientX, ev.clientY); };
     const up = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up); setSelRange(null); };
@@ -825,7 +825,8 @@ function Planner() {
   }
 
   function deleteSelected() {
-    const items = dayTl.filter(i => selected.has(i.key));
+    // Выделение охватывает и сетку дня, и зону «весь день».
+    const items = [...dayTl, ...allDay].filter(i => selected.has(i.key));
     if (items.length === 0) return;
     store.batch("удаление", () => {
       for (const i of items) {
@@ -2191,23 +2192,20 @@ function Planner() {
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
-              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}>
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}
+                onPointerDown=${e => { if (e.shiftKey && !(e.target.closest && e.target.closest(".allday-item"))) startRangeSelect(e); }}>
                 ${(() => {
                   const cell = (i) => html`
-                    <div class=${"allday-item" + (i.done ? " done" : "") + (treeDrag && treeDrag.id === i.id ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
-                      onPointerDown=${e => { if (i.id) startTreeDrag(e, i); }}>
+                    <div class=${"allday-item" + (i.done ? " done" : "") + (selected.has(i.key) ? " sel" : "") + (treeDrag && treeDrag.id === i.id ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
+                      onPointerDown=${e => { if (i.id) startTreeDrag(e, i); }}
+                      onClick=${e => { if (trayClickGuard.current) return; handleTap(i, e.shiftKey); }}>
                       ${i.is_event
                         ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
                         : html`<button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
                             style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
-                            onClick=${() => { if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
-                      ${titleEdit && titleEdit.key === i.key
-                        ? html`<input class="allday-edit" value=${titleEdit.value}
-                            ref=${el => { if (el && !el._fe) { el._fe = true; el.focus(); const n = el.value.length; const c = titleEdit.caret; const pos = (c == null || c > n) ? n : c; try { el.setSelectionRange(pos, pos); } catch (e) {} } }}
-                            onInput=${e => setTitleEdit({ key: i.key, value: e.target.value, caret: titleEdit.caret })}
-                            onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); commitTitle(i); } else if (e.key === "Escape") { e.preventDefault(); setTitleEdit(null); } }}
-                            onBlur=${() => commitTitle(i)} />`
-                        : html`<span class="allday-title" onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; startTitleEdit(i, caretOffsetFromClick(e)); }}>${i.title}</span>`}
+                            onPointerDown=${e => e.stopPropagation()}
+                            onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
+                      <span class="allday-title">${i.title}</span>
                     </div>`;
                   if (!adDrag) return allDay.map(cell);
                   const rest = allDay.filter(i => i.key !== adDrag.key);
@@ -2230,8 +2228,6 @@ function Planner() {
                 <div class="tl-spine"></div>
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
-                ${selRange && html`<div class="tl-marquee"
-                  style=${`left:${selRange.x}px;top:${selRange.y}px;width:${selRange.w}px;height:${selRange.h}px;`}></div>`}
                 ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
                 ${dayTl.map(i => {
                   // Переходящая через полночь задача рисуется сегментом дня и не
@@ -2445,6 +2441,7 @@ function Planner() {
       <span class="tree-task-title">${treeDrag.title}</span>
     </div>`}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
+    ${selRange && html`<div class="tl-marquee" style=${`left:${selRange.x}px;top:${selRange.y}px;width:${selRange.w}px;height:${selRange.h}px;`}></div>`}
     ${edFloat && html`<div ref=${edBackRef} class=${"ed-float-back" + (edClosing ? " closing" : "") + (edAnchorMobile ? " anchored" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm}
       initial=${(listModal !== "new" && listModal.id) ? listModal : null}
