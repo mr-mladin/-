@@ -107,6 +107,9 @@ function Planner() {
   const treeDragRef = useRef(null);
   useEffect(() => { treeDragRef.current = treeDrag; }, [treeDrag]);
   const treeRects = useRef(new Map());
+  // Перенос ВЫДЕЛЕНИЯ (нескольких задач) в проект/область/входящие/«весь день».
+  // { x, y, count, dropList } — dropList: id проекта | "inbox" | "area:<id>" | "__allday__" | null.
+  const [selDrag, setSelDrag] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
   // Соседние дни карусели рисуем только во время горизонтального свайпа —
   // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
@@ -838,6 +841,42 @@ function Planner() {
     store.pushToast(items.length > 1 ? `Удалено: ${items.length}` : "Задача удалена", "success");
   }
 
+  // Выделенные задачи (сетка + «весь день») как список id (только конкретные строки).
+  function selectedTaskIds() {
+    const items = [...dayTl, ...allDay].filter(i => selected.has(i.key) && i.kind === "concrete" && i.id);
+    return [...new Set(items.map(i => i.id))];
+  }
+  // Что под курсором в боковой панели: id проекта | "inbox" | "area:<id>" | null.
+  function sectionAt(x, y) {
+    const el = document.elementFromPoint(x, y);
+    if (!el) return null;
+    const row = el.closest("[data-droplist]");
+    if (row) return row.dataset.droplist;
+    const cont = el.closest("[data-listtasks]");
+    if (cont) return cont.dataset.listtasks;
+    return null;
+  }
+  // Перенести список задач в раздел (проект/область/входящие) — снимаем дату/время.
+  function moveTasksToSection(ids, dropList) {
+    if (!ids.length) return;
+    const clear = { date: null, start_min: null, duration_min: null };
+    let patch;
+    if (dropList === "inbox") patch = { list_id: null, area_id: null, ...clear };
+    else if (dropList.indexOf("area:") === 0) patch = { area_id: dropList.slice(5), list_id: null, ...clear };
+    else patch = { list_id: dropList, area_id: null, ...clear };
+    store.batch("перенос", () => ids.forEach(id => store.actions.tasks.update(id, patch).catch(showErr)));
+    if (dropList.indexOf("area:") === 0) setAreaCollapsed(prev => { const n = new Set(prev); n.delete(dropList.slice(5)); writeCollapsed(n); return n; });
+    else setExpandedLists(prev => { const n = new Set(prev); n.add(dropList); return n; });
+    setSelected(new Set());
+    store.pushToast(ids.length > 1 ? `Перенесено: ${ids.length}` : "Задача перенесена", "success");
+  }
+  // Сделать список задач задачами «на весь день» текущего дня.
+  function moveTasksToAllday(ids) {
+    if (!ids.length) return;
+    store.batch("в весь день", () => ids.forEach(id => store.actions.tasks.update(id, { date: dateRef.current, start_min: null, duration_min: null }).catch(showErr)));
+    store.pushToast(ids.length > 1 ? `В «весь день»: ${ids.length}` : "Задача — на весь день", "success");
+  }
+
   function copyPayload(it, startMin) {
     return { title: it.title || "", notes: it.notes || null, color: it.color || null, icon: it.icon || null,
       list_id: it.list_id || null, date, start_min: startMin, duration_min: it.duration_min || 60 };
@@ -973,6 +1012,16 @@ function Planner() {
       if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) > 4) moved = true;
       if (!moved) return;
       if (group) {
+        // Над боковой панелью/«весь день» — переносим ВСЁ выделение туда (стопка-карточка),
+        // а не двигаем по времени. Копию (Alt) в разделы не уводим.
+        const sec = !copy ? sectionAt(ev.clientX, ev.clientY) : null;
+        const overAllday = !copy && !sec && dndZoneAt(ev.clientX, ev.clientY) === "allday";
+        if (sec || overAllday) {
+          setDrag(null);
+          setSelDrag({ x: ev.clientX, y: ev.clientY, count: selectedTaskIds().length, dropList: overAllday ? "__allday__" : sec });
+          return;
+        }
+        setSelDrag(null);
         delta = clamp(snap(yToMin(ev.clientY) - grab), 0, 1440) - item.start_min;
         setDrag({ type: copy ? "copyGroup" : "moveGroup", keys: group.map(g => g.item.key), delta });
         return;
@@ -993,10 +1042,10 @@ function Planner() {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel);
     };
     // Системное прерывание жеста (pointercancel) — НЕ коммитим, просто сбрасываем.
-    const cancel = () => { detach(); setDrag(null); setDnd(null); };
+    const cancel = () => { detach(); setDrag(null); setDnd(null); setSelDrag(null); };
     const up = (ev) => {
       detach();
-      setDrag(null); setDnd(null);
+      setDrag(null); setDnd(null); setSelDrag(null);
       if (!moved) { (tapAction || (() => handleTap(item, shift)))(); return; }
       if (copy) {
         const list = group ? group : [{ item, start: item.start_min, dur: item.duration_min || 0 }];
@@ -1006,7 +1055,12 @@ function Planner() {
           store.actions.tasks.create(copyPayload(g.item, ns)).catch(showErr);
         }
       } else if (group) {
-        store.batch("перенос", () => {
+        // Сброс выделения в проект/область/входящие или в «весь день» — переносим всё.
+        const sec = sectionAt(ev.clientX, ev.clientY);
+        const overAllday = !sec && dndZoneAt(ev.clientX, ev.clientY) === "allday";
+        if (sec) { moveTasksToSection(selectedTaskIds(), sec); }
+        else if (overAllday) { moveTasksToAllday(selectedTaskIds()); }
+        else store.batch("перенос", () => {
           for (const g of group) {
             const ns = clamp(g.start + delta, 0, 1440 - g.dur);
             if (ns !== g.start) store.actions.tasks.reschedule(g.item, { start_min: ns }).catch(showErr);
@@ -1420,15 +1474,20 @@ function Planner() {
         endCard();
       } else if (o.zone === "section") {
         const dl = o.dropList;
-        const clear = { date: null, start_min: null, duration_min: null };
-        let patch;
-        if (dl === "inbox") patch = { list_id: null, area_id: null, ...clear };
-        else if (dl.indexOf("area:") === 0) patch = { area_id: dl.slice(5), list_id: null, ...clear };
-        else patch = { list_id: dl, area_id: null, ...clear };
-        store.actions.tasks.update(t.id, patch).catch(showErr);
-        // Раскрываем цель, чтобы перенесённая задача сразу была видна.
-        if (dl.indexOf("area:") === 0) setAreaCollapsed(prev => { const n = new Set(prev); n.delete(dl.slice(5)); writeCollapsed(n); return n; });
-        else setExpandedLists(prev => { const n = new Set(prev); n.add(dl); return n; });
+        // Если перетаскиваемая задача входит в выделение из нескольких — переносим всё.
+        if (t.key && selected.has(t.key) && selected.size > 1) {
+          moveTasksToSection(selectedTaskIds(), dl);
+        } else {
+          const clear = { date: null, start_min: null, duration_min: null };
+          let patch;
+          if (dl === "inbox") patch = { list_id: null, area_id: null, ...clear };
+          else if (dl.indexOf("area:") === 0) patch = { area_id: dl.slice(5), list_id: null, ...clear };
+          else patch = { list_id: dl, area_id: null, ...clear };
+          store.actions.tasks.update(t.id, patch).catch(showErr);
+          // Раскрываем цель, чтобы перенесённая задача сразу была видна.
+          if (dl.indexOf("area:") === 0) setAreaCollapsed(prev => { const n = new Set(prev); n.delete(dl.slice(5)); writeCollapsed(n); return n; });
+          else setExpandedLists(prev => { const n = new Set(prev); n.add(dl); return n; });
+        }
         endCard();
       } else if (o.zone === "tree" && o.overIndex != null) {
         persistTreeOrder(source, t.id, o.overIndex);
@@ -1991,6 +2050,8 @@ function Planner() {
     : filter === "done" ? Icon.check() : filter === "trash" ? Icon.trash()
     : (filter && filter.startsWith("area:")) ? Icon.folder() : Icon.dot();
   const filterList = (filter && listById[filter]) || null;
+  // Подсветка строки-цели при перетаскивании (одиночном или переносе выделения).
+  const dropHi = (key) => (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === key) || (selDrag && selDrag.dropList === key);
   // Иконка проекта — эмодзи в кружке (цвет проекта тонирует фон). Без эмодзи —
   // маленький кружок в цвете проекта.
   const projTint = (c) => `color-mix(in srgb, ${c || "var(--accent)"} 20%, var(--surface))`;
@@ -2050,7 +2111,7 @@ function Planner() {
           <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); }}>${Icon.edit()}</button>
           <button class="del" title="Удалить" onClick=${() => { setDelList(l); setSwipeId(null); }}>${Icon.trash()}</button>
         </div>
-        <button class=${"proj-opt" + (open ? " expanded" : "") + (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === l.id ? " drop-target" : "")}
+        <button class=${"proj-opt" + (open ? " expanded" : "") + (dropHi(l.id) ? " drop-target" : "")}
           data-droplist=${l.id}
           onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
           onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
@@ -2073,7 +2134,7 @@ function Planner() {
                 <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
                 <span class="proj-opt-name">Все задачи</span></button>
               <div class="proj-row-wrap">
-                <button class=${"proj-opt" + (expandedLists.has("inbox") ? " expanded" : "") + (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === "inbox" ? " drop-target" : "")}
+                <button class=${"proj-opt" + (expandedLists.has("inbox") ? " expanded" : "") + (dropHi("inbox") ? " drop-target" : "")}
                   data-droplist="inbox" onClick=${() => toggleListExpand("inbox")}>
                   <span class=${"proj-disc" + (expandedLists.has("inbox") ? " open" : "")}>${Icon.right()}</span>
                   <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
@@ -2098,7 +2159,7 @@ function Planner() {
                   <button class="area-toggle" title=${areaCollapsed.has(a.id) ? "Развернуть" : "Свернуть"}
                     onClick=${() => toggleArea(a.id)}>
                     <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
-                  <button class=${"proj-opt area-opt" + (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === "area:" + a.id ? " drop-target" : "")}
+                  <button class=${"proj-opt area-opt" + (dropHi("area:" + a.id) ? " drop-target" : "")}
                     data-droplist=${"area:" + a.id}
                     onClick=${() => toggleArea(a.id)}
                     onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
@@ -2192,7 +2253,7 @@ function Planner() {
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
-              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") || (selDrag && selDrag.dropList === "__allday__") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}
                 onPointerDown=${e => { if (e.shiftKey && !(e.target.closest && e.target.closest(".allday-item"))) startRangeSelect(e); }}>
                 ${(() => {
                   const cell = (i) => html`
@@ -2442,6 +2503,10 @@ function Planner() {
     </div>`}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
     ${selRange && html`<div class="tl-marquee" style=${`left:${selRange.x}px;top:${selRange.y}px;width:${selRange.w}px;height:${selRange.h}px;`}></div>`}
+    ${selDrag && html`<div class=${"sel-drag-card" + (selDrag.dropList ? " over" : "")} style=${`left:${selDrag.x + 14}px;top:${selDrag.y + 10}px;`}>
+      <span class="sel-drag-count">${selDrag.count}</span>
+      <span class="sel-drag-label">${selDrag.count === 1 ? "задача" : (selDrag.count < 5 ? "задачи" : "задач")}</span>
+    </div>`}
     ${edFloat && html`<div ref=${edBackRef} class=${"ed-float-back" + (edClosing ? " closing" : "") + (edAnchorMobile ? " anchored" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm}
       initial=${(listModal !== "new" && listModal.id) ? listModal : null}
