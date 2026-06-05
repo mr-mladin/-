@@ -1823,7 +1823,7 @@ function Planner() {
       || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
     return html`<div class="tl-peek">
       <div class=${"allday" + (all.length === 0 ? " empty" : "") + (all.length ? " grid" : "")} style=${`--adh:${AD_COLLAPSED}px`}>
-        ${all.map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
+        ${all.map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key} style=${`--c:${colorOf(i)};`}>
           ${i.is_event
             ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
             : html`<span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>`}
@@ -2144,6 +2144,7 @@ function Planner() {
                 ${(() => {
                   const cell = (i) => html`
                     <div class=${"allday-item" + (i.done ? " done" : "") + (selected.has(i.key) ? " sel" : "") + (treeDrag && treeDrag.id === i.id ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
+                      style=${`--c:${colorOf(i)};`}
                       onPointerDown=${e => { if (i.id) startTreeDrag(e, i); }}
                       onClick=${e => { if (trayClickGuard.current) return; handleTap(i, e.shiftKey); }}>
                       ${i.is_event

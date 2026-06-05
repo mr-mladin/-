@@ -861,8 +861,7 @@ textarea.input { resize: vertical; }
   .allday-item { gap: 7px; }
   .allday-check { width: 17px; height: 17px; border-width: 1.5px; }
   .allday-check .ico { width: 9px; height: 9px; }
-  .allday-title, .allday-float .allday-title { font-size: 13px; }
-  .allday-float { padding: 5px 10px 5px 6px; gap: 7px; }
+  .allday-title { font-size: 13px; }
 
   /* Форма задачи — нижний лист (как в Apple Календаре): прижат к низу экрана,
      высота по содержимому (до 92% экрана), скругление сверху. Не во весь экран и без
@@ -1161,27 +1160,21 @@ textarea.input { resize: vertical; }
 .allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; row-gap: 7px;
   align-content: start; align-items: center; position: relative; }
 .allday.empty { padding: 8px 16px 8px 20px; }
-.allday.drop { background: var(--accent-soft); }
+/* При наведении драга НЕ подсвечиваем всю зону — фидбэк даёт сама капсула. */
 .allday-hint { font-size: 12px; color: var(--text-mute); transition: color .25s ease; }
 .allday.drop .allday-hint { color: var(--accent); }
-.allday-item { display: flex; align-items: center; gap: 9px; min-width: 0; cursor: default;
-  user-select: none; -webkit-user-select: none; will-change: transform; transition: background .12s ease, box-shadow .12s ease; }
+/* Задача «весь день» — мини-капсула в цвет проекта (как уменьшённый таймблок). */
+.allday-item { position: relative; box-sizing: border-box; display: flex; align-items: center;
+  gap: 7px; min-width: 0; min-height: 28px; padding: 4px 10px; border-radius: 9px; cursor: default;
+  background-color: color-mix(in srgb, var(--c, var(--inbox)) 14%, var(--surface));
+  user-select: none; -webkit-user-select: none; will-change: transform;
+  transition: background .14s ease, box-shadow .14s ease, transform .14s ease; }
+.allday-item.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) 7%, var(--surface)); }
 .allday-item:active { cursor: default; }
-/* Выделенная задача «весь день» — лёгкая подсветка/подъём, без сдвига отступов. */
-.allday-item.sel { border-radius: 8px; background: var(--accent-soft); box-shadow: 0 4px 12px rgba(2, 6, 23, 0.12); }
+/* Выделение — единое с сеткой дня: глубже заливка + мягкий подъём-тень, без обводки. */
+.allday-item.sel { background-color: color-mix(in srgb, var(--c, var(--inbox)) 22%, var(--surface));
+  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.18); }
 .allday.grid .allday-item { touch-action: none; }
-/* Пустое место, куда встанет перетаскиваемая карточка. */
-.ad-placeholder { border-radius: 12px; background: var(--accent-soft);
-  border: 1.5px dashed var(--accent); opacity: .5; cursor: default; }
-/* Плавающая карточка под пальцем: приподнята, со скидкой на тень. */
-.allday-float { position: fixed; left: 0; top: 0; z-index: 90; pointer-events: none;
-  display: flex; align-items: center; gap: 9px; padding: 6px 12px 6px 7px; border-radius: 11px;
-  background: var(--surface); box-shadow: 0 12px 30px rgba(15, 23, 42, .22);
-  transform: translate(-9999px, 0); transform-origin: left center;
-  animation: ad-pop .18s ease both; }
-@keyframes ad-pop { from { opacity: .4; } to { opacity: 1; } }
-.allday-float .allday-title { font-size: 14px; font-weight: 600; color: var(--text);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* Тонкое кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
 .allday-check { flex: none; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid currentColor;
   background: var(--surface); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
@@ -1206,8 +1199,8 @@ textarea.input { resize: vertical; }
     margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
-  .allday-item { gap: 7px; }
-  .allday-title, .allday-float .allday-title { font-size: 12.5px; font-weight: 500; }
+  .allday-item { gap: 6px; min-height: 24px; padding: 3px 9px; border-radius: 8px; }
+  .allday-title { font-size: 12.5px; font-weight: 500; }
   .allday-check { width: 15px; height: 15px; }
   .allday-check .ico { width: 9px; height: 9px; }
 }
