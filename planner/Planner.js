@@ -1878,7 +1878,9 @@ function Planner() {
     return html`<div class="tl-peek">
       <div class=${"allday" + (all.length === 0 ? " empty" : "") + (all.length ? " grid" : "")} style=${`--adh:${AD_COLLAPSED}px`}>
         ${all.map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key}>
-          <span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>
+          ${i.is_event
+            ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
+            : html`<span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>`}
           <span class="allday-title">${i.title}</span>
         </div>`)}
       </div>
@@ -2416,9 +2418,13 @@ function Planner() {
       const dur = it.duration_min || 0;
       const liftMin = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
       const density = g.height >= 44 ? "" : g.height >= 24 ? " compact" : " mini";
-      return html`<div class=${"tl-event tl-lift-overlay" + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted")}
-        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
-        <div class="tl-pill"><button class=${"tl-pill-check" + (it.done ? " on" : "")} type="button">${Icon.check()}</button></div>
+      const isEv = it.is_event;
+      const evCls = isEv ? " tl-ev tl-bar-" + (it.card_bar || "none") + " tl-bg-" + (it.card_bg || "clean") : "";
+      const waveVar = (isEv && (it.card_bg === "waves" || it.card_bg === "waves2")) ? "--wave:" + waveDataUrl(colorOf(it), it.card_bg) + ";" : "";
+      return html`<div class=${"tl-event tl-lift-overlay" + evCls + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted")}
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};${waveVar}transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
+        ${isEv && it.card_bar && it.card_bar !== "none" && html`<div class=${"tl-evbar " + it.card_bar}></div>`}
+        <div class="tl-pill">${!isEv ? html`<button class=${"tl-pill-check" + (it.done ? " on" : "")} type="button">${Icon.check()}</button>` : ""}</div>
         <div class="tl-body"><div class="tl-text">
           <div class="tl-titlerow"><div class="tl-title">${it.title}${it.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div></div>
           <div class="tl-meta">${minRangeLabel(liftMin, dur)} (${durHuman(dur)})</div>
