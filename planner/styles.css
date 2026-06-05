@@ -357,8 +357,9 @@ textarea.input { resize: vertical; }
 .sel-drag-card .sel-drag-count { font-size: 16px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .sel-drag-card .sel-drag-label { font-size: 12px; opacity: .9; }
 .sel-drag-card.over { transform: scale(1.05); }
-/* Перетаскиваемая задача «весь день» — прячем оригинал (видна только живая карточка). */
+/* Перетаскиваемая задача — прячем оригинал (видна только живая карточка-капсула). */
 .allday-item.is-dragging { opacity: 0; }
+.tree-task.dragging { opacity: 0; }
 .tree-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
   border: none; background: transparent; cursor: pointer; font-family: inherit; text-align: left; padding: 0; }
 .tree-task-title { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
