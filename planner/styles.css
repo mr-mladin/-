@@ -308,10 +308,10 @@ textarea.input { resize: vertical; }
   display: flex; flex-direction: column; gap: 3px; }
 .tree-empty { font-size: 12px; color: var(--text-mute); padding: 4px 8px; }
 /* Задача в боковом списке — такая же мини-капсула в цвет проекта, как «весь день». */
-.tree-task { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 10px;
+.tree-task { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 12px;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) 12%, var(--surface));
   touch-action: pan-y; cursor: grab; transition: background .14s ease, box-shadow .14s ease; }
-.tree-task:hover { background-color: color-mix(in srgb, var(--c, var(--inbox)) 19%, var(--surface)); }
+.tree-task:hover { background-color: color-mix(in srgb, var(--c, var(--inbox)) 18%, var(--surface)); }
 .tree-task.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) 6%, var(--surface)); }
 .tree-task:active { cursor: grabbing; }
 /* Кружок-галочка — тонкое кольцо в цвет проекта, как в «весь день» и в сетке. */
@@ -1173,14 +1173,14 @@ textarea.input { resize: vertical; }
 .allday.drop .allday-hint { color: var(--accent); }
 /* Задача «весь день» — мини-капсула в цвет проекта (как уменьшённый таймблок). */
 .allday-item { position: relative; box-sizing: border-box; display: flex; align-items: center;
-  gap: 7px; min-width: 0; min-height: 28px; padding: 4px 10px; border-radius: 10px; cursor: default;
-  background-color: color-mix(in srgb, var(--c, var(--inbox)) 14%, var(--surface));
+  gap: 7px; min-width: 0; min-height: 28px; padding: 4px 10px; border-radius: 12px; cursor: default;
+  background-color: color-mix(in srgb, var(--c, var(--inbox)) 12%, var(--surface));
   user-select: none; -webkit-user-select: none; will-change: transform;
   transition: background .14s ease, box-shadow .14s ease, transform .14s ease; }
-.allday-item.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) 7%, var(--surface)); }
+.allday-item.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) 6%, var(--surface)); }
 .allday-item:active { cursor: default; }
 /* Выделение — единое с сеткой дня: глубже заливка + мягкий подъём-тень, без обводки. */
-.allday-item.sel { background-color: color-mix(in srgb, var(--c, var(--inbox)) 22%, var(--surface));
+.allday-item.sel { background-color: color-mix(in srgb, var(--c, var(--inbox)) 18%, var(--surface));
   box-shadow: 0 8px 20px rgba(2, 6, 23, 0.18); }
 /* Живая копия задачи при переносе в «весь день» (десктоп) — чуть выше над фоном. */
 .allday-item.ad-lift { box-shadow: 0 14px 30px rgba(15, 23, 42, 0.3); }
@@ -1209,7 +1209,7 @@ textarea.input { resize: vertical; }
     margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
-  .allday-item { gap: 6px; min-height: 24px; padding: 3px 9px; border-radius: 9px; }
+  .allday-item { gap: 6px; min-height: 24px; padding: 3px 9px; border-radius: 12px; }
   .allday-title { font-size: 12.5px; font-weight: 500; }
   .allday-check { width: 15px; height: 15px; }
   .allday-check .ico { width: 9px; height: 9px; }
