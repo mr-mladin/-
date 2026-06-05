@@ -338,10 +338,6 @@ textarea.input { resize: vertical; }
 .tree-drag-card.landing .task-check, .tree-drag-card.landing .tree-task-title { opacity: 0; transition: opacity .15s ease; }
 /* Сброс в проект/область/всё-день: карточка мягко гаснет. */
 .tree-drag-card.dropping { opacity: 0; transform: scale(.96); transition: opacity .14s ease, transform .14s ease; }
-/* Подсветка слота в сетке, куда упадёт задача. */
-.tree-grid-ghost { position: fixed; z-index: 30; pointer-events: none; border-radius: var(--radius);
-  background: color-mix(in srgb, var(--c) 14%, transparent);
-  border: 1px dashed color-mix(in srgb, var(--c) 55%, transparent); }
 /* Подсветка строки-цели (проект/область/входящие), куда упадёт задача. */
 .proj-opt.drop-target { background: var(--accent-soft);
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 60%, transparent); }
@@ -550,9 +546,12 @@ textarea.input { resize: vertical; }
    пальцем. Двойной класс — чтобы position:fixed побеждал .tl-event/.tl-ghost. */
 .tl-event.tl-lift-overlay, .tl-ghost.tl-lift-overlay { position: fixed; right: auto; z-index: 55; pointer-events: none; }
 /* Призрак на месте приземления поднятой задачи: полупрозрачный, на разметке часов. */
-.tl-ghost.lift-target { opacity: 0.5; z-index: 4; transition: top .08s linear; }
-.tl-ghost.lift-target .tl-ghost-pill { background: var(--c); border: 0; }
-.tl-ghost.lift-target .tl-ghost-label { color: var(--text); }
+/* Метка времени при переносе: едет по вертикали к месту приземления задачи,
+   показывает время и длительность. Самого блока-призрака больше нет. */
+.tl-timetag { position: absolute; left: 58px; z-index: 8; pointer-events: none; white-space: nowrap;
+  background: var(--c); color: #fff; font-size: 11px; font-weight: 650; line-height: 1;
+  padding: 3px 7px; border-radius: 7px; box-shadow: 0 3px 10px rgba(2, 6, 23, 0.22);
+  transition: top .08s linear; }
 /* Капсула-бар убрана: .tl-pill — невидимый держатель кружка-галочки на всю высоту
    блока (высота нужна для падения шарика). Цвет задачи несёт плашка-фон (::before). */
 .tl-pill { position: absolute; left: 60px; width: 22px; top: 0; bottom: 0; border-radius: 999px;

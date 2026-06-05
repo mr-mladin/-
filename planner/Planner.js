@@ -1367,16 +1367,27 @@ function Planner() {
     // У боковых задач дата в .date, у элементов «весь день» — в .occDate.
     const dated = !!(t.date || t.occDate);
     let active = false, hold = null;
-    // Куда вставить капсулу при перестановке внутри «весь день» (читательский порядок).
-    const adIndexAt = (cx, cy) => {
-      const grid = adGridRef.current; if (!grid) return 0;
-      const caps = [...grid.querySelectorAll(".allday-item[data-adkey]")].filter(n => n.dataset.adkey !== t.key);
-      let idx = 0;
-      for (const n of caps) {
+    // Исходные позиции капсул «весь день» (снимок на старте, ДО живой перестановки) —
+    // чтобы индекс вставки считался по стабильной сетке, а не по уже сдвинувшимся
+    // капсулам (иначе индекс «зацикливался» и капсулы разлетались).
+    let adSlots = null;
+    const measureAdSlots = () => {
+      const grid = adGridRef.current; if (!grid) { adSlots = []; return; }
+      adSlots = [...grid.querySelectorAll(".allday-item[data-adkey]")].map(n => {
         const rr = n.getBoundingClientRect();
-        if (cy > rr.bottom) { idx++; continue; }          // курсор ниже ряда — капсула раньше
-        if (cy >= rr.top) { if (cx > rr.left + rr.width / 2) idx++; continue; } // в ряду — левее курсора
-        break;                                            // курсор выше — дальше все позже
+        return { key: n.dataset.adkey, top: rr.top, bottom: rr.bottom, midX: rr.left + rr.width / 2 };
+      });
+    };
+    // Куда вставить капсулу при перестановке внутри «весь день» (читательский порядок),
+    // считаем по неподвижному снимку adSlots.
+    const adIndexAt = (cx, cy) => {
+      if (!adSlots) return 0;
+      let idx = 0;
+      for (const s of adSlots) {
+        if (s.key === t.key) continue;
+        if (cy > s.bottom) { idx++; continue; }            // курсор ниже ряда — капсула раньше
+        if (cy >= s.top) { if (cx > s.midX) idx++; continue; } // в ряду — левее курсора
+        break;                                             // курсор выше — дальше все позже
       }
       return idx;
     };
@@ -1405,6 +1416,7 @@ function Planner() {
     };
     const begin = (cx, cy) => {
       active = true; trayClickGuard.current = true; haptic();
+      if (fromAllday) measureAdSlots(); // снимок исходных позиций капсул до перестановки
       setTreeDrag({ id: t.id, key: t.key, source, title: t.title, color, isEvent: !!t.is_event, w: r.width, h: r.height,
         offX, offY, x: cx, y: cy, dur, ...overAt(cx, cy) });
     };
@@ -1784,27 +1796,6 @@ function Planner() {
     for (const it of layoutColumns(dayTl, null)) m.set(it.key, { col: it._col, cols: it._cols });
     return m;
   }, [dayTl]);
-  // Живая позиция перетаскиваемой задачи (десктоп — drag, мобильный подъём — liftDrag).
-  let liveDrag = null;
-  if (drag && (drag.type === "move" || drag.type === "copy" || drag.type === "resize")) {
-    liveDrag = { key: drag.key, start: drag.start, dur: drag.dur };
-  } else if (liftDrag && !liftDrag.landing && !liftDrag.done && !liftDrag.allday && !liftDrag.section && !liftDrag.tray && liftItemRef.current) {
-    const it = liftItemRef.current, dur = it.duration_min || 0;
-    const start = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
-    liveDrag = { key: liftDrag.key, start, dur };
-  }
-  // Сколько чужих задач сейчас перекрывает призрак по времени — на столько «полос»
-  // он уводится вбок (обтекает их капсулы). 0 — призрак во всю ширину, как обычно.
-  const ghostOverlap = useMemo(() => {
-    if (!liveDrag) return 0;
-    const s = liveDrag.start, e = liveDrag.start + liveDrag.dur;
-    let n = 0;
-    for (const it of dayTl) {
-      if (it.key === liveDrag.key) continue;
-      if (it.vTop < e && it.vEnd > s) n++;
-    }
-    return Math.min(n, 3); // не уводим слишком далеко
-  }, [dayTl, liveDrag && liveDrag.key, liveDrag && liveDrag.start, liveDrag && liveDrag.dur]);
 
   // ---- Встроенный редактор: где монтировать (одно из трёх мест) ----
   const edTask = editing?.task || null;
@@ -2288,11 +2279,9 @@ function Planner() {
                   // вправо. При переносе/растягивании одной задачи её слот живой (обтекает
                   // соседей). Групповой перенос и переходящая через полночь — на всю ширину.
                   const slot = dayCols.get(i.key);
-                  // Перетаскиваемый призрак рисуем во всю ширину (cols=1) — вбок уводим
-                  // только его капсулу (.flowing). Спан — тоже во всю ширину. Группа при
-                  // переносе СОХРАНЯЕТ свои столбцы (двигается целиком), иначе блоки сливаются.
-                  const isLiveDragKey = liveDrag && liveDrag.key === i.key;
-                  const cols = (spanning || isLiveDragKey || !slot) ? 1 : slot.cols;
+                  // Спан (через полночь) — во всю ширину. Иначе задача занимает свою долю
+                  // ширины при пересечении с соседями.
+                  const cols = (spanning || !slot) ? 1 : slot.cols;
                   const colStyle = cols > 1 ? `--cols:${cols};--col:${slot.col};` : "";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
@@ -2356,15 +2345,12 @@ function Planner() {
                   </div>`;
                 })}
                 ${liftDrag && !liftDrag.done && !liftDrag.allday && !liftDrag.section && !liftDrag.tray && liftItemRef.current && (() => {
-                  // Призрак на месте приземления: задача едет за пальцем (плавающая копия),
-                  // а здесь, на разметке часов, прозрачный призрак показывает новое время.
-                  // По отпускании задача «доезжает» сюда и встаёт на это время. Над зоной
-                  // «весь день» призрак прячем — задача уйдёт туда.
+                  // Блок-призрак убран: на разметке часов остаётся только метка времени —
+                  // она едет по вертикали и показывает, на какое время и какой длины
+                  // встанет задача. Сама задача — плавающая копия под курсором.
                   const it = liftItemRef.current, dur = it.duration_min || 0;
                   const lm = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
-                  return html`<div class=${"tl-ghost lift-target" + (ghostOverlap > 0 ? " flowing" : "")} style=${`top:${(lm / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dur / 60) * hourPx)}px;--c:${colorOf(it)};--lane:${ghostOverlap};`}>
-                    <div class="tl-ghost-pill"></div>
-                    <div class="tl-ghost-label">${minRangeLabel(lm, dur)}</div></div>`;
+                  return html`<div class="tl-timetag" style=${`top:${(lm / 60) * hourPx}px;--c:${colorOf(it)};`}>${minRangeLabel(lm, dur)} · ${durHuman(dur)}</div>`;
                 })()}
                 ${drag && drag.type === "copy" && (() => {
                   const src = dayTl.find(x => x.key === drag.key);
@@ -2383,10 +2369,10 @@ function Planner() {
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
-                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-ghost lift-target"
-                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx)}px;--c:${dnd.color};`}>
-                  <div class="tl-ghost-pill"></div>
-                  <div class="tl-ghost-label">${minRangeLabel(dnd.gridMin, dnd.dur)}</div></div>`}
+                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-timetag"
+                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;--c:${dnd.color};`}>${minRangeLabel(dnd.gridMin, dnd.dur)} · ${durHuman(dnd.dur)}</div>`}
+                ${treeDrag && treeDrag.zone === "grid" && treeDrag.gridMin != null && html`<div class="tl-timetag"
+                  style=${`top:${(treeDrag.gridMin / 60) * hourPx}px;--c:${treeDrag.color};`}>${minRangeLabel(treeDrag.gridMin, treeDrag.dur)} · ${durHuman(treeDrag.dur)}</div>`}
               </div>
               </div>
               <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
@@ -2474,12 +2460,6 @@ function Planner() {
           : html`<span class=${"allday-check" + (it.done ? " on" : "")} style=${`border-color:${colorOf(it)};color:${colorOf(it)};`}>${Icon.check()}</span>`}
         <span class="allday-title">${it.title}</span>
       </div>`;
-    })()}
-    ${treeDrag && treeDrag.zone === "grid" && !treeDrag.landing && innerRef.current && (() => {
-      const g = innerRef.current.getBoundingClientRect();
-      const h = Math.max(MIN_EVENT_PX, (treeDrag.dur / 60) * hourPx);
-      const top = g.top + (treeDrag.gridMin / 60) * hourPx;
-      return html`<div class="tree-grid-ghost" style=${`left:${g.left}px;top:${top}px;width:${g.width}px;height:${h}px;--c:${treeDrag.color};`}></div>`;
     })()}
     ${treeDrag && html`<div class=${"tree-drag-card" + (treeDrag.landing ? " landing" : "") + (treeDrag.dropping ? " dropping" : "")}
       style=${treeDrag.landing
