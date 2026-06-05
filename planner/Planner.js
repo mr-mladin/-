@@ -990,6 +990,59 @@ function Planner() {
     else hold = setTimeout(() => lift(true), 280);  // не выделена → подъём по удержанию
   }
 
+  // Десктоп: свободный 2D-перенос одиночного блока живой копией (как на мобильной).
+  // Сама копия блока (та же .tl-event, что в сетке) едет за курсором в любую сторону;
+  // над сеткой призрак показывает новое время; над проектом/областью/«Входящими» —
+  // подсветка цели и перенос туда; над «весь день» — копия ужимается до капсулы.
+  function startBlockLift(e, item, tapAction) {
+    const sx = e.clientX, sy = e.clientY;
+    const dur = item.duration_min || 0;
+    const concrete = item.kind === "concrete";
+    let lifted = false, moved = false;
+    const setGeom = () => {
+      const g = innerRef.current; if (!g) return;
+      const gr = g.getBoundingClientRect();
+      liftGeomRef.current = { top: gr.top + (item.start_min / 60) * hourPx, left: gr.left,
+        width: gr.width, height: Math.max(MIN_EVENT_PX, (dur / 60) * hourPx) };
+    };
+    const move = (ev) => {
+      if (!lifted) {
+        if (Math.hypot(ev.clientX - sx, ev.clientY - sy) < 4) return;
+        lifted = true; liftItemRef.current = item; setGeom();
+        if (!selected.has(item.key)) setSelected(new Set([item.key]));
+      }
+      moved = true; ev.preventDefault();
+      const sec = concrete ? sectionAt(ev.clientX, ev.clientY) : null;
+      const zone = concrete && !sec ? dndZoneAt(ev.clientX, ev.clientY) : null;
+      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, cx: ev.clientX, cy: ev.clientY,
+        landing: false, section: sec, allday: zone === "allday", tray: zone === "tray" });
+    };
+    const up = (ev) => {
+      detach();
+      if (!lifted || !moved) { setLiftDrag(null); (tapAction || (() => handleTap(item, false)))(); return; }
+      const sec = concrete ? sectionAt(ev.clientX, ev.clientY) : null;
+      if (sec) { setLiftDrag(null); moveTasksToSection([item.id], sec); return; }
+      const zone = concrete ? dndZoneAt(ev.clientX, ev.clientY) : null;
+      if (zone === "allday") { setLiftDrag(null); haptic();
+        store.actions.tasks.update(item.id, { start_min: null, duration_min: null }).catch(showErr); return; }
+      if (zone === "tray") { setLiftDrag(null);
+        store.actions.tasks.update(item.id, { date: null, start_min: null, duration_min: null }).catch(showErr); return; }
+      // Сетка дня: плавный «доезд» копии к новому времени, затем фиксируем.
+      const target = clamp(snap(item.start_min + Math.round(((ev.clientY - sy) / hourPx) * 60)), 0, 1440 - dur);
+      const targetDy = ((target - item.start_min) / 60) * hourPx;
+      setLiftDrag({ key: item.key, dx: 0, dy: targetDy, landing: true });
+      clearTimeout(landTimerRef.current);
+      landTimerRef.current = setTimeout(() => {
+        if (target !== item.start_min) store.actions.tasks.reschedule(item, { start_min: target }).catch(showErr);
+        setLiftDrag({ key: item.key, dx: 0, dy: 0, done: true });
+        landTimerRef.current = setTimeout(() => setLiftDrag(c => (c && c.key === item.key && c.done) ? null : c), 60);
+      }, 200);
+    };
+    const cancel = () => { detach(); setLiftDrag(null); };
+    const detach = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel); };
+    document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", cancel);
+  }
+
   function onBlockPointerDown(e, item, tapAction) {
     e.stopPropagation();
     if (e.button === 2) return; // правый клик — контекстное меню (карточка)
@@ -1004,6 +1057,8 @@ function Planner() {
     const group = !shift && selected.has(item.key) && selected.size > 1
       ? dayTl.filter(i => selected.has(i.key)).map(i => ({ item: i, start: i.start_min, dur: i.duration_min || 0 }))
       : null;
+    // Чистый одиночный перенос — свободная живая копия (2D), как на мобильной.
+    if (!group && !copy && !shift) { startBlockLift(e, item, tapAction); return; }
     let newStart = item.start_min, moved = false, delta = 0;
     const move = ev => {
       if (Math.hypot(ev.clientX - startClientX, ev.clientY - startClientY) > 4) moved = true;
@@ -1699,7 +1754,7 @@ function Planner() {
   let liveDrag = null;
   if (drag && (drag.type === "move" || drag.type === "copy" || drag.type === "resize")) {
     liveDrag = { key: drag.key, start: drag.start, dur: drag.dur };
-  } else if (liftDrag && !liftDrag.landing && !liftDrag.done && !liftDrag.allday && liftItemRef.current) {
+  } else if (liftDrag && !liftDrag.landing && !liftDrag.done && !liftDrag.allday && !liftDrag.section && !liftDrag.tray && liftItemRef.current) {
     const it = liftItemRef.current, dur = it.duration_min || 0;
     const start = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
     liveDrag = { key: liftDrag.key, start, dur };
@@ -1937,7 +1992,7 @@ function Planner() {
     : (filter && filter.startsWith("area:")) ? Icon.folder() : Icon.dot();
   const filterList = (filter && listById[filter]) || null;
   // Подсветка строки-цели при перетаскивании (одиночном или переносе выделения).
-  const dropHi = (key) => (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === key) || (selDrag && selDrag.dropList === key);
+  const dropHi = (key) => (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === key) || (selDrag && selDrag.dropList === key) || (liftDrag && liftDrag.section === key);
   // Иконка проекта — эмодзи в кружке (цвет проекта тонирует фон). Без эмодзи —
   // маленький кружок в цвете проекта.
   const projTint = (c) => `color-mix(in srgb, ${c || "var(--accent)"} 20%, var(--surface))`;
@@ -2255,7 +2310,7 @@ function Planner() {
                     </div>
                   </div>`;
                 })}
-                ${liftDrag && !liftDrag.done && !liftDrag.allday && liftItemRef.current && (() => {
+                ${liftDrag && !liftDrag.done && !liftDrag.allday && !liftDrag.section && !liftDrag.tray && liftItemRef.current && (() => {
                   // Призрак на месте приземления: задача едет за пальцем (плавающая копия),
                   // а здесь, на разметке часов, прозрачный призрак показывает новое время.
                   // По отпускании задача «доезжает» сюда и встаёт на это время. Над зоной
@@ -2343,7 +2398,7 @@ function Planner() {
     ${settingsOpen && html`<${SettingsModal} onClose=${() => setSettingsOpen(false)} />`}
     ${searchOpen && html`<${SearchModal} onClose=${() => setSearchOpen(false)}
       onPick=${t => { setSearchOpen(false); if (t.date) { setDate(t.date); setView("day"); } setEditing({ task: t, occ: null }); }} />`}
-    ${liftDrag && !liftDrag.done && liftItemRef.current && liftGeomRef.current && (() => {
+    ${liftDrag && !liftDrag.done && !(liftDrag.allday && liftDrag.cx != null) && liftItemRef.current && liftGeomRef.current && (() => {
       // Плавающая копия поднятой задачи (fixed, поверх всего) — едет за пальцем и не
       // уезжает с лентой, пока второй палец листает дни. Доезжает на место и сменяется
       // настоящей задачей в сетке (кадр .done).
@@ -2362,6 +2417,17 @@ function Planner() {
           <div class="tl-titlerow"><div class="tl-title">${it.title}${it.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div></div>
           <div class="tl-meta">${minRangeLabel(liftMin, dur)} (${durHuman(dur)})</div>
         </div></div>
+      </div>`;
+    })()}
+    ${liftDrag && !liftDrag.done && liftDrag.allday && liftDrag.cx != null && liftItemRef.current && (() => {
+      // Над зоной «весь день» (десктоп) копия ужимается до капсулы — точно такой же,
+      // как задачи «весь день», и едет у курсора. Подсветки всей зоны нет.
+      const it = liftItemRef.current;
+      return html`<div class="allday-item sel ad-lift" style=${`position:fixed;left:${liftDrag.cx + 12}px;top:${liftDrag.cy + 10}px;z-index:80;pointer-events:none;width:max-content;max-width:220px;--c:${colorOf(it)};`}>
+        ${it.is_event
+          ? html`<span class="allday-evmark" style=${`background:${colorOf(it)};`}></span>`
+          : html`<span class=${"allday-check" + (it.done ? " on" : "")} style=${`border-color:${colorOf(it)};color:${colorOf(it)};`}>${Icon.check()}</span>`}
+        <span class="allday-title">${it.title}</span>
       </div>`;
     })()}
     ${treeDrag && treeDrag.zone === "grid" && !treeDrag.landing && innerRef.current && (() => {

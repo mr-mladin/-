@@ -1174,6 +1174,8 @@ textarea.input { resize: vertical; }
 /* Выделение — единое с сеткой дня: глубже заливка + мягкий подъём-тень, без обводки. */
 .allday-item.sel { background-color: color-mix(in srgb, var(--c, var(--inbox)) 22%, var(--surface));
   box-shadow: 0 8px 20px rgba(2, 6, 23, 0.18); }
+/* Живая копия задачи при переносе в «весь день» (десктоп) — чуть выше над фоном. */
+.allday-item.ad-lift { box-shadow: 0 14px 30px rgba(15, 23, 42, 0.3); }
 .allday.grid .allday-item { touch-action: none; }
 /* Тонкое кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
 .allday-check { flex: none; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid currentColor;
