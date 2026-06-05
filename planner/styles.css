@@ -1156,11 +1156,10 @@ textarea.input { resize: vertical; }
 .allday-hint { font-size: 12px; color: var(--text-mute); transition: color .25s ease; }
 .allday.drop .allday-hint { color: var(--accent); }
 .allday-item { display: flex; align-items: center; gap: 9px; min-width: 0; cursor: default;
-  user-select: none; -webkit-user-select: none; will-change: transform; border-radius: 8px;
-  padding: 3px 6px; transition: background .12s ease, box-shadow .12s ease; }
+  user-select: none; -webkit-user-select: none; will-change: transform; transition: background .12s ease, box-shadow .12s ease; }
 .allday-item:active { cursor: default; }
-/* Выделенная задача «весь день» — как блок в сетке: лёгкая подсветка/подъём. */
-.allday-item.sel { background: var(--accent-soft); box-shadow: 0 4px 12px rgba(2, 6, 23, 0.12); }
+/* Выделенная задача «весь день» — лёгкая подсветка/подъём, без сдвига отступов. */
+.allday-item.sel { border-radius: 8px; background: var(--accent-soft); box-shadow: 0 4px 12px rgba(2, 6, 23, 0.12); }
 .allday.grid .allday-item { touch-action: none; }
 /* Пустое место, куда встанет перетаскиваемая карточка. */
 .ad-placeholder { border-radius: 12px; background: var(--accent-soft);
