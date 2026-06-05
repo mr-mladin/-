@@ -157,33 +157,46 @@ export function StoreProvider({ children }) {
 
   async function loadAll() {
     const myEpoch = ++loadEpoch.current;
-    try {
-      const [listsRes, tasksRes, areasRes] = await Promise.all([
-        supabase.from("lists").select("*").order("sort_order").order("created_at"),
-        supabase.from("tasks").select("*"),
-        supabase.from("areas").select("*").order("sort_order").order("created_at"),
-      ]);
-      if (myEpoch !== loadEpoch.current) return;
-      if (listsRes.error || tasksRes.error) {
-        dispatch({ type: "set", payload: { loading: false, ready: true } });
-        pushToast("Таблицы планера ещё не созданы в базе", "error");
-        return;
+    const tryOnce = () => Promise.all([
+      supabase.from("lists").select("*").order("sort_order").order("created_at"),
+      supabase.from("tasks").select("*"),
+      supabase.from("areas").select("*").order("sort_order").order("created_at"),
+    ]);
+    let res = null, lastErr = null;
+    // Несколько попыток с нарастающей паузой: первый запрос к Supabase часто
+    // не доходит («холодный старт»/обрыв связи) — это НЕ значит, что таблиц нет.
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const r = await tryOnce();
+        if (myEpoch !== loadEpoch.current) return;
+        if (!r[0].error && !r[1].error) { res = r; lastErr = null; break; }
+        lastErr = r[0].error || r[1].error;
+      } catch (e) {
+        if (myEpoch !== loadEpoch.current) return;
+        lastErr = e;
       }
-      const lists = listsRes.data || [], rows = tasksRes.data || [];
-      // Области добавлены позже задач — на старой базе их таблицы может не быть.
-      // Тогда просто работаем без областей (не валим загрузку).
-      const areas = areasRes.error ? [] : (areasRes.data || []);
-      writeCache(lists, rows, areas);
-      dispatch({
-        type: "set",
-        payload: { loading: false, ready: true, taskLists: lists, tasks: rows, areas },
-      });
-      rollOverdue(rows);
-    } catch (e) {
-      if (myEpoch !== loadEpoch.current) return;
-      dispatch({ type: "set", payload: { loading: false, ready: true } });
-      pushToast("Не удалось загрузить данные", "error");
+      // Таблиц реально нет — повторять бессмысленно.
+      if (lastErr && /relation .*does not exist|relation ".*" does not exist/i.test(lastErr.message || "")) break;
+      if (attempt < 3) { await new Promise(r => setTimeout(r, 600 * (attempt + 1))); if (myEpoch !== loadEpoch.current) return; }
     }
+    if (!res) {
+      dispatch({ type: "set", payload: { loading: false, ready: true } });
+      const m = (lastErr && lastErr.message) || "";
+      pushToast(/relation|does not exist/i.test(m) && !/schema cache/i.test(m)
+        ? "Таблицы планера ещё не созданы в базе"
+        : "Нет связи с базой. Обновите страницу и попробуйте снова.", "error");
+      return;
+    }
+    const [listsRes, tasksRes, areasRes] = res;
+    const lists = listsRes.data || [], rows = tasksRes.data || [];
+    // Области добавлены позже задач — на старой базе их таблицы может не быть.
+    const areas = areasRes.error ? [] : (areasRes.data || []);
+    writeCache(lists, rows, areas);
+    dispatch({
+      type: "set",
+      payload: { loading: false, ready: true, taskLists: lists, tasks: rows, areas },
+    });
+    rollOverdue(rows);
   }
 
   // Перенос: все невыполненные разовые задачи с прошедших дней переезжают на
@@ -448,7 +461,9 @@ export function StoreProvider({ children }) {
         .then(({ data, error }) => {
           pendingCreates.current.delete(tempId);
           dispatch({ type: "removeOne", key: "tasks", id: tempId });
-          if (error || !data) { pushToast("Не удалось сохранить задачу", "error"); return null; }
+          // Ошибку НЕ показываем тут — пробрасываем, чтобы её обработал вызвавший
+          // (форма покажет понятное сообщение и не закроется как при успехе).
+          if (error || !data) throw (error || new Error("Не удалось сохранить"));
           // Создание уже отменили, пока шёл запрос — удаляем вставленную строку.
           if (!ref.alive) { supabase.from("tasks").delete().eq("id", data.id); return null; }
           ref.id = data.id;
@@ -466,7 +481,7 @@ export function StoreProvider({ children }) {
           dispatch({ type: "upsertOne", key: "tasks", item: data });
           return data;
         })
-        .catch(() => { pendingCreates.current.delete(tempId); dispatch({ type: "removeOne", key: "tasks", id: tempId }); pushToast("Не удалось сохранить задачу", "error"); return null; });
+        .catch((e) => { pendingCreates.current.delete(tempId); dispatch({ type: "removeOne", key: "tasks", id: tempId }); throw e; });
     },
     update: (id, payload) => {
       // UPDATE по временному id упал бы с ошибкой uuid.

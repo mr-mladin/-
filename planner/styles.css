@@ -1029,7 +1029,8 @@ textarea.input { resize: vertical; }
 .ed-field { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .ed-proj { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
   background: var(--bg-soft); border: 0; border-radius: 999px; padding: 5px 12px;
-  font-family: inherit; font-size: 13px; color: var(--text); }
+  font-family: inherit; font-size: 13px; color: var(--text); box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .ed-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
 .ed-rep-ico { display: inline-flex; color: var(--text-mute); }
 .ed-rep-ico .ico { width: 15px; height: 15px; }
@@ -1041,11 +1042,13 @@ textarea.input { resize: vertical; }
   flex: none; border-radius: 50%; border: 0; cursor: pointer; background: var(--bg-soft); color: var(--text-mute); }
 .ed-rep-btn .ico { width: 17px; height: 17px; }
 .ed-rep-btn.on { background: var(--accent-soft); color: var(--accent); }
-.ed-menu { display: flex; flex-direction: column; gap: 1px; background: var(--surface);
+/* Выпадашка раскрывается НАКЛАДКОЙ поверх формы, не толкая поля под собой. */
+.ed-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 6; min-width: 210px;
+  display: flex; flex-direction: column; gap: 1px; background: var(--surface);
   border: 1px solid var(--border-strong); border-radius: var(--radius); padding: 5px; max-height: 220px;
-  overflow-y: auto; box-shadow: 0 10px 28px rgba(2,6,23,0.2); }
+  overflow-y: auto; box-shadow: 0 12px 32px rgba(2,6,23,0.22); }
 /* Меню повтора всплывает у правого края (кнопка прижата вправо). */
-.ed-menu-right { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 150px; }
+.ed-menu-right { left: auto; right: 0; min-width: 150px; }
 .ed-menu-item { display: flex; align-items: center; gap: 8px; text-align: left; cursor: pointer;
   background: none; border: 0; border-radius: var(--radius-sm); padding: 7px 9px; font-family: inherit;
   font-size: 14px; color: var(--text); }

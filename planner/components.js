@@ -125,8 +125,13 @@ export function Toasts() {
 }
 
 function dbHint(msg) {
-  if (msg && /relation|table|schema cache|does not exist/i.test(msg))
-    return "Таблицы планера ещё не созданы в базе. Создайте их по инструкции и обновите страницу.";
+  if (!msg) return "Не удалось сохранить. Попробуйте ещё раз.";
+  if (/schema cache|could not find the .* column/i.test(msg))
+    return "База обновляет схему. Подождите пару секунд и сохраните снова.";
+  if (/relation|does not exist/i.test(msg))
+    return "Таблицы планера ещё не созданы в базе.";
+  if (/fetch|network|timeout|connect|reset|load failed|networkerror|503|unavailable|signal/i.test(msg))
+    return "Нет связи с базой. Проверьте интернет и сохраните снова.";
   return msg;
 }
 
