@@ -675,7 +675,7 @@ function Planner() {
       adRects.current.set(key, r);
     });
     for (const k of [...adRects.current.keys()]) if (!seen.has(k)) adRects.current.delete(k);
-  }, [allDay.map(i => i.key).join(","), view]);
+  }, [allDay.map(i => i.key).join(",") + "|" + (treeDrag && treeDrag.zone === "allday" && treeDrag.adIndex != null ? treeDrag.key + ":" + treeDrag.adIndex : ""), view]);
   const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
   // Цель правки: у повтора — шаблон, иначе сама задача.
   const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
@@ -872,6 +872,21 @@ function Planner() {
     if (!ids.length) return;
     store.batch("в весь день", () => ids.forEach(id => store.actions.tasks.update(id, { date: dateRef.current, start_min: null, duration_min: null }).catch(showErr)));
     store.pushToast(ids.length > 1 ? `В «весь день»: ${ids.length}` : "Задача — на весь день", "success");
+  }
+
+  // Перестановка задач «весь день»: задаём всем sort_order по новому порядку, где
+  // перетаскиваемая встала на позицию overIndex. Одним шагом отмены.
+  function persistAllDayOrder(draggedKey, overIndex) {
+    const order = allDay.map(i => i.key).filter(k => k !== draggedKey);
+    order.splice(clamp(overIndex, 0, order.length), 0, draggedKey);
+    store.batch("порядок", () => {
+      order.forEach((k, idx) => {
+        const it = allDay.find(x => x.key === k);
+        if (!it) return;
+        const rid = it.kind === "occurrence" ? it.templateId : it.id;
+        if ((sortOrderById.get(rid) ?? 0) !== idx) store.actions.tasks.update(rid, { sort_order: idx }).catch(showErr);
+      });
+    });
   }
 
   function copyPayload(it, startMin) {
@@ -1339,7 +1354,7 @@ function Planner() {
   // карточка едет под пальцем), соседи расступаются. Тянешь в сетку дня — задача
   // плавно «приземляется» блоком (получает дату/время). Внутри списка — меняешь
   // порядок (любую на любое место).
-  function startTreeDrag(e, t) {
+  function startTreeDrag(e, t, fromAllday) {
     if (e.button !== undefined && e.button !== 0 && e.pointerType !== "touch") return;
     const touch = e.pointerType === "touch";
     const rowEl = e.currentTarget;
@@ -1352,12 +1367,25 @@ function Planner() {
     // У боковых задач дата в .date, у элементов «весь день» — в .occDate.
     const dated = !!(t.date || t.occDate);
     let active = false, hold = null;
+    // Куда вставить капсулу при перестановке внутри «весь день» (читательский порядок).
+    const adIndexAt = (cx, cy) => {
+      const grid = adGridRef.current; if (!grid) return 0;
+      const caps = [...grid.querySelectorAll(".allday-item[data-adkey]")].filter(n => n.dataset.adkey !== t.key);
+      let idx = 0;
+      for (const n of caps) {
+        const rr = n.getBoundingClientRect();
+        if (cy > rr.bottom) { idx++; continue; }          // курсор ниже ряда — капсула раньше
+        if (cy >= rr.top) { if (cx > rr.left + rr.width / 2) idx++; continue; } // в ряду — левее курсора
+        break;                                            // курсор выше — дальше все позже
+      }
+      return idx;
+    };
     // Куда сейчас целимся: сетка дня, зона «весь день», раздел (проект/область/входящие)
     // или перестановка внутри своего списка. «Весь день» проверяем ДО сетки (он внутри неё).
     const overAt = (cx, cy) => {
       const el = document.elementFromPoint(cx, cy);
       if (!el) return { zone: null };
-      if (el.closest(".allday")) return { zone: "allday" };
+      if (el.closest(".allday")) return fromAllday ? { zone: "allday", adIndex: adIndexAt(cx, cy) } : { zone: "allday" };
       if (el.closest(".planner-grid-scroll") && innerRef.current)
         return { zone: "grid", gridMin: clamp(snap(yToMin(cy)), 0, 1440 - dur) };
       const cont = el.closest("[data-listtasks]");
@@ -1377,7 +1405,7 @@ function Planner() {
     };
     const begin = (cx, cy) => {
       active = true; trayClickGuard.current = true; haptic();
-      setTreeDrag({ id: t.id, source, title: t.title, color, isEvent: !!t.is_event, w: r.width, h: r.height,
+      setTreeDrag({ id: t.id, key: t.key, source, title: t.title, color, isEvent: !!t.is_event, w: r.width, h: r.height,
         offX, offY, x: cx, y: cy, dur, ...overAt(cx, cy) });
     };
     const onTouchMove = (ev) => { if (active) ev.preventDefault(); };
@@ -1405,9 +1433,15 @@ function Planner() {
           setTreeDrag(null);
         }, 240);
       } else if (o.zone === "allday") {
-        // В «весь день» текущего дня: дата дня, без времени; проект/область сохраняем.
-        store.actions.tasks.update(t.id, { date: dateRef.current, start_min: null, duration_min: null }).catch(showErr);
-        endCard();
+        if (fromAllday && o.adIndex != null) {
+          // Перестановка капсул внутри «весь день».
+          persistAllDayOrder(t.key, o.adIndex);
+          setTreeDrag(null);
+        } else {
+          // В «весь день» текущего дня: дата дня, без времени; проект/область сохраняем.
+          store.actions.tasks.update(t.id, { date: dateRef.current, start_min: null, duration_min: null }).catch(showErr);
+          endCard();
+        }
       } else if (o.zone === "section") {
         const dl = o.dropList;
         // Если перетаскиваемая задача входит в выделение из нескольких — переносим всё.
@@ -2198,9 +2232,9 @@ function Planner() {
                 onPointerDown=${e => { if (e.shiftKey && !(e.target.closest && e.target.closest(".allday-item"))) startRangeSelect(e); }}>
                 ${(() => {
                   const cell = (i) => html`
-                    <div class=${"allday-item" + (i.done ? " done" : "") + (selected.has(i.key) ? " sel" : "") + (treeDrag && treeDrag.id === i.id ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
+                    <div class=${"allday-item" + (i.done ? " done" : "") + (selected.has(i.key) ? " sel" : "") + (treeDrag && treeDrag.key === i.key ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
                       style=${`--c:${colorOf(i)};`}
-                      onPointerDown=${e => { if (i.id) startTreeDrag(e, i); }}
+                      onPointerDown=${e => { if (i.id) startTreeDrag(e, i, true); }}
                       onClick=${e => { if (trayClickGuard.current) return; handleTap(i, e.shiftKey); }}>
                       ${i.is_event
                         ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
@@ -2210,6 +2244,17 @@ function Planner() {
                             onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
                       <span class="allday-title">${i.title}</span>
                     </div>`;
+                  // Во время перестановки внутри «весь день» переставляем капсулы вживую
+                  // (перетаскиваемая остаётся в потоке, но невидима) — соседи плавно
+                  // расступаются за счёт FLIP-анимации.
+                  if (treeDrag && treeDrag.zone === "allday" && treeDrag.adIndex != null) {
+                    const di = allDay.findIndex(x => x.key === treeDrag.key);
+                    if (di >= 0) {
+                      const rest = allDay.filter((_, k) => k !== di);
+                      rest.splice(clamp(treeDrag.adIndex, 0, rest.length), 0, allDay[di]);
+                      return rest.map(cell);
+                    }
+                  }
                   return allDay.map(cell);
                 })()}
               </div>
