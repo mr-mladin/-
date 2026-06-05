@@ -1833,6 +1833,9 @@ function Planner() {
       .filter(i => i.vTop !== null && i.vTop !== undefined)
       .sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop)));
     const td = pd === todayISO();
+    // Столбцы как в основном виде — иначе пересекающиеся блоки сливаются во всю ширину.
+    const colMap = new Map();
+    for (const it of layoutColumns(items, null)) colMap.set(it.key, { col: it._col, cols: it._cols });
     return html`<div class="tl tl-static" style=${`height:${24 * hourPx}px;`}>
       ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
         <span class=${"grid-hour-label" + (h === 24 ? " last" : "")}>${(h % 24 === 0 ? "00" : String(h).padStart(2, "0"))}:00</span></div>`)}
@@ -1843,9 +1846,17 @@ function Planner() {
         const top = (i.vTop / 60) * hourPx;
         const height = Math.max(MIN_EVENT_PX, ((i.vEnd - i.vTop) / 60) * hourPx);
         const density = height >= 44 ? "" : height >= 24 ? " compact" : " mini";
-        return html`<div class=${"tl-event" + density + (i.done ? " done" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
-          style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};`}>
-          <div class="tl-pill"><span class=${"tl-pill-check" + (i.done ? " on" : "")} style=${`--drop:${Math.max(0, height - 34)}px;`}>${Icon.check()}</span></div>
+        const spanning = i.spanTop || i.spanBottom || i.cont;
+        const slot = colMap.get(i.key);
+        const cols = (spanning || !slot) ? 1 : slot.cols;
+        const colStyle = cols > 1 ? `--cols:${cols};--col:${slot.col};` : "";
+        const isEv = i.is_event;
+        const evCls = isEv ? " tl-ev tl-bar-" + (i.card_bar || "none") + " tl-bg-" + (i.card_bg || "clean") : "";
+        const waveVar = (isEv && (i.card_bg === "waves" || i.card_bg === "waves2")) ? "--wave:" + waveDataUrl(colorOf(i), i.card_bg) + ";" : "";
+        return html`<div class=${"tl-event" + density + evCls + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
+          style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}${waveVar}`}>
+          ${isEv && i.card_bar && i.card_bar !== "none" && html`<div class=${"tl-evbar " + i.card_bar}></div>`}
+          <div class="tl-pill">${!isEv ? html`<span class=${"tl-pill-check" + (i.done ? " on" : "")} style=${`--drop:${Math.max(0, height - 34)}px;`}>${Icon.check()}</span>` : ""}</div>
           <div class="tl-body"><div class="tl-text">
             <div class="tl-titlerow">
               <div class="tl-title">${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
@@ -2243,9 +2254,10 @@ function Planner() {
                   // соседей). Групповой перенос и переходящая через полночь — на всю ширину.
                   const slot = dayCols.get(i.key);
                   // Перетаскиваемый призрак рисуем во всю ширину (cols=1) — вбок уводим
-                  // только его капсулу (.flowing). Групповой/спан — тоже во всю ширину.
+                  // только его капсулу (.flowing). Спан — тоже во всю ширину. Группа при
+                  // переносе СОХРАНЯЕТ свои столбцы (двигается целиком), иначе блоки сливаются.
                   const isLiveDragKey = liveDrag && liveDrag.key === i.key;
-                  const cols = (spanning || inGroupMove || isLiveDragKey || !slot) ? 1 : slot.cols;
+                  const cols = (spanning || isLiveDragKey || !slot) ? 1 : slot.cols;
                   const colStyle = cols > 1 ? `--cols:${cols};--col:${slot.col};` : "";
                   const down = spanning ? (e => e.stopPropagation()) : (e => onBlockPointerDown(e, i));
                   const tap = spanning ? (e => { e.stopPropagation(); openPreview(i); }) : null;
