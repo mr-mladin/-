@@ -2347,14 +2347,6 @@ function Planner() {
                     </div>
                   </div>`;
                 })}
-                ${liftDrag && !liftDrag.done && !liftDrag.allday && !liftDrag.section && !liftDrag.tray && liftItemRef.current && (() => {
-                  // Блок-призрак убран: на разметке часов остаётся только метка времени —
-                  // она едет по вертикали и показывает, на какое время и какой длины
-                  // встанет задача. Сама задача — плавающая копия под курсором.
-                  const it = liftItemRef.current, dur = it.duration_min || 0;
-                  const lm = clamp(snap(it.start_min + Math.round((liftDrag.dy / hourPx) * 60)), 0, 1440 - dur);
-                  return html`<div class="tl-timetag" style=${`top:${(lm / 60) * hourPx}px;--c:${colorOf(it)};`}>${minRangeLabel(lm, dur)} · ${durHuman(dur)}</div>`;
-                })()}
                 ${drag && drag.type === "copy" && (() => {
                   const src = dayTl.find(x => x.key === drag.key);
                   return html`<div class="tl-ghost" style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;--c:${src ? colorOf(src) : "var(--accent)"};`}>
@@ -2372,10 +2364,6 @@ function Planner() {
                   style=${`top:${(drag.start / 60) * hourPx}px;height:${Math.max(MIN_EVENT_PX, (drag.dur / 60) * hourPx)}px;`}>
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
-                ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dnd.gridMin !== null && html`<div class="tl-timetag"
-                  style=${`top:${(dnd.gridMin / 60) * hourPx}px;--c:${dnd.color};`}>${minRangeLabel(dnd.gridMin, dnd.dur)} · ${durHuman(dnd.dur)}</div>`}
-                ${treeDrag && treeDrag.zone === "grid" && treeDrag.gridMin != null && html`<div class="tl-timetag"
-                  style=${`top:${(treeDrag.gridMin / 60) * hourPx}px;--c:${treeDrag.color};`}>${minRangeLabel(treeDrag.gridMin, treeDrag.dur)} · ${durHuman(treeDrag.dur)}</div>`}
               </div>
               </div>
               <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>

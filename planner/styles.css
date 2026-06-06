@@ -553,13 +553,6 @@ textarea.input { resize: vertical; }
    Лежит ВНЕ ленты карусели, поэтому при листании дней вторым пальцем остаётся под
    пальцем. Двойной класс — чтобы position:fixed побеждал .tl-event/.tl-ghost. */
 .tl-event.tl-lift-overlay, .tl-ghost.tl-lift-overlay { position: fixed; right: auto; z-index: 55; pointer-events: none; }
-/* Призрак на месте приземления поднятой задачи: полупрозрачный, на разметке часов. */
-/* Метка времени при переносе: едет по вертикали к месту приземления задачи,
-   показывает время и длительность. Самого блока-призрака больше нет. */
-.tl-timetag { position: absolute; left: 58px; z-index: 8; pointer-events: none; white-space: nowrap;
-  background: var(--c); color: #fff; font-size: 11px; font-weight: 650; line-height: 1;
-  padding: 3px 7px; border-radius: 7px; box-shadow: 0 3px 10px rgba(2, 6, 23, 0.22);
-  transition: top .08s linear; }
 /* Капсула-бар убрана: .tl-pill — невидимый держатель кружка-галочки на всю высоту
    блока (высота нужна для падения шарика). Цвет задачи несёт плашка-фон (::before). */
 .tl-pill { position: absolute; left: 60px; width: 22px; top: 0; bottom: 0; border-radius: 999px;
