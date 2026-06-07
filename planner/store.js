@@ -433,11 +433,12 @@ export function StoreProvider({ children }) {
   function updateTaskOptimistic(id, payload) {
     const prev = state.tasks.find(t => t.id === id);
     if (prev) dispatch({ type: "upsertOne", key: "tasks", item: { ...prev, ...payload } });
-    return supabase.from("tasks").update(payload).eq("id", id).select().single()
-      .then(({ data, error }) => {
+    return supabase.from("tasks").update(payload).eq("id", id)
+      .then(({ error }) => {
         if (error) { if (prev) dispatch({ type: "upsertOne", key: "tasks", item: prev }); throw error; }
-        dispatch({ type: "upsertOne", key: "tasks", item: data });
-        return data;
+        // НЕ перезаписываем state серверным ответом: оптимистичное значение уже верное,
+        // а при быстрых повторных правках (drag / Shift+стрелки) поздний ответ устаревает
+        // и вызвал бы «прыжок» задачи назад. Ошибку по-прежнему откатываем на prev.
       });
   }
 

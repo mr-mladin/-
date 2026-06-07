@@ -55,6 +55,7 @@ function rafThrottle(setter) {
   const run = () => { id = 0; setter(val); };
   const f = (v) => { val = v; if (!id) id = requestAnimationFrame(run); };
   f.cancel = () => { if (id) { cancelAnimationFrame(id); id = 0; } };
+  f.flush = () => { if (id) { cancelAnimationFrame(id); id = 0; setter(val); } }; // применить последнее значение немедленно
   return f;
 }
 
@@ -1014,6 +1015,7 @@ function Planner() {
     };
     const up = (ev) => {
       if (ev.pointerId !== pid) return;
+      setLiftT.flush(); // применить последнюю позицию пальца до «доезда» — иначе откат от троттлинга
       const dayChanged = dateRef.current !== origDate; // день сменили вторым пальцем (карусель)
       const wasLifted = lifted, mv = moved || dayChanged;
       cleanup();
@@ -1093,6 +1095,7 @@ function Planner() {
         landing: false, section: sec, allday: zone === "allday", tray: zone === "tray" });
     };
     const up = (ev) => {
+      setLiftT.flush(); // применить последнюю позицию пальца до «доезда» — иначе откат от троттлинга
       detach();
       if (!lifted || !moved) { setLiftDrag(null); (tapAction || (() => handleTap(item, false)))(); return; }
       const sec = concrete ? sectionAt(ev.clientX, ev.clientY) : null;
@@ -1891,7 +1894,8 @@ function Planner() {
         store.batch("перенос на день", () => {
           for (const it of items) store.actions.tasks.reschedule(it, { date: newDate }).catch(showErr);
         });
-        keepSelRef.current = true; // выделение «переезжает» вместе с задачами
+        keepSelRef.current = true;    // выделение «переезжает» вместе с задачами
+        keepScrollRef.current = true; // остаёмся на том же отрезке времени, не прыгаем к началу дня
         setDate(newDate);
       }
     };

@@ -521,9 +521,13 @@ textarea.input { resize: vertical; }
 .tl-marquee { position: fixed; pointer-events: none; z-index: 60; border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 11%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
-.tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
+.tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box; overflow: hidden;
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1),
     left .18s cubic-bezier(.2,.7,.3,1), width .18s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
+/* В очень коротких блоках (mini) чекбокс и название не должны торчать за нижнюю
+   границу — обрезаем. Но для выделенного блока (точки ресайза по краям) и для
+   раскрытых подзадач overflow нужен видимым. */
+.tl-event.sel, .tl-event.subs-open { overflow: visible; }
 /* Полупрозрачный тайм-блок за капсулой (как в Календаре Apple): мягкая плашка цвета
    задачи на всю площадь события, поверх неё — пилюля-акцент и текст. Рисуем фоном
    ::before, чтобы не трогать разметку и геометрию жестов (перенос/resize). */
