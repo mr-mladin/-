@@ -212,44 +212,7 @@ function Planner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [selected]);
 
-  // Сдвиг ВЫДЕЛЕННЫХ задач клавишами Shift+стрелки: ↑/↓ — на 5 минут раньше/позже,
-  // ←/→ — на соседний день (вместе с переключением вида на тот день). Группа правок —
-  // один шаг отмены (batch).
-  const keepSelRef = useRef(false);
-  useEffect(() => {
-    const onKey = (e) => {
-      if (!e.shiftKey) return;
-      const dir = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
-      if (!dir) return;
-      const t = e.target, tag = t && t.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
-      if (selected.size === 0) return;
-      const items = [...dayTl, ...allDay].filter(i => selected.has(i.key));
-      if (!items.length) return;
-      e.preventDefault();
-      if (dir === "up" || dir === "down") {
-        const delta = dir === "up" ? -SNAP : SNAP;
-        store.batch("сдвиг", () => {
-          for (const it of items) {
-            if (it.start_min === null || it.start_min === undefined) continue; // «весь день» — времени нет
-            const dur = it.duration_min || 0;
-            const ns = clamp(snap(it.start_min + delta), 0, 1440 - dur);
-            if (ns !== it.start_min) store.actions.tasks.reschedule(it, { start_min: ns }).catch(showErr);
-          }
-        });
-      } else {
-        const nd = fromISO(dateRef.current); nd.setDate(nd.getDate() + (dir === "left" ? -1 : 1));
-        const newDate = toISO(nd);
-        store.batch("перенос на день", () => {
-          for (const it of items) store.actions.tasks.reschedule(it, { date: newDate }).catch(showErr);
-        });
-        keepSelRef.current = true; // выделение «переезжает» вместе с задачами
-        setDate(newDate);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [selected, dayTl, allDay]);
+  const keepSelRef = useRef(false); // выделение «переезжает» с задачами при Shift+←/→ (обработчик ниже, после dayTl)
 
   // Выделение относится к конкретному дню — сбрасываем при смене дня/вида.
   useEffect(() => {
@@ -1897,6 +1860,44 @@ function Planner() {
   const nowMin = (() => { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); })();
   const isToday = date === todayISO();
   const dayTl = useMemo(() => [...timed].sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop))), [timed]);
+  // Сдвиг ВЫДЕЛЕННЫХ задач клавишами Shift+стрелки: ↑/↓ — на 5 минут раньше/позже,
+  // ←/→ — на соседний день (с переключением вида на тот день). Размещён здесь, ПОСЛЕ
+  // dayTl/allDay: иначе их имена в массиве зависимостей попадают в temporal dead zone
+  // (const ещё не инициализирован) и рендер падает белым экраном.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!e.shiftKey) return;
+      const dir = { ArrowUp: "up", ArrowDown: "down", ArrowLeft: "left", ArrowRight: "right" }[e.key];
+      if (!dir) return;
+      const t = e.target, tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      if (selected.size === 0) return;
+      const items = [...dayTl, ...allDay].filter(i => selected.has(i.key));
+      if (!items.length) return;
+      e.preventDefault();
+      if (dir === "up" || dir === "down") {
+        const delta = dir === "up" ? -SNAP : SNAP;
+        store.batch("сдвиг", () => {
+          for (const it of items) {
+            if (it.start_min === null || it.start_min === undefined) continue; // «весь день» — времени нет
+            const dur = it.duration_min || 0;
+            const ns = clamp(snap(it.start_min + delta), 0, 1440 - dur);
+            if (ns !== it.start_min) store.actions.tasks.reschedule(it, { start_min: ns }).catch(showErr);
+          }
+        });
+      } else {
+        const nd = fromISO(dateRef.current); nd.setDate(nd.getDate() + (dir === "left" ? -1 : 1));
+        const newDate = toISO(nd);
+        store.batch("перенос на день", () => {
+          for (const it of items) store.actions.tasks.reschedule(it, { date: newDate }).catch(showErr);
+        });
+        keepSelRef.current = true; // выделение «переезжает» вместе с задачами
+        setDate(newDate);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, dayTl, allDay]);
   // Раскладка пересекающихся задач по колонкам (как в Календаре Apple). СТАТИЧНАЯ:
   // соседние задачи стоят на месте и НЕ двигаются при переносе. В сторону уезжает
   // только призрак перетаскиваемой задачи (см. ghostLane ниже) — он обтекает чужие
