@@ -1951,7 +1951,7 @@ function Planner() {
         return html`<div class=${"tl-event" + density + evCls + (cols > 1 ? " columned" : "") + (i.done ? " done" : "") + (i.spanTop ? " span-top" : "") + (i.spanBottom ? " span-bottom" : "")} key=${i.key}
           style=${`top:${top}px;height:${height}px;--c:${colorOf(i)};${colStyle}${waveVar}`}>
           ${isEv && i.card_bar && i.card_bar !== "none" && html`<div class=${"tl-evbar " + i.card_bar}></div>`}
-          <div class="tl-pill">${!isEv ? html`<span class=${"tl-pill-check" + (i.done ? " on" : "")} style=${`--drop:${Math.max(0, height / 2 - 16)}px;`}>${Icon.check()}</span>` : ""}</div>
+          <div class="tl-pill">${!isEv ? html`<span class=${"tl-pill-check" + (i.done ? " on" : "")} style=${`--drop:${Math.max(0, height - 34)}px;`}>${Icon.check()}</span>` : ""}</div>
           <div class="tl-body"><div class="tl-text">
             <div class="tl-titlerow">
               <div class="tl-title">${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
@@ -2369,7 +2369,7 @@ function Planner() {
                     ${isEv && i.card_bar && i.card_bar !== "none" && html`<div class=${"tl-evbar " + i.card_bar}></div>`}
                     <div class="tl-pill" onPointerDown=${down} onClick=${tap}>
                       ${!isEv && html`<button class=${"tl-pill-check" + (i.done ? " on" : "") + (fallKey === i.key ? " falling" : "")} type="button" title="Выполнено"
-                        style=${`--drop:${Math.max(0, height / 2 - 16)}px;`}
+                        style=${`--drop:${Math.max(0, height - 34)}px;`}
                         onPointerDown=${e => e.stopPropagation()}
                         onClick=${e => { e.stopPropagation(); completeToggle(i); }}>${Icon.check()}</button>`}
                       ${!isEv && confettiEl(i.key)}
