@@ -964,7 +964,6 @@ function Planner() {
     const origDate = dateRef.current; // день, с которого подняли (текущий день вида)
     const already = selected.has(item.key); // уже выделенную двигаем сразу, без удержания
     let lifted = false, moved = false, hold = null;
-    const setLiftT = rafThrottle(setLiftDrag);
     let lx = sx, ly = sy, lt = performance.now(), vx = 0, vy = 0; // сглаженная скорость для «отброса»
     // Пока задача поднята — глушим прокрутку. День листает ВТОРОЙ палец через ту же
     // карусель, что и обычный свайп (runDaySwipe); поднятая задача — плавающая копия
@@ -999,7 +998,7 @@ function Planner() {
       // Палец над зоной «весь день» (и задача обычная) → отметим: призрак времени прячем,
       // зона подсветится; на отпускании задача станет задачей на весь день.
       const overAllday = item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "allday";
-      setLiftT({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false, allday: overAllday });
+      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false, allday: overAllday });
     };
     // Плавный «доезд»: плавающая копия едет transform-ом к слоту (.landing, переход .2s).
     // Когда доехала — фиксируем новое время (задача уже стоит на этом месте в ленте) и
@@ -1017,7 +1016,6 @@ function Planner() {
     };
     const up = (ev) => {
       if (ev.pointerId !== pid) return;
-      setLiftT.flush(); // применить последнюю позицию пальца до «доезда» — иначе откат от троттлинга
       const dayChanged = dateRef.current !== origDate; // день сменили вторым пальцем (карусель)
       const wasLifted = lifted, mv = moved || dayChanged;
       cleanup();
@@ -1055,7 +1053,6 @@ function Planner() {
     const cleanup = () => {
       clearTimeout(hold);
       liftedNowRef.current = false;
-      setLiftT.cancel();
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", onCancel);
@@ -1077,7 +1074,6 @@ function Planner() {
     const dur = item.duration_min || 0;
     const concrete = item.kind === "concrete";
     let lifted = false, moved = false;
-    const setLiftT = rafThrottle(setLiftDrag);
     const setGeom = () => {
       const g = innerRef.current; if (!g) return;
       const gr = g.getBoundingClientRect();
@@ -1093,11 +1089,10 @@ function Planner() {
       moved = true; ev.preventDefault();
       const sec = concrete ? sectionAt(ev.clientX, ev.clientY) : null;
       const zone = concrete && !sec ? dndZoneAt(ev.clientX, ev.clientY) : null;
-      setLiftT({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, cx: ev.clientX, cy: ev.clientY,
+      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, cx: ev.clientX, cy: ev.clientY,
         landing: false, section: sec, allday: zone === "allday", tray: zone === "tray" });
     };
     const up = (ev) => {
-      setLiftT.flush(); // применить последнюю позицию пальца до «доезда» — иначе откат от троттлинга
       detach();
       if (!lifted || !moved) { setLiftDrag(null); (tapAction || (() => handleTap(item, false)))(); return; }
       const sec = concrete ? sectionAt(ev.clientX, ev.clientY) : null;
@@ -1121,7 +1116,7 @@ function Planner() {
       }, 200);
     };
     const cancel = () => { detach(); setLiftDrag(null); };
-    const detach = () => { setLiftT.cancel(); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel); };
+    const detach = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel); };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", cancel);
   }
 
