@@ -1,11 +1,15 @@
-// Service worker планера: кэшируем ТОЛЬКО сторонние библиотеки с CDN (esm.sh).
-// У них фиксированные версии в адресе, поэтому они никогда не меняются —
-// безопасно отдавать из кэша (быстрый холодный старт, в т.ч. с домашней иконки).
-// Файлы самого приложения НЕ кэшируем: они всегда грузятся из сети, чтобы любая
-// правка подтягивалась свежей. Так мы не повторяем старую проблему «залипания».
+// Service worker планера. Стратегия — «сеть в приоритете, кэш как запас»:
+//  • Библиотеки с CDN (esm.sh, фиксированные версии) — cache-first: мгновенный
+//    холодный старт, в т.ч. с домашней иконки.
+//  • Файлы самого приложения (html/js/css) — всегда тянем свежие из сети (любая
+//    правка подхватывается сразу, без «залипания»), НО успешный ответ кладём в
+//    кэш и при сетевом сбое/тайм-ауте отдаём его. Это спасает от «вечной крутилки»
+//    на плохом мобильном интернете: приложение стартует из кэша, а не висит.
 
 const CDN_CACHE = "planner-cdn-v1";
+const APP_CACHE = "planner-app-v1";
 const CDN_HOSTS = ["esm.sh"];
+const NET_TIMEOUT = 7000; // дольше не ждём ответ — иначе старт «висит» на плохой сети
 
 self.addEventListener("install", () => self.skipWaiting());
 
@@ -13,11 +17,18 @@ self.addEventListener("activate", (e) => {
   e.waitUntil((async () => {
     const keys = await caches.keys();
     await Promise.all(
-      keys.filter(k => k.startsWith("planner") && k !== CDN_CACHE).map(k => caches.delete(k))
+      keys.filter(k => k.startsWith("planner") && k !== CDN_CACHE && k !== APP_CACHE).map(k => caches.delete(k))
     );
     await self.clients.claim();
   })());
 });
+
+// fetch с тайм-аутом — чтобы зависший запрос не держал старт приложения вечно.
+function fetchTimeout(req, init) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), NET_TIMEOUT);
+  return fetch(req, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
 
 self.addEventListener("fetch", (e) => {
   const req = e.request;
@@ -31,22 +42,25 @@ self.addEventListener("fetch", (e) => {
       const cache = await caches.open(CDN_CACHE);
       const cached = await cache.match(req);
       if (cached) return cached;
-      const res = await fetch(req);
+      const res = await fetchTimeout(req);
       if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone());
       return res;
     })());
     return;
   }
 
-  // Свои файлы (тот же origin: html/js/css) — ВСЕГДА свежие из сети, минуя HTTP-кэш
-  // браузера (cache: "reload"). Раньше мы просто не вмешивались, и iOS отдавал старый
-  // CSS/JS из своего кэша → правки «не подхватывались». Офлайн — отдаём из кэша, если есть.
+  // Свои файлы (тот же origin) — сеть в приоритете (свежие правки, минуя HTTP-кэш
+  // браузера), но успешный ответ кэшируем и при сбое/тайм-ауте отдаём из кэша,
+  // чтобы приложение запустилось даже на плохой сети, а не висело на крутилке.
   if (url.origin === self.location.origin) {
     e.respondWith((async () => {
+      const cache = await caches.open(APP_CACHE);
       try {
-        return await fetch(req, { cache: "reload" });
+        const res = await fetchTimeout(req, { cache: "reload" });
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
       } catch (err) {
-        const cached = await caches.match(req);
+        const cached = await cache.match(req) || await caches.match(req);
         if (cached) return cached;
         throw err;
       }

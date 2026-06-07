@@ -677,7 +677,7 @@ textarea.input { resize: vertical; }
    compact — низкая капсула без времени; mini — капсула становится кружком,
    название уменьшается шрифтом, но остаётся видимым. Высота всегда строго по
    длительности (час × масштаб), поэтому задачи держат точную привязку к времени. */
-.tl-pill, .tl-pill-icon, .tl-pill-check { transition: width .2s ease, height .2s ease, top .2s ease, margin-top .2s ease, border-radius .2s ease, transform .2s ease, translate .2s ease; }
+.tl-pill, .tl-pill-icon, .tl-pill-check { transition: width .2s ease, height .2s ease, top .2s ease, margin-top .2s ease, border-radius .2s ease, transform .2s ease; }
 .zooming .tl-pill, .zooming .tl-pill-icon { transition: none; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
