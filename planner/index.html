@@ -4,7 +4,10 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="format-detection" content="telephone=no" />
-    <meta name="theme-color" content="#0ea5e9" />
+    <!-- Цвет строки статуса/обводки браузера: голубой в светлой теме, тёмный — в тёмной
+         (иначе в тёмной теме сверху остаётся ярко-голубая полоса, не совпадающая с фоном). -->
+    <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
@@ -30,7 +33,7 @@
         } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=64" />
+    <link rel="stylesheet" href="./styles.css?v=65" />
     <script>
       // Диагностика загрузки: если код не стартовал за 10с или случилась ошибка
       // импорта модулей — показываем текст ошибки вместо вечной крутилки.
