@@ -7,9 +7,10 @@
   --accent: #0ea5e9; --accent-soft: rgba(14, 165, 233, 0.12);
   --inbox: #c2c9d6; /* приятный серо-белый — цвет задач без проекта («Входящие») */
   --danger: #ef4444;
-  /* Насыщенность стеклянных капсул (заливка цветом проекта). В тёмной теме выше —
-     иначе блоки почти сливаются с тёмным фоном. */
-  --glass: 13%; --glass-done: 7%; --glass-strong: 20%;
+  /* Насыщенность стеклянных капсул (заливка цветом проекта) + единое размытие фона.
+     В тёмной теме заливка выше — иначе блоки сливаются с тёмным фоном. Размытие одно
+     на все разделы, чтобы стекло выглядело целостно. */
+  --glass: 10%; --glass-done: 5%; --glass-strong: 16%; --glass-blur: 6px;
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 [data-theme="dark"] {
@@ -18,7 +19,7 @@
   --border: rgba(255, 255, 255, 0.07); --border-strong: rgba(255, 255, 255, 0.15);
   --accent: #38bdf8; --accent-soft: rgba(56, 189, 248, 0.16);
   --inbox: #5a6478; /* серо-белый для «Входящих» в тёмной теме (приглушённее) */
-  --glass: 24%; --glass-done: 14%; --glass-strong: 32%;
+  --glass: 18%; --glass-done: 10%; --glass-strong: 26%;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -324,7 +325,7 @@ textarea.input { resize: vertical; }
 /* Задача в боковом списке — такая же мини-капсула «жидкое стекло», как «весь день». */
 .tree-task { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 12px;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass), transparent);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
   touch-action: pan-y; cursor: grab; transition: background .14s ease, box-shadow .14s ease; }
 .tree-task:hover { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-strong), transparent); }
 .tree-task.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-done), transparent); }
@@ -530,7 +531,7 @@ textarea.input { resize: vertical; }
    служит её левым краем, блок за неё не выходит. */
 .tl-event::before { content: ""; position: absolute; left: 58px; right: 8px; top: 1px; bottom: 1px;
   border-radius: 12px; background-color: color-mix(in srgb, var(--c) var(--glass), transparent); pointer-events: none; z-index: 0;
-  -webkit-backdrop-filter: blur(5px); backdrop-filter: blur(5px); }
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
 .tl-event.done::before { background-color: color-mix(in srgb, var(--c) var(--glass-done), transparent); }
 
 /* ===== Карточка СОБЫТИЯ (без чекбокса): полоса слева + фон ===== */
@@ -775,7 +776,8 @@ textarea.input { resize: vertical; }
 .week-allday-cell { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; padding: 3px; }
 .week-chip, .week-more { font-size: 11px; text-align: left; padding: 2px 6px; border-radius: 6px; border: none;
   cursor: pointer; font-family: inherit; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.week-chip { background: color-mix(in srgb, var(--c) 18%, var(--surface));
+.week-chip { background: color-mix(in srgb, var(--c) var(--glass-strong), transparent);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
   color: color-mix(in srgb, var(--c) 70%, var(--text)); }
 .week-more { color: var(--text-mute); background: none; }
 .week-grid { position: relative; width: 100%; margin-top: 14px; user-select: none; }
@@ -783,7 +785,8 @@ textarea.input { resize: vertical; }
 .week-col:first-of-type { border-left: none; }
 .week-col.today { background: color-mix(in srgb, var(--accent) 5%, transparent); }
 .week-block { position: absolute; box-sizing: border-box; border-radius: 7px; padding: 2px 7px; overflow: hidden;
-  background: color-mix(in srgb, var(--c) 20%, var(--surface)); box-shadow: inset 2.5px 0 0 var(--c); cursor: pointer;
+  background: color-mix(in srgb, var(--c) var(--glass-strong), transparent); box-shadow: inset 2.5px 0 0 var(--c); cursor: pointer;
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
   text-align: left; font-family: inherit; transition: filter .12s ease; }
 .week-block:hover { filter: brightness(0.97); }
 .week-block-title { font-size: 11.5px; font-weight: 600; line-height: 1.25; display: block; overflow: hidden;
@@ -819,7 +822,8 @@ textarea.input { resize: vertical; }
 .month-cell-items { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
 .month-chip { display: flex; align-items: center; gap: 5px; font-size: 11px; padding: 2px 6px; border-radius: 6px;
   border: none; cursor: pointer; width: 100%; text-align: left; font-family: inherit;
-  background: color-mix(in srgb, var(--c) 16%, var(--surface)); color: color-mix(in srgb, var(--c) 70%, var(--text)); }
+  background: color-mix(in srgb, var(--c) var(--glass-strong), transparent); color: color-mix(in srgb, var(--c) 70%, var(--text));
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur)); }
 .month-chip-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--c); flex: none; }
 .month-chip-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .month-chip.done { opacity: 0.5; }
@@ -1157,7 +1161,7 @@ textarea.input { resize: vertical; }
 .tl-subs { margin-top: 3px; }
 .tl-subs-chip { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; border: 0;
   font-family: inherit; font-size: 10px; color: var(--text-soft); padding: 1px 6px 1px 2px; border-radius: 999px;
-  background: color-mix(in srgb, var(--text) 8%, transparent); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  background: color-mix(in srgb, var(--text) 8%, transparent); backdrop-filter: blur(var(--glass-blur)); -webkit-backdrop-filter: blur(var(--glass-blur)); }
 .tl-subs-chip:hover { background: color-mix(in srgb, var(--text) 12%, transparent); }
 .tl-subs-box { width: 12px; height: 12px; border-radius: 3px; flex: none; display: inline-flex;
   align-items: center; justify-content: center; background: var(--text-mute); color: #fff; }
@@ -1203,7 +1207,7 @@ textarea.input { resize: vertical; }
 .allday-item { position: relative; box-sizing: border-box; display: flex; align-items: center;
   gap: 6px; min-width: 0; min-height: 22px; padding: 3px 8px; border-radius: 10px; cursor: default;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass), transparent);
-  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
   user-select: none; -webkit-user-select: none; will-change: transform;
   transition: background .14s ease, box-shadow .14s ease, transform .14s ease; }
 .allday-item.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-done), transparent); }
