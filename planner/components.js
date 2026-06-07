@@ -135,6 +135,21 @@ function dbHint(msg) {
   return msg;
 }
 
+// Понятные русские сообщения для формы входа/регистрации. Английский текст ошибки
+// (напр. «Load failed», «Invalid login credentials») наружу не показываем.
+function authHint(msg) {
+  const m = String(msg || "");
+  if (/fetch|network|timeout|connect|reset|load failed|failed to fetch|networkerror|abort|signal|503|unavailable/i.test(m))
+    return "Нет связи с сервером. Проверьте интернет и попробуйте снова.";
+  if (/invalid login credentials|invalid credentials|invalid.*password/i.test(m)) return "Неверная почта или пароль.";
+  if (/email not confirmed/i.test(m)) return "Почта не подтверждена — откройте письмо со ссылкой.";
+  if (/already registered|already.*exist/i.test(m)) return "Аккаунт с этой почтой уже есть — войдите.";
+  if (/password should be at least|password.*at least|weak password|password.*short/i.test(m)) return "Пароль слишком короткий — минимум 6 символов.";
+  if (/unable to validate email|invalid.*email|email.*invalid|valid email/i.test(m)) return "Проверьте адрес почты.";
+  if (/rate limit|too many|429/i.test(m)) return "Слишком много попыток. Подождите минуту и попробуйте снова.";
+  return "Не удалось войти. Попробуйте ещё раз.";
+}
+
 
 
 // Встроенный редактор задачи (вместо модальной формы). Рендерит карточку без
@@ -534,10 +549,25 @@ export function AuthForm() {
   async function submit(e) {
     e.preventDefault();
     setError(""); setMsg(""); setBusy(true);
+    // При сетевом сбое повторяем вход пару раз с паузой: на бесплатном тарифе
+    // Supabase «засыпает», и первый запрос его будит, а следующий уже проходит
+    // (то же бывает на нестабильном мобильном интернете). Не сетевые ошибки
+    // (неверный пароль и т.п.) пробрасываем сразу, без повторов.
+    const isNet = (m) => /fetch|network|timeout|connect|reset|load failed|failed to fetch|networkerror|abort|signal|503|unavailable/i.test(String(m || ""));
     try {
-      if (mode === "signin") await store.auth.signIn(email.trim(), password);
-      else { await store.auth.signUp(email.trim(), password); setMsg("Проверьте почту для подтверждения, затем войдите."); }
-    } catch (e) { setError(e.message); } finally { setBusy(false); }
+      if (mode === "signin") {
+        for (let i = 0; ; i++) {
+          try { await store.auth.signIn(email.trim(), password); break; }
+          catch (err) {
+            if (isNet(err && err.message) && i < 2) { await new Promise(r => setTimeout(r, 1200 * (i + 1))); continue; }
+            throw err;
+          }
+        }
+      } else {
+        await store.auth.signUp(email.trim(), password);
+        setMsg("Проверьте почту для подтверждения, затем войдите.");
+      }
+    } catch (e) { setError(authHint(e && e.message)); } finally { setBusy(false); }
   }
   return html`
     <div class="auth">
