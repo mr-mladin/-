@@ -132,6 +132,8 @@ function Planner() {
   const [selRange, setSelRange] = useState(null);
   const [asideOpen, setAsideOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 860px)").matches);
+  const isMobileRef = useRef(isMobile);
+  isMobileRef.current = isMobile;
 
   const innerRef = useRef(null);
   const scrollRef = useRef(null);
@@ -152,6 +154,7 @@ function Planner() {
   const zoomAnchor = useRef(null);
   const zoomFocus = useRef(null);   // точка под пальцами при зуме (фиксируем её)
   const zoomingRef = useRef(false); // идёт изменение масштаба
+  const zoomClsTimer = useRef(null); // снятие класса .zooming после жеста
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const createActiveRef = useRef(false); // идёт создание новой задачи (растягивание в сетке) — карусель дня не вмешивается
   const kbPrimerRef = useRef(null);   // скрытое поле: поднять клавиатуру синхронно в жесте, затем фокус уедет в форму
@@ -265,6 +268,41 @@ function Planner() {
     return { timeMin, yInContainer };
   }
   function zoomAnchorAt(clientY) { zoomAnchor.current = computeAnchor(clientY); }
+  // Метка «идёт зум» на сетке (на это время отключаются доводки и размытие стекла).
+  function markZooming() {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.classList.add("zooming");
+    clearTimeout(zoomClsTimer.current);
+    zoomClsTimer.current = setTimeout(() => el.classList.remove("zooming"), 180);
+  }
+  // Мобильный масштаб — только ВЕРТИКАЛЬНЫМ двупальцевым щипком (пальцы разнесены по
+  // вертикали и сходятся/расходятся вверх-вниз): логично «сворачиваем/разворачиваем»
+  // день. Горизонтальный щипок сетку не масштабирует.
+  function startVertZoom(midY, dy0) {
+    zoomingRef.current = true;
+    const base = hourPxRef.current;
+    const focus = computeAnchor(midY);
+    const move = (ev) => {
+      if (!ev.touches || ev.touches.length < 2) return;
+      ev.preventDefault();
+      const dy = Math.abs(ev.touches[0].clientY - ev.touches[1].clientY);
+      if (dy < 8) return;
+      markZooming(); markZoomed();
+      zoomAnchor.current = focus;
+      setHourPx(clamp(Math.round(base * (dy / dy0)), fitMinPx(), HOUR_MAX));
+    };
+    const end = (ev) => {
+      if (ev.touches && ev.touches.length >= 2) return; // ещё держат двумя — продолжаем
+      zoomingRef.current = false;
+      document.removeEventListener("touchmove", move);
+      document.removeEventListener("touchend", end);
+      document.removeEventListener("touchcancel", end);
+    };
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", end);
+    document.addEventListener("touchcancel", end);
+  }
   useLayoutEffect(() => {
     const a = zoomAnchor.current;
     const cont = scrollRef.current, grid = innerRef.current;
@@ -319,12 +357,6 @@ function Planner() {
   useEffect(() => {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
-    let clsTimer = null;
-    const markZooming = () => {
-      el.classList.add("zooming");
-      clearTimeout(clsTimer);
-      clsTimer = setTimeout(() => el.classList.remove("zooming"), 180);
-    };
     const onWheel = (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -337,12 +369,14 @@ function Planner() {
     };
     let base = hourPxRef.current;
     const onGStart = (e) => {
+      if (isMobileRef.current) return; // мобильный масштаб — вертикальным щипком (см. startVertZoom)
       if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — масштаб не трогаем
       e.preventDefault();
       zoomingRef.current = true;
       base = hourPxRef.current;
     };
     const onGChange = (e) => {
+      if (isMobileRef.current) return; // на мобильном нативный Safari-pinch масштаб не трогает
       e.preventDefault();
       if (!zoomingRef.current) return;
       markZooming(); markZoomed();
@@ -356,7 +390,7 @@ function Planner() {
     el.addEventListener("gesturechange", onGChange);
     el.addEventListener("gestureend", onGEnd);
     return () => {
-      clearTimeout(clsTimer);
+      clearTimeout(zoomClsTimer.current);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("gesturestart", onGStart);
       el.removeEventListener("gesturechange", onGChange);
@@ -1782,8 +1816,15 @@ function Planner() {
     // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
     if (liftDragRef.current || createActiveRef.current) { runDaySwipe(e.changedTouches[0], true); return; }
     if (e.touches.length === 2) {
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      // Зум сетки — только ВЕРТИКАЛЬНЫМ щипком: пальцы должны быть разнесены по
+      // вертикали (один выше, другой ниже) и сходиться/расходиться вверх-вниз.
+      // Горизонтальный/диагональный щипок масштаб не трогает.
+      const t1 = e.touches[0], t2 = e.touches[1];
+      const dy0 = Math.abs(t1.clientY - t2.clientY);
+      const dx0 = Math.abs(t1.clientX - t2.clientX);
+      const midY = (t1.clientY + t2.clientY) / 2;
       zoomFocus.current = computeAnchor(midY);
+      if (dy0 > dx0 && dy0 > 24) { e.preventDefault(); startVertZoom(midY, dy0); }
       return;
     }
     if (e.touches.length !== 1) return;
