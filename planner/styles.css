@@ -515,19 +515,15 @@ textarea.input { resize: vertical; }
 /* Выделенный блок: без обводки — чуть приподнят над сеткой мягкой тенью. */
 .tl-event.sel { z-index: 6; }
 .tl-event.sel::before { background-color: color-mix(in srgb, var(--c) var(--glass-strong), transparent);
-  box-shadow: 0 8px 20px rgba(2, 6, 23, 0.18); }
+  box-shadow: 0 5px 16px rgba(2, 6, 23, 0.15); }
 /* Свободная рамка-выделение (Finder-style): сплошная тонкая, без пунктира.
    Fixed — чтобы охватывать и сетку дня, и зону «весь день» одной рамкой. */
 .tl-marquee { position: fixed; pointer-events: none; z-index: 60; border-radius: 4px;
   background: color-mix(in srgb, var(--accent) 11%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 60%, transparent); }
-.tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box; overflow: hidden;
+.tl-event { position: absolute; left: 0; right: 0; box-sizing: border-box;
   transition: top .16s cubic-bezier(.2,.7,.3,1), height .16s cubic-bezier(.2,.7,.3,1),
     left .18s cubic-bezier(.2,.7,.3,1), width .18s cubic-bezier(.2,.7,.3,1), transform .2s cubic-bezier(.2,.8,.3,1); }
-/* В очень коротких блоках (mini) чекбокс и название не должны торчать за нижнюю
-   границу — обрезаем. Но для выделенного блока (точки ресайза по краям) и для
-   раскрытых подзадач overflow нужен видимым. */
-.tl-event.sel, .tl-event.subs-open { overflow: visible; }
 /* Полупрозрачный тайм-блок за капсулой (как в Календаре Apple): мягкая плашка цвета
    задачи на всю площадь события, поверх неё — пилюля-акцент и текст. Рисуем фоном
    ::before, чтобы не трогать разметку и геометрию жестов (перенос/resize). */
@@ -563,13 +559,13 @@ textarea.input { resize: vertical; }
 .tl-event.dragging { z-index: 6; transition: none; }
 /* Плавающая копия (overlay): едет ровно за пальцем, без перехода; крупнее, с тенью. */
 .tl-event.lifted { z-index: 12; transition: none; }
-.tl-event.lifted::before { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+.tl-event.lifted::before { box-shadow: 0 5px 16px rgba(2, 6, 23, 0.15); }
 /* «Доезд» на отпускании: плавно везём transform к слоту (или назад к 0 при отмене). */
 .tl-event.landing { z-index: 12; transition: transform .2s cubic-bezier(.2,.8,.3,1); }
-.tl-event.landing::before { box-shadow: 0 12px 28px rgba(15, 23, 42, 0.32); }
+.tl-event.landing::before { box-shadow: 0 5px 16px rgba(2, 6, 23, 0.15); }
 /* Оригинал поднятой задачи в ленте: невидим, но НЕ удалён (сохраняет место и касание —
    иначе iOS шлёт pointercancel и перенос срывается). Видимое — плавающая копия поверх. */
-.tl-event.lift-hidden { visibility: hidden; }
+.tl-event.lift-hidden { visibility: hidden; transition: none; }
 /* Плавающая копия поднятой задачи/капсулы: fixed поверх всего, координаты вьюпорта.
    Лежит ВНЕ ленты карусели, поэтому при листании дней вторым пальцем остаётся под
    пальцем. Двойной класс — чтобы position:fixed побеждал .tl-event/.tl-ghost. */
@@ -696,8 +692,9 @@ textarea.input { resize: vertical; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
 .tl-event.compact .tl-pill-check { width: 19px; height: 19px; margin-top: 0; }
-.tl-event.compact .tl-pill-check .ico { width: 12px; height: 12px; }
-.tl-event.compact .tl-body { top: 0; bottom: 0; }
+.tl-event.compact .tl-pill-check { width: 17px; height: 17px; top: 5px; }
+.tl-event.compact .tl-pill-check .ico { width: 11px; height: 11px; }
+.tl-event.compact .tl-body { top: 0; bottom: 0; padding-top: 5px; }
 .tl-event.compact .tl-meta { max-height: 0; opacity: 0; filter: blur(3px); }
 .tl-event.compact .tl-title { -webkit-line-clamp: 1; font-size: 13px; }
 /* mini — короткая задача: кружок-галочка по центру (как compact, только меньше),
@@ -705,12 +702,12 @@ textarea.input { resize: vertical; }
    чтобы на пороге между compact и mini не было скачка позиции — меняется только размер,
    а он анимируется плавно (см. transition .tl-pill-check выше). */
 .tl-event.mini .tl-pill { justify-content: center; }
-.tl-event.mini .tl-pill-check { width: 15px; height: 15px; }
-.tl-event.mini .tl-pill-check .ico { width: 10px; height: 10px; }
+.tl-event.mini .tl-pill-check { width: 12px; height: 12px; top: 2px; }
+.tl-event.mini .tl-pill-check .ico { width: 8px; height: 8px; }
 .tl-event.mini .tl-pill-icon { display: none; }
-.tl-event.mini .tl-body { top: 0; bottom: 0; }
+.tl-event.mini .tl-body { top: 0; bottom: 0; padding-top: 1px; }
 .tl-event.mini .tl-meta { max-height: 0; opacity: 0; filter: blur(3px); }
-.tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 11px; }
+.tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 10px; }
 .tl-event.mini .task-check { display: none; }
 .tl-event.done .tl-title { color: var(--text-mute); }
 

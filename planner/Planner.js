@@ -1008,9 +1008,11 @@ function Planner() {
       setLiftDrag({ key: item.key, dx: 0, dy: targetDy, landing: true });
       clearTimeout(landTimerRef.current);
       landTimerRef.current = setTimeout(() => {
-        commit();
-        setLiftDrag({ key: item.key, dx: 0, dy: 0, done: true });
-        landTimerRef.current = setTimeout(() => setLiftDrag(c => (c && c.key === item.key && c.done) ? null : c), 60);
+        commit(); // задача встаёт на новое место; оригинал ещё скрыт и без transition
+        requestAnimationFrame(() => { // следующий кадр — оригинал уже на месте, показываем без скачка top
+          setLiftDrag({ key: item.key, dx: 0, dy: 0, done: true });
+          landTimerRef.current = setTimeout(() => setLiftDrag(c => (c && c.key === item.key && c.done) ? null : c), 60);
+        });
       }, 220);
     };
     const up = (ev) => {
@@ -1112,8 +1114,10 @@ function Planner() {
       clearTimeout(landTimerRef.current);
       landTimerRef.current = setTimeout(() => {
         if (target !== item.start_min) store.actions.tasks.reschedule(item, { start_min: target }).catch(showErr);
-        setLiftDrag({ key: item.key, dx: 0, dy: 0, done: true });
-        landTimerRef.current = setTimeout(() => setLiftDrag(c => (c && c.key === item.key && c.done) ? null : c), 60);
+        requestAnimationFrame(() => { // оригинал уже на месте (скрыт, без transition) — показываем без скачка
+          setLiftDrag({ key: item.key, dx: 0, dy: 0, done: true });
+          landTimerRef.current = setTimeout(() => setLiftDrag(c => (c && c.key === item.key && c.done) ? null : c), 60);
+        });
       }, 200);
     };
     const cancel = () => { detach(); setLiftDrag(null); };
