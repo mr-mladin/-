@@ -581,19 +581,20 @@ textarea.input { resize: vertical; }
 .tl-pill-icon { width: 26px; height: 26px; margin-top: 6px; border-radius: 50%; flex: none;
   background: rgba(255,255,255,0.95); display: flex; align-items: center; justify-content: center;
   font-size: 14px; line-height: 1; }
-/* Чекбокс-«шарик»: вверху капсулы — не сделано, внизу — сделано (как тумблер).
-   Позиция через независимое свойство translate, пульс — через scale (чтобы они
-   не конфликтовали между собой во время анимации выполнения). */
-.tl-pill-check { position: absolute; top: 7px; left: 50%; width: 19px; height: 19px; border-radius: 50%;
+/* Чекбокс-«шарик»: по центру капсулы по вертикали (не сделано), а при выполнении
+   опускается ниже центра (как тумблер вниз). Центр задаём через top:50% + translate,
+   поэтому позиция — непрерывная функция высоты: при зуме чекбокс плавно следует за
+   серединой капсулы, без скачков на порогах плотности. Пульс — отдельным scale. */
+.tl-pill-check { position: absolute; top: 50%; left: 50%; width: 19px; height: 19px; border-radius: 50%;
   flex: none; padding: 0; background: var(--surface); border: 2px solid var(--c);
   box-shadow: 0 1px 2px rgba(15,23,42,0.12); box-sizing: border-box;
   display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 3;
-  translate: -50% 0; scale: 1; transition: translate .9s cubic-bezier(.34,1.2,.5,1), background .2s ease; }
+  translate: -50% -50%; scale: 1; transition: translate .9s cubic-bezier(.34,1.2,.5,1), background .2s ease; }
 .tl-pill-check.on { background: var(--c); }
 .tl-pill-check .ico { width: 12px; height: 12px; color: #fff; opacity: 0; transition: opacity .3s ease; }
 .tl-pill-check.on .ico { opacity: 1; }
-/* Выполнено — шарик покоится внизу капсулы (как тумблер вниз). */
-.tl-event.done .tl-pill-check { translate: -50% var(--drop, 0px); }
+/* Выполнено — шарик опускается ниже центра (как тумблер вниз) на var(--drop). */
+.tl-event.done .tl-pill-check { translate: -50% calc(-50% + var(--drop, 0px)); }
 /* Момент выполнения: сначала пульс (~0.5с) + конфетти, через ~1.9с — падение
    с высокими лёгкими отскоками (как резиновый мячик/баскетбольный). */
 .tl-pill-check.falling { animation: ballPulse .55s ease-out, ballFall 2.2s linear 1s both; }
@@ -602,16 +603,16 @@ textarea.input { resize: vertical; }
   35% { scale: 1.45; }
   100% { scale: 1; }
 }
-/* Лёгкий мяч: мягкое ускорение вниз, небольшие затухающие отскоки (как вначале). */
+/* Лёгкий мяч: от центра (−50%) мягко вниз на var(--drop), с затухающими отскоками. */
 @keyframes ballFall {
-  0%   { translate: -50% 0; animation-timing-function: cubic-bezier(.3,0,.5,.4); }
-  30%  { translate: -50% var(--drop); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
-  46%  { translate: -52% calc(var(--drop) * .70); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
-  60%  { translate: -48% var(--drop); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
-  72%  { translate: -51% calc(var(--drop) * .88); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
-  82%  { translate: -49% var(--drop); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
-  91%  { translate: -50% calc(var(--drop) * .955); }
-  100% { translate: -50% var(--drop); }
+  0%   { translate: -50% -50%; animation-timing-function: cubic-bezier(.3,0,.5,.4); }
+  30%  { translate: -50% calc(-50% + var(--drop)); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
+  46%  { translate: -52% calc(-50% + var(--drop) * .70); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
+  60%  { translate: -48% calc(-50% + var(--drop)); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
+  72%  { translate: -51% calc(-50% + var(--drop) * .88); animation-timing-function: cubic-bezier(.3,0,.5,.4); }
+  82%  { translate: -49% calc(-50% + var(--drop)); animation-timing-function: cubic-bezier(.15,.6,.35,1); }
+  91%  { translate: -50% calc(-50% + var(--drop) * .955); }
+  100% { translate: -50% calc(-50% + var(--drop)); }
 }
 .tl-event.compact .tl-pill-check, .tl-event.compact.done .tl-pill-check,
 .tl-event.mini .tl-pill-check, .tl-event.mini.done .tl-pill-check {
@@ -663,8 +664,12 @@ textarea.input { resize: vertical; }
 .tl-titlerow { display: flex; align-items: center; gap: 20px; min-width: 0; }
 .tl-body .task-check { flex: none; cursor: default; border-color: var(--c); }
 .tl-body .task-check.on { background: var(--c); border-color: var(--c); }
+/* Время/длительность под названием. Сворачиваем не через display:none (нельзя
+   анимировать), а через max-height + opacity — чтобы при сжатии задачи время
+   плавно появлялось и исчезало, а не моргало. */
 .tl-meta { font-size: 10px; color: var(--text-mute); display: flex; align-items: center; gap: 4px;
-  font-variant-numeric: tabular-nums; }
+  font-variant-numeric: tabular-nums; max-height: 16px; overflow: hidden;
+  transition: max-height .28s cubic-bezier(.4,0,.2,1), opacity .22s ease; }
 .tl-rep { display: inline-flex; }
 .tl-rep .ico { width: 12px; height: 12px; color: var(--c); }
 .tl-title { min-width: 0; font-size: 13px; font-weight: 500; color: var(--text); line-height: 1.3; letter-spacing: -0.01em;
@@ -678,13 +683,17 @@ textarea.input { resize: vertical; }
    название уменьшается шрифтом, но остаётся видимым. Высота всегда строго по
    длительности (час × масштаб), поэтому задачи держат точную привязку к времени. */
 .tl-pill, .tl-pill-icon, .tl-pill-check { transition: width .2s ease, height .2s ease, top .2s ease, margin-top .2s ease, border-radius .2s ease, transform .2s ease; }
-.zooming .tl-pill, .zooming .tl-pill-icon { transition: none; }
+/* Во время зума внутренние элементы следуют за высотой мгновенно (без доводки —
+   иначе кажется «заторможенным»), а дорогое размытие стекла за капсулами снимаем:
+   пересчёт blur на каждый кадр и делал зум тяжёлым. После жеста всё возвращается. */
+.zooming .tl-pill, .zooming .tl-pill-icon, .zooming .tl-pill-check, .zooming .tl-title { transition: none; }
+.zooming .tl-event::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
 .tl-event.compact .tl-pill-check { width: 19px; height: 19px; margin-top: 0; }
 .tl-event.compact .tl-pill-check .ico { width: 12px; height: 12px; }
 .tl-event.compact .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
-.tl-event.compact .tl-meta { display: none; }
+.tl-event.compact .tl-meta { max-height: 0; opacity: 0; }
 .tl-event.compact .tl-title { -webkit-line-clamp: 1; font-size: 13px; }
 /* mini — короткая задача: кружок-галочка по центру (как compact, только меньше),
    название мелким шрифтом. ВАЖНО: чекбокс остаётся absolute-центрированным (НЕ static),
@@ -695,7 +704,7 @@ textarea.input { resize: vertical; }
 .tl-event.mini .tl-pill-check .ico { width: 10px; height: 10px; }
 .tl-event.mini .tl-pill-icon { display: none; }
 .tl-event.mini .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
-.tl-event.mini .tl-meta { display: none; }
+.tl-event.mini .tl-meta { max-height: 0; opacity: 0; }
 .tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 11px; }
 .tl-event.mini .task-check { display: none; }
 .tl-event.done .tl-title { color: var(--text-mute); }
@@ -879,13 +888,13 @@ textarea.input { resize: vertical; }
   .tl-title-edit, .tl-subs-edit, .allday-edit, .search-input { font-size: 16px; }
 
   /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
-  .allday { padding: 8px 10px 8px 12px; gap: 6px; }
-  .allday.empty { padding: 6px 10px 6px 12px; }
-  .allday.grid { column-gap: 10px; row-gap: 6px; }
-  .allday-item { gap: 7px; }
-  .allday-check { width: 17px; height: 17px; border-width: 1.5px; }
-  .allday-check .ico { width: 9px; height: 9px; }
-  .allday-title { font-size: 13px; }
+  .allday { padding: 6px 10px 6px 12px; gap: 5px; }
+  .allday.empty { padding: 5px 10px 5px 12px; }
+  .allday.grid { column-gap: 8px; row-gap: 5px; }
+  .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; }
+  .allday-check { width: 15px; height: 15px; border-width: 1.5px; }
+  .allday-check .ico { width: 8px; height: 8px; }
+  .allday-title { font-size: 12px; }
 
   /* Форма задачи — нижний лист (как в Apple Календаре): прижат к низу экрана,
      высота по содержимому (до 92% экрана), скругление сверху. Не во весь экран и без
@@ -1190,7 +1199,7 @@ textarea.input { resize: vertical; }
 /* Задача «весь день» — мини-капсула «жидкое стекло»: прозрачная заливка в цвет
    проекта + лёгкое размытие фона за ней. */
 .allday-item { position: relative; box-sizing: border-box; display: flex; align-items: center;
-  gap: 7px; min-width: 0; min-height: 28px; padding: 4px 10px; border-radius: 12px; cursor: default;
+  gap: 6px; min-width: 0; min-height: 22px; padding: 3px 8px; border-radius: 10px; cursor: default;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass), transparent);
   -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
   user-select: none; -webkit-user-select: none; will-change: transform;
@@ -1204,12 +1213,12 @@ textarea.input { resize: vertical; }
 .allday-item.ad-lift { box-shadow: 0 14px 30px rgba(15, 23, 42, 0.3); }
 .allday.grid .allday-item { touch-action: none; }
 /* Тонкое кольцо цвета проекта, внутри белый центр; галочка цвета проекта. */
-.allday-check { flex: none; width: 19px; height: 19px; border-radius: 50%; border: 1.5px solid currentColor;
+.allday-check { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid currentColor;
   background: var(--surface); display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
-.allday-check .ico { width: 11px; height: 11px; opacity: 0; transition: opacity .25s ease; }
+.allday-check .ico { width: 9px; height: 9px; opacity: 0; transition: opacity .25s ease; }
 .allday-check.on { background: currentColor; }
 .allday-check.on .ico { opacity: 1; color: #fff; }
-.allday-title { font-size: 14px; font-weight: 600; color: var(--text);
+.allday-title { font-size: 12.5px; font-weight: 500; color: var(--text);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat;
   background-position: 0 58%; background-size: 0% 1.5px;
@@ -1228,10 +1237,10 @@ textarea.input { resize: vertical; }
     margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
-  .allday-item { gap: 6px; min-height: 24px; padding: 3px 9px; border-radius: 12px; }
-  .allday-title { font-size: 12.5px; font-weight: 500; }
-  .allday-check { width: 15px; height: 15px; }
-  .allday-check .ico { width: 9px; height: 9px; }
+  .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
+  .allday-title { font-size: 11.5px; font-weight: 500; }
+  .allday-check { width: 14px; height: 14px; }
+  .allday-check .ico { width: 8px; height: 8px; }
 }
 
 /* Спиннер первой загрузки в сетке дня (когда кэша ещё нет). */
