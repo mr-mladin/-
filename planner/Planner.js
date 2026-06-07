@@ -46,6 +46,17 @@ function readZoomed() {
   try { return localStorage.getItem("planner.hourManual") === "1"; } catch (e) { return false; }
 }
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+// rAF-троттл для setState в жестах: pointermove приходит до 120 раз/с (ProMotion),
+// а перерисовывать сетку дня нужно не чаще кадра экрана — применяем только последнее
+// значение раз в кадр. Принимает и значение, и функцию-апдейтер. ВАЖНО: перед финальным
+// setState в pointerup/cleanup звать .cancel(), иначе отложенный кадр перезатрёт итог.
+function rafThrottle(setter) {
+  let id = 0, val;
+  const run = () => { id = 0; setter(val); };
+  const f = (v) => { val = v; if (!id) id = requestAnimationFrame(run); };
+  f.cancel = () => { if (id) { cancelAnimationFrame(id); id = 0; } };
+  return f;
+}
 
 export function App() {
   const store = useStore();
@@ -213,7 +224,13 @@ function Planner() {
     document.addEventListener("pointerdown", onDown, true);
     return () => document.removeEventListener("pointerdown", onDown, true);
   }, [selected]);
-  useEffect(() => { hourPxRef.current = hourPx; try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, [hourPx]);
+  useEffect(() => { hourPxRef.current = hourPx; }, [hourPx]);
+  // Запись масштаба в localStorage — с задержкой: при щипке/ресайзе шторки hourPx
+  // меняется десятки раз в секунду, а синхронный setItem на каждый шаг тормозит жест.
+  useEffect(() => {
+    const t = setTimeout(() => { try { localStorage.setItem("planner.hourPx", String(hourPx)); } catch (e) {} }, 300);
+    return () => clearTimeout(t);
+  }, [hourPx]);
   useEffect(() => { liftDragRef.current = liftDrag; }, [liftDrag]); // обработчикам свайпа/зума нужно актуальное «поднята ли задача»
   useEffect(() => {
     const mq = window.matchMedia("(max-width: 860px)");
@@ -525,7 +542,7 @@ function Planner() {
   // Сетка дня (день/неделя/месяц) ВСЕГДА показывает все задачи — выбор папки в
   // боковой панели на сетку не влияет.
   const dayItems = useMemo(() => itemsForDate(tasks, date), [tasks, date, taskLists]);
-  const timed = dayItems.filter(i => i.start_min !== null && i.start_min !== undefined);
+  const timed = useMemo(() => dayItems.filter(i => i.start_min !== null && i.start_min !== undefined), [dayItems]);
   // Порядок задач «весь день» задаётся sort_order строки; на drag перезаписываем его.
   const sortOrderById = useMemo(() => {
     const m = new Map();
@@ -536,15 +553,15 @@ function Planner() {
   // Задачи этого дня без времени — показываем в зоне «весь день» над сеткой.
   // Выполненные остаются здесь же (приглушённые, в конце списка) — чтобы было
   // видно, что сделано; они числятся в «Завершено» и на другие дни не переносятся.
-  const allDay = dayItems
+  const allDay = useMemo(() => dayItems
     .filter(i => (i.start_min === null || i.start_min === undefined))
     .sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)
       || ((sortOrderById.get(rowIdOf(a)) ?? 0) - (sortOrderById.get(rowIdOf(b)) ?? 0))
-      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
-  const allDayIds = new Set(allDay.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
+      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0)), [dayItems, sortOrderById]);
+  const allDayIds = useMemo(() => new Set(allDay.map(i => (i.kind === "occurrence" ? i.templateId : i.id))), [allDay]);
   // id задач, уже стоящих блоком в сетке текущего дня (одиночные — по id,
   // повторяющиеся — по id шаблона). Их не показываем в боковой панели.
-  const gridIds = new Set(timed.map(i => (i.kind === "occurrence" ? i.templateId : i.id)));
+  const gridIds = useMemo(() => new Set(timed.map(i => (i.kind === "occurrence" ? i.templateId : i.id))), [timed]);
   // Боковая панель: задачи проекта, которых нет в сетке этого дня (без времени,
   // другого дня или вовсе без даты). Без дублей повторений (только шаблоны).
   const projTasks = useMemo(() => tasks
@@ -560,7 +577,7 @@ function Planner() {
   const trashTasks = useMemo(() => tasks
     .filter(t => t.deleted_at)
     .sort((a, b) => (b.deleted_at || "").localeCompare(a.deleted_at || "")), [tasks]);
-  const trayTasks = projTasks.filter(t => !gridIds.has(t.id) && !allDayIds.has(t.id));
+  const trayTasks = useMemo(() => projTasks.filter(t => !gridIds.has(t.id) && !allDayIds.has(t.id)), [projTasks, gridIds, allDayIds]);
 
   const week = useMemo(() => {
     const base = fromISO(pendingDate || date);
@@ -908,6 +925,7 @@ function Planner() {
     const origDate = dateRef.current; // день, с которого подняли (текущий день вида)
     const already = selected.has(item.key); // уже выделенную двигаем сразу, без удержания
     let lifted = false, moved = false, hold = null;
+    const setLiftT = rafThrottle(setLiftDrag);
     let lx = sx, ly = sy, lt = performance.now(), vx = 0, vy = 0; // сглаженная скорость для «отброса»
     // Пока задача поднята — глушим прокрутку. День листает ВТОРОЙ палец через ту же
     // карусель, что и обычный свайп (runDaySwipe); поднятая задача — плавающая копия
@@ -942,7 +960,7 @@ function Planner() {
       // Палец над зоной «весь день» (и задача обычная) → отметим: призрак времени прячем,
       // зона подсветится; на отпускании задача станет задачей на весь день.
       const overAllday = item.kind === "concrete" && dndZoneAt(ev.clientX, ev.clientY) === "allday";
-      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false, allday: overAllday });
+      setLiftT({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, landing: false, allday: overAllday });
     };
     // Плавный «доезд»: плавающая копия едет transform-ом к слоту (.landing, переход .2s).
     // Когда доехала — фиксируем новое время (задача уже стоит на этом месте в ленте) и
@@ -995,6 +1013,7 @@ function Planner() {
     const cleanup = () => {
       clearTimeout(hold);
       liftedNowRef.current = false;
+      setLiftT.cancel();
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", onCancel);
@@ -1016,6 +1035,7 @@ function Planner() {
     const dur = item.duration_min || 0;
     const concrete = item.kind === "concrete";
     let lifted = false, moved = false;
+    const setLiftT = rafThrottle(setLiftDrag);
     const setGeom = () => {
       const g = innerRef.current; if (!g) return;
       const gr = g.getBoundingClientRect();
@@ -1031,7 +1051,7 @@ function Planner() {
       moved = true; ev.preventDefault();
       const sec = concrete ? sectionAt(ev.clientX, ev.clientY) : null;
       const zone = concrete && !sec ? dndZoneAt(ev.clientX, ev.clientY) : null;
-      setLiftDrag({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, cx: ev.clientX, cy: ev.clientY,
+      setLiftT({ key: item.key, dx: ev.clientX - sx, dy: ev.clientY - sy, cx: ev.clientX, cy: ev.clientY,
         landing: false, section: sec, allday: zone === "allday", tray: zone === "tray" });
     };
     const up = (ev) => {
@@ -1056,7 +1076,7 @@ function Planner() {
       }, 200);
     };
     const cancel = () => { detach(); setLiftDrag(null); };
-    const detach = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel); };
+    const detach = () => { setLiftT.cancel(); document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", cancel); };
     document.addEventListener("pointermove", move); document.addEventListener("pointerup", up); document.addEventListener("pointercancel", cancel);
   }
 
@@ -1157,10 +1177,11 @@ function Planner() {
     const sx = e.clientX, sy = e.clientY;
     let active = false, hold = null;
     const dur = 60;
+    const setDndT = rafThrottle(setDnd);
     const update = (ev) => {
       const zone = dndZoneAt(ev.clientX, ev.clientY);
       const gridMin = zone === "grid" && innerRef.current ? clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur) : null;
-      setDnd({ source: "tray", title: t.title, color: listById[t.list_id]?.color || "var(--accent)",
+      setDndT({ source: "tray", title: t.title, color: listById[t.list_id]?.color || "var(--accent)",
         x: ev.clientX, y: ev.clientY, zone, gridMin, dur });
     };
     const begin = (ev) => { active = true; trayClickGuard.current = true; update(ev || { clientX: sx, clientY: sy }); };
@@ -1174,7 +1195,7 @@ function Planner() {
       update(ev);
     };
     const up = (ev) => {
-      clearTimeout(hold); cleanup();
+      clearTimeout(hold); cleanup(); setDndT.cancel();
       if (!active) return;
       if (dndZoneAt(ev.clientX, ev.clientY) === "grid" && innerRef.current) {
         const start = clamp(snap(yToMin(ev.clientY)), 0, 1440 - dur);
@@ -1199,10 +1220,12 @@ function Planner() {
     if (e.button !== 0) return;
     e.preventDefault();
     let newDur = item.duration_min;
+    const setDragT = rafThrottle(setDrag);
     const move = ev => { newDur = clamp(snap(yToMin(ev.clientY) - item.start_min), MIN_DUR, 1440 - item.start_min);
-      setDrag({ type: "resize", key: item.key, start: item.start_min, dur: newDur }); };
+      setDragT({ type: "resize", key: item.key, start: item.start_min, dur: newDur }); };
     const up = () => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
+      setDragT.cancel();
       if (newDur !== item.duration_min) store.actions.tasks.reschedule(item, { duration_min: newDur }).catch(showErr);
       setDrag(null);
     };
@@ -1216,13 +1239,15 @@ function Planner() {
     e.preventDefault();
     const end = item.start_min + item.duration_min;
     let newStart = item.start_min, newDur = item.duration_min;
+    const setDragT = rafThrottle(setDrag);
     const move = ev => {
       newStart = clamp(snap(yToMin(ev.clientY)), 0, end - MIN_DUR);
       newDur = end - newStart;
-      setDrag({ type: "resize", key: item.key, start: newStart, dur: newDur });
+      setDragT({ type: "resize", key: item.key, start: newStart, dur: newDur });
     };
     const up = () => {
       document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up);
+      setDragT.cancel();
       if (newStart !== item.start_min) store.actions.tasks.reschedule(item, { start_min: newStart, duration_min: newDur }).catch(showErr);
       setDrag(null);
     };
@@ -1423,6 +1448,7 @@ function Planner() {
         offX, offY, x: cx, y: cy, dur, ...overAt(cx, cy) });
     };
     const onTouchMove = (ev) => { if (active) ev.preventDefault(); };
+    const setTreeDragT = rafThrottle(setTreeDrag);
     const move = (ev) => {
       if (!active) {
         if (touch) { if (Math.hypot(ev.clientX - sx, ev.clientY - sy) > 8) { clearTimeout(hold); cleanup(); } return; }
@@ -1430,11 +1456,11 @@ function Planner() {
         begin(ev.clientX, ev.clientY);
       }
       ev.preventDefault();
-      setTreeDrag(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...overAt(ev.clientX, ev.clientY) }));
+      setTreeDragT(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...overAt(ev.clientX, ev.clientY) }));
     };
     const endCard = () => { setTreeDrag(d => d && ({ ...d, dropping: true })); setTimeout(() => setTreeDrag(null), 150); };
     const up = (ev) => {
-      clearTimeout(hold); cleanup();
+      clearTimeout(hold); cleanup(); setTreeDragT.cancel();
       if (!active) { setTreeDrag(null); setTimeout(() => { trayClickGuard.current = false; }, 0); return; }
       const o = overAt(ev.clientX, ev.clientY);
       if (o.zone === "grid" && innerRef.current) {
