@@ -189,14 +189,17 @@ function Planner() {
   // (кроме случаев ввода текста в полях).
   useEffect(() => {
     const onKey = (e) => {
-      if (!(e.metaKey || e.ctrlKey) || e.code !== "KeyZ") return;
+      const isZ = e.code === "KeyZ" || (e.key && /^(z|я)$/i.test(e.key));
+      if (!(e.metaKey || e.ctrlKey) || !isZ) return;
       const t = e.target, tag = t && t.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
       e.preventDefault();
       e.shiftKey ? store.redo() : store.undo();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // capture — перехватываем раньше браузера (иначе Safari/Chrome могут сами «отменить»
+    // своё последнее действие, например вернуть только что закрытую вкладку).
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, []);
 
   // Удаление выделенных задач клавишами Delete/Backspace.
@@ -1964,6 +1967,20 @@ function Planner() {
     const top = clamp(blockY, 56, Math.max(56, vh - ch - 16));
     card.style.marginTop = top + "px";
   }, [edAnchorMobile, edAnchorMin, hourPx, editing, creating, isMobile]);
+
+  // Десктоп: форма прирастает к блоку прямо в сетке. Если блок внизу, форма уходит за
+  // нижний край видимой области и часть её не видно. Подкручиваем прокрутку сетки, чтобы
+  // карточка помещалась целиком (как поповер в Календаре Apple — он не вылезает за экран).
+  useLayoutEffect(() => {
+    if (isMobile || edGridMin == null) return;
+    const scroll = scrollRef.current;
+    if (!scroll) return;
+    const card = scroll.querySelector(".ed-anchor .ed-card");
+    if (!card) return;
+    const r = card.getBoundingClientRect(), sr = scroll.getBoundingClientRect();
+    if (r.bottom > sr.bottom - 8) scroll.scrollTop += (r.bottom - sr.bottom) + 16;
+    else if (r.top < sr.top + 8) scroll.scrollTop -= (sr.top - r.top) + 16;
+  }, [editing, creating, edGridMin, hourPx, isMobile]);
 
   const prevDate = (() => { const x = fromISO(date); x.setDate(x.getDate() - 1); return toISO(x); })();
   const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();
