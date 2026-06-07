@@ -613,7 +613,8 @@ textarea.input { resize: vertical; }
   91%  { translate: -50% calc(var(--drop) * .955); }
   100% { translate: -50% var(--drop); }
 }
-.tl-event.compact .tl-pill-check, .tl-event.compact.done .tl-pill-check {
+.tl-event.compact .tl-pill-check, .tl-event.compact.done .tl-pill-check,
+.tl-event.mini .tl-pill-check, .tl-event.mini.done .tl-pill-check {
   top: 50%; translate: -50% -50%; animation: none; }
 
 /* Конфетти-хлопок при выполнении — частицы-полоски, сдержанная палитра. */
@@ -670,13 +671,13 @@ textarea.input { resize: vertical; }
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
   background-image: linear-gradient(currentColor, currentColor); background-repeat: no-repeat;
   background-position: 0 55%; background-size: 0% 1.5px;
-  transition: background-size .7s cubic-bezier(.4,0,.2,1), color .7s ease; }
+  transition: background-size .7s cubic-bezier(.4,0,.2,1), color .7s ease, font-size .2s ease; }
 .tl-event.done .tl-pill-check { opacity: 0.7; }
 /* Сжатие сетки: чем короче задача на экране, тем компактнее её карточка.
    compact — низкая капсула без времени; mini — капсула становится кружком,
    название уменьшается шрифтом, но остаётся видимым. Высота всегда строго по
    длительности (час × масштаб), поэтому задачи держат точную привязку к времени. */
-.tl-pill, .tl-pill-icon, .tl-pill-check { transition: width .16s, height .16s, top .16s, margin-top .16s, border-radius .16s, transform .16s; }
+.tl-pill, .tl-pill-icon, .tl-pill-check { transition: width .2s ease, height .2s ease, top .2s ease, margin-top .2s ease, border-radius .2s ease, transform .2s ease, translate .2s ease; }
 .zooming .tl-pill, .zooming .tl-pill-icon { transition: none; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
@@ -685,13 +686,15 @@ textarea.input { resize: vertical; }
 .tl-event.compact .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
 .tl-event.compact .tl-meta { display: none; }
 .tl-event.compact .tl-title { -webkit-line-clamp: 1; font-size: 13px; }
-/* mini — короткая задача: кружок-галочка по центру, название мелким шрифтом. */
-.tl-event.mini .tl-pill { left: 60px; width: 22px; top: 50%; bottom: auto; height: auto; transform: translateY(-50%);
-  justify-content: center; }
-.tl-event.mini .tl-pill-check { display: flex; position: static; translate: none; width: 15px; height: 15px; }
+/* mini — короткая задача: кружок-галочка по центру (как compact, только меньше),
+   название мелким шрифтом. ВАЖНО: чекбокс остаётся absolute-центрированным (НЕ static),
+   чтобы на пороге между compact и mini не было скачка позиции — меняется только размер,
+   а он анимируется плавно (см. transition .tl-pill-check выше). */
+.tl-event.mini .tl-pill { justify-content: center; }
+.tl-event.mini .tl-pill-check { width: 15px; height: 15px; }
 .tl-event.mini .tl-pill-check .ico { width: 10px; height: 10px; }
 .tl-event.mini .tl-pill-icon { display: none; }
-.tl-event.mini .tl-body { left: 86px; top: 0; bottom: 0; padding-top: 0; align-items: center; }
+.tl-event.mini .tl-body { top: 0; bottom: 0; padding-top: 0; align-items: center; }
 .tl-event.mini .tl-meta { display: none; }
 .tl-event.mini .tl-title { -webkit-line-clamp: 1; font-size: 11px; }
 .tl-event.mini .task-check { display: none; }
