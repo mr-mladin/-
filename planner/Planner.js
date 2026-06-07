@@ -5,7 +5,7 @@ import {
   Icon, todayISO, toISO, fromISO, monthGen, monthNom, relLabel,
   minRangeLabel, minToHHMM, itemsForDate, matchesFilter,
   monthMatrix, weekRangeLabel, weekStart,
-  durHuman, doneFeedback, haptic, waveDataUrl,
+  durHuman, doneFeedback, haptic, waveDataUrl, errHint,
 } from "./lib.js";
 import { ConfirmModal, Toasts, TaskEditor, ListForm, AreaForm, MoveTasksModal, AuthForm, SettingsModal, SearchModal } from "./components.js";
 
@@ -729,7 +729,7 @@ function Planner() {
     });
     for (const k of [...adRects.current.keys()]) if (!seen.has(k)) adRects.current.delete(k);
   }, [allDay.map(i => i.key).join(",") + "|" + (treeDrag && treeDrag.zone === "allday" && treeDrag.adIndex != null ? treeDrag.key + ":" + treeDrag.adIndex : ""), view]);
-  const showErr = (e) => store.pushToast(e.message || "Ошибка сохранения", "error");
+  const showErr = (e) => store.pushToast(errHint(e && e.message), "error");
   // Цель правки: у повтора — шаблон, иначе сама задача.
   const taskTargetId = (i) => i.recurring ? i.templateId : i.id;
   // Фокус + каретка в конец при появлении поля встроенной правки.

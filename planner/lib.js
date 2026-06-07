@@ -10,16 +10,41 @@ import { html } from "htm/preact";
 export const SUPABASE_URL = "https://rxzjbyuxslzcnlkzdxqn.supabase.co";
 export const SUPABASE_KEY = "sb_publishable_AQQdPOIOwksIkpNZ7W6KdA_Fy5f4xa3";
 
-// Сетевой запрос с тайм-аутом. Без него зависший ответ Supabase (например, когда
-// проект «уснул» на бесплатном тарифе) висит вечно: загрузка не завершается
-// (вечная крутилка), а форма сохранения крутится без конца. С тайм-аутом запрос
-// падает с ошибкой за разумное время → приложение грузится из кэша, а сохранение
-// честно показывает ошибку вместо зависания.
-const FETCH_TIMEOUT = 15000;
+// Сетевой запрос с тайм-аутом и автоповтором. Без тайм-аута зависший ответ
+// Supabase висит вечно (вечная крутилка / форма «Сохранение…» без конца). А без
+// повтора одиночный сетевой сбой/обрыв (мобильная сеть моргнула, соединение
+// сбросилось) роняет сохранение, и правка молча откатывается. Поэтому:
+//  • идемпотентные запросы (GET/PATCH/DELETE/PUT = чтение, update, удаление)
+//    при сетевом сбое/abort повторяем пару раз с паузой;
+//  • POST (вставка) НЕ повторяем автоматически — иначе можно создать дубль;
+//  • уважаем signal, который мог передать сам supabase (его отмена не повторяется).
+const FETCH_TIMEOUT = 20000;
+const RETRY_PAUSES = [500, 1200];
 function fetchWithTimeout(input, init = {}) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
-  return fetch(input, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+  const method = (init.method || "GET").toUpperCase();
+  const idempotent = method === "GET" || method === "PATCH" || method === "DELETE" || method === "PUT";
+  const attempt = (n) => {
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
+    // Свой тайм-аут-сигнал + (если есть) сигнал отмены от supabase.
+    let signal = ctrl.signal;
+    if (init.signal && typeof AbortSignal !== "undefined" && AbortSignal.any) {
+      try { signal = AbortSignal.any([ctrl.signal, init.signal]); } catch (e) {}
+    }
+    return fetch(input, { ...init, signal })
+      .finally(() => clearTimeout(timer))
+      .catch((err) => {
+        // Сам вызывающий (supabase) отменил запрос — не повторяем, пробрасываем.
+        if (init.signal && init.signal.aborted) throw err;
+        const netOrAbort = err && (err.name === "AbortError" || err.name === "TypeError"
+          || /fetch|network|load failed|timeout|connection/i.test(err.message || ""));
+        if (netOrAbort && idempotent && n < RETRY_PAUSES.length) {
+          return new Promise((res) => setTimeout(res, RETRY_PAUSES[n])).then(() => attempt(n + 1));
+        }
+        throw err;
+      });
+  };
+  return attempt(0);
 }
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -38,6 +63,17 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     lock: (_name, _acquireTimeout, fn) => fn(),
   },
 });
+
+// Человекочитаемое русское сообщение об ошибке для тостов/форм. Технический текст
+// (AbortError, Load failed, Fetch is aborted и т.п.) наружу не показываем.
+export function errHint(msg, action = "сохранить") {
+  const m = String(msg || "");
+  if (/relation|does not exist/i.test(m)) return "Таблицы планера ещё не созданы в базе.";
+  if (/schema cache|could not find the .* column/i.test(m)) return "База обновляет схему. Подождите пару секунд и повторите.";
+  if (/fetch|network|timeout|connect|reset|load failed|failed to fetch|networkerror|abort|signal|503|unavailable/i.test(m))
+    return "Нет связи с базой. Проверьте интернет и попробуйте снова.";
+  return "Не удалось " + action + ". Попробуйте ещё раз.";
+}
 
 // ---------- Даты ----------
 export function toISO(date) {
