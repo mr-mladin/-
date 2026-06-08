@@ -277,10 +277,30 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
 
       ${error && html`<div class="ed-error">${error}</div>`}
 
-      <input class="ed-title" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
-        ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
-        value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
-        onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
+      <div class="ed-head">
+        <textarea class="ed-title" rows="1" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
+          ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
+          value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
+          onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }}></textarea>
+        <div class="ed-field ed-projsel">
+          <button class="ed-projdot" type="button" title=${targetName} aria-label=${"Проект: " + targetName} onClick=${() => setProjOpen(o => !o)}>
+            <span class="ed-dot" style=${`background:${dotColor};`}></span>
+            <span class="ed-projdot-chev">${Icon.down()}</span>
+          </button>
+          ${projOpen && html`
+            <div class="ed-menu ed-menu-right">
+              <button class=${"ed-menu-item" + (!listId && !areaId ? " sel" : "")} type="button"
+                onClick=${() => { setListId(""); setAreaId(""); setProjOpen(false); }}>
+                <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
+              ${areas.map(a => html`<button class=${"ed-menu-item" + (!listId && areaId === a.id ? " sel" : "")} type="button" key=${"a" + a.id}
+                onClick=${() => { setAreaId(a.id); setListId(""); setProjOpen(false); }}>
+                <span class="ed-menu-ico">${Icon.folder()}</span> ${a.name}</button>`)}
+              ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
+                onClick=${() => { setListId(l.id); setAreaId(""); setProjOpen(false); }}>
+                <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
+            </div>`}
+        </div>
+      </div>
 
       ${isEvent && html`<div class="ed-sub">
         <button class=${"ed-sub-chip" + (styleOpen ? " open" : "")} type="button" onClick=${() => setStyleOpen(o => !o)}>
@@ -304,10 +324,8 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
         </div>`}
       </div>`}
 
-      ${notesOpen
-        ? html`<textarea class="ed-notes" rows="2" placeholder="Заметка" autofocus
-            value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>`
-        : html`<button class="ed-add" type="button" onClick=${() => setNotesOpen(true)}>${Icon.note()} Заметка</button>`}
+      <textarea class="ed-notes" rows="1" placeholder="Заметка"
+        value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>
 
       <div class="ed-sub">
         ${subtasks.length === 0
@@ -334,36 +352,18 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
           </div>`}
       </div>
 
-      <div class="ed-row">
-        <div class="ed-field">
-          <button class="ed-proj" type="button" onClick=${() => setProjOpen(o => !o)}>
-            <span class="ed-dot" style=${`background:${dotColor};`}></span>
-            <span class="ed-proj-name">${targetName}</span>
-          </button>
-          ${projOpen && html`
-            <div class="ed-menu">
-              <button class=${"ed-menu-item" + (!listId && !areaId ? " sel" : "")} type="button"
-                onClick=${() => { setListId(""); setAreaId(""); setProjOpen(false); }}>
-                <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
-              ${areas.map(a => html`<button class=${"ed-menu-item" + (!listId && areaId === a.id ? " sel" : "")} type="button" key=${"a" + a.id}
-                onClick=${() => { setAreaId(a.id); setListId(""); setProjOpen(false); }}>
-                <span class="ed-menu-ico">${Icon.folder()}</span> ${a.name}</button>`)}
-              ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
-                onClick=${() => { setListId(l.id); setAreaId(""); setProjOpen(false); }}>
-                <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
-            </div>`}
-        </div>
-        ${date && html`
+      ${date && html`
+        <div class="ed-row ed-rep-row">
           <div class="ed-field">
             <button class=${"ed-rep-btn" + (recurrence ? " on" : "")} type="button" title=${recurLabel}
               aria-label="Повтор" onClick=${() => setRepOpen(o => !o)}>${Icon.repeat()}</button>
             ${repOpen && html`
-              <div class="ed-menu ed-menu-right">
+              <div class="ed-menu">
                 ${RECUR_OPTIONS.map(o => html`<button class=${"ed-menu-item" + (recurrence === o.value ? " sel" : "")} type="button" key=${o.value}
                   onClick=${() => { setRecurrence(o.value); setRepOpen(false); }}>${o.label}</button>`)}
               </div>`}
-          </div>`}
-      </div>
+          </div>
+        </div>`}
 
       ${!date
         ? html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`

@@ -2091,9 +2091,13 @@ function Planner() {
   // standalone-PWA это гасит клавиатуру). Поэтому на телефоне форма — оверлей вне
   // сетки, который мы позиционируем по блоку через useLayoutEffect ниже.
   const edPanel = false;
+  // Ключ блока редактируемой задачи в сетке (для геометрии облачка) и её длительность
+  // (запасной расчёт высоты, если блока в DOM нет — напр. при создании).
+  const blockKey = editing ? (editing.occ ? editing.occ.key : (edTask && edTask.id)) : null;
+  const edDur = (editing && editing.occ && editing.occ.duration_min) || (edTask && edTask.duration_min) || (creating && creating.duration_min) || 60;
   // Форма — всегда плавающий оверлей (в сетку не кладём). Десктоп — поповер-облачко
-  // СБОКУ от задачи (не перекрывает её, сетку НЕ двигает). Мобильный — лист снизу /
-  // привязанный к блоку оверлей (там в сетку нельзя из-за user-select и клавиатуры).
+  // рядом с задачей (снизу/сверху/сбоку, с хвостиком), сетку НЕ двигает. Мобильный —
+  // лист снизу / привязанный к блоку оверлей (в сетку нельзя из-за user-select/клавиатуры).
   const edFloat = !!(editing || creating) && !edPanel;
   const edAnchorMobile = isMobile && edFloat && edAnchorMin != null;
   const edPopover = !isMobile && edFloat && edAnchorMin != null && view === "day";
@@ -2105,24 +2109,43 @@ function Planner() {
     const grid = innerRef.current;
     const blockY = grid ? grid.getBoundingClientRect().top + (edAnchorMin / 60) * hourPx : 0;
     const vh = window.innerHeight, vw = window.innerWidth, ch = card.offsetHeight || 0;
+    card.classList.remove("tail-top", "tail-bottom", "tail-left", "tail-right");
     if (edPopover && grid) {
-      // Поповер сбоку от сетки: слева, если влезает (там панель проектов), иначе справа.
-      // По вертикали — на уровне задачи, с ограничением по экрану. Сетку не трогаем.
-      const sRect = (scrollRef.current || grid).getBoundingClientRect();
-      const cw = card.offsetWidth || 0;
-      let left = sRect.left - cw - 12;
-      if (left < 8) left = sRect.right + 12;
-      if (left + cw > vw - 8) left = Math.max(8, vw - cw - 8);
+      const cw = card.offsetWidth || 0, GAP = 14;
+      // Геометрия блока задачи: берём реальный прямоугольник из сетки, иначе считаем по
+      // времени (при создании блока ещё нет).
+      let bEl = null;
+      if (blockKey) back.ownerDocument.querySelectorAll(".tl-event[data-key]").forEach(n => { if (n.dataset.key === blockKey) bEl = n; });
+      const gr = grid.getBoundingClientRect();
+      let bx, by, bw, bh;
+      if (bEl) { const r = bEl.getBoundingClientRect(); bx = r.left; by = r.top; bw = r.width; bh = r.height; }
+      else { bx = gr.left; bw = gr.width; by = blockY; bh = Math.max(MIN_EVENT_PX, (edDur / 60) * hourPx); }
+      const bcx = bx + bw / 2, bcy = by + bh / 2;
+      const narrow = bw < gr.width * 0.6; // узкий блок (колонка пересечения) → форму сбоку
+      let left, top, tail;
+      if (narrow) {
+        if (bx + bw + GAP + cw <= vw - 8) { left = bx + bw + GAP; tail = "left"; }
+        else { left = bx - GAP - cw; tail = "right"; }
+        top = clamp(bcy - ch / 2, 8, Math.max(8, vh - ch - 8));
+        card.style.setProperty("--tail-pos", clamp(bcy - top, 16, ch - 16) + "px");
+      } else {
+        left = clamp(bcx - cw / 2, 8, Math.max(8, vw - cw - 8));
+        if (by < vh / 2) { top = by + bh + GAP; tail = "top"; }   // задача выше → форма снизу
+        else { top = by - GAP - ch; tail = "bottom"; }            // задача ниже → форма сверху
+        top = clamp(top, 8, Math.max(8, vh - ch - 8));
+        card.style.setProperty("--tail-pos", clamp(bcx - left, 18, cw - 18) + "px");
+      }
       card.style.marginTop = "";
       card.style.left = left + "px";
-      card.style.top = clamp(blockY, 8, Math.max(8, vh - ch - 8)) + "px";
+      card.style.top = top + "px";
+      card.classList.add("tail-" + tail);
     } else if (edAnchorMobile && grid) {
       card.style.left = ""; card.style.top = "";
       card.style.marginTop = clamp(blockY, 56, Math.max(56, vh - ch - 16)) + "px";
     } else {
       card.style.marginTop = ""; card.style.left = ""; card.style.top = "";
     }
-  }, [edPopover, edAnchorMobile, edAnchorMin, hourPx, editing, creating, isMobile, view]);
+  }, [edPopover, edAnchorMobile, edAnchorMin, hourPx, editing, creating, isMobile, view, blockKey, edDur]);
 
   const prevDate = (() => { const x = fromISO(date); x.setDate(x.getDate() - 1); return toISO(x); })();
   const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();

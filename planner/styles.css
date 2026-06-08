@@ -1063,8 +1063,21 @@ textarea.input { resize: vertical; }
 /* Десктоп-поповер (облачко рядом с задачей): фон НЕ затемняем — видно задачу и сетку,
    карточка позиционируется JS-ом сбоку (left/top). */
 .ed-float-back.popover { background: transparent; display: block; padding: 0; overflow: visible; animation: none; }
-.ed-float-back.popover .ed-card { position: fixed; width: 384px; max-width: calc(100vw - 16px);
+.ed-float-back.popover .ed-card { position: fixed; width: 360px; max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px); margin: 0; }
+/* Хвостик облачка (как речевой пузырь из комиксов): треугольник со стороны задачи.
+   --tail-pos задаёт смещение хвостика вдоль грани (JS наводит его на центр задачи). */
+.ed-float-back.popover .ed-card { --ed-tail: var(--surface); }
+.ed-card.tail-top::after, .ed-card.tail-bottom::after, .ed-card.tail-left::after, .ed-card.tail-right::after {
+  content: ""; position: absolute; width: 0; height: 0; }
+.ed-card.tail-top::after { top: -9px; left: var(--tail-pos, 50%); transform: translateX(-50%);
+  border-left: 9px solid transparent; border-right: 9px solid transparent; border-bottom: 9px solid var(--ed-tail); }
+.ed-card.tail-bottom::after { bottom: -9px; left: var(--tail-pos, 50%); transform: translateX(-50%);
+  border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 9px solid var(--ed-tail); }
+.ed-card.tail-left::after { left: -9px; top: var(--tail-pos, 50%); transform: translateY(-50%);
+  border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-right: 9px solid var(--ed-tail); }
+.ed-card.tail-right::after { right: -9px; top: var(--tail-pos, 50%); transform: translateY(-50%);
+  border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 9px solid var(--ed-tail); }
 
 .ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
@@ -1129,11 +1142,25 @@ textarea.input { resize: vertical; }
   -webkit-user-select: text !important; user-select: text !important;
   -webkit-touch-callout: default; touch-action: auto; pointer-events: auto; cursor: text; }
 .ed-title { border: 0; background: none; font-family: inherit; font-size: 18px; font-weight: 650;
-  color: var(--text); padding: 0 2px; outline: none; }
+  color: var(--text); padding: 0 2px; outline: none;
+  /* длинное название переносится на новую строку, поле растёт по содержимому */
+  resize: none; line-height: 1.25; overflow: hidden; field-sizing: content; }
 .ed-title::placeholder { color: var(--text-mute); font-weight: 600; }
+/* Шапка формы: название слева, цветная точка проекта справа (как в Apple Календаре). */
+.ed-head { display: flex; align-items: flex-start; gap: 8px; }
+.ed-head .ed-title { flex: 1; min-width: 0; margin-top: 1px; }
+.ed-projsel { position: relative; flex: none; }
+.ed-projdot { display: inline-flex; align-items: center; gap: 1px; border: 0; cursor: pointer;
+  background: var(--bg-soft); border-radius: 999px; padding: 5px 6px 5px 9px; }
+.ed-projdot:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
+.ed-projdot .ed-dot { width: 13px; height: 13px; border-radius: 50%; flex: none; }
+.ed-projdot-chev { display: inline-flex; color: var(--text-mute); }
+.ed-projdot-chev .ico { width: 14px; height: 14px; }
 
-.ed-notes { border: 1px solid var(--border); background: var(--bg-soft); border-radius: var(--radius-sm);
-  font-family: inherit; font-size: 14px; color: var(--text); padding: 8px 10px; outline: none; resize: vertical; }
+.ed-notes { border: 0; background: var(--bg-soft); border-radius: var(--radius-sm);
+  font-family: inherit; font-size: 14px; color: var(--text); padding: 8px 11px; outline: none;
+  resize: none; field-sizing: content; line-height: 1.35; }
+.ed-notes::placeholder { color: var(--text-mute); }
 
 /* «Добавить …» — лёгкая пунктирная кнопка-приглашение. */
 .ed-add { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
