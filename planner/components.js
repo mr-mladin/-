@@ -407,17 +407,15 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
       </div>`}
 
       ${editing && !confirmDel && html`
-        <button class="ed-del" type="button" onClick=${() => setConfirmDel(true)}>${Icon.trash()} ${isEvent ? "Удалить событие" : "Удалить задачу"}</button>`}
+        <button class="ed-del" type="button" onClick=${() => setConfirmDel(true)}>${Icon.trash()} Удалить задачу</button>`}
       ${editing && confirmDel && html`
         <div class="ed-confirm">
-          <span>${isSeries
-            ? (isEvent ? "Удалить повторяющееся событие?" : "Удалить повторяющуюся задачу?")
-            : (isEvent ? "Удалить событие?" : "Удалить задачу?")}</span>
+          <span>${isSeries ? "Удалить повторяющуюся задачу?" : "Удалить задачу?"}</span>
           <div class="ed-confirm-row">
             ${occ && html`<button class="btn sm danger" type="button" disabled=${busy}
               onClick=${() => run(() => store.actions.tasks.removeOccurrence(occ), "Повторение удалено")}>Только это повторение</button>`}
             <button class="btn sm danger" type="button" disabled=${busy}
-              onClick=${() => run(() => isSeries ? store.actions.tasks.removeSeries(initial.id) : store.actions.tasks.remove(initial.id), isEvent ? "Событие удалено" : "Задача удалена")}>
+              onClick=${() => run(() => isSeries ? store.actions.tasks.removeSeries(initial.id) : store.actions.tasks.remove(initial.id), "Задача удалена")}>
               ${isSeries ? "Весь ряд" : "Удалить"}</button>
             <button class="btn sm ghost" type="button" onClick=${() => setConfirmDel(false)}>Отмена</button>
           </div>
