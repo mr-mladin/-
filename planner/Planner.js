@@ -1400,18 +1400,26 @@ function Planner() {
   }
   // Куда вставить перетаскиваемый проект: контейнер группы [data-arealists] + индекс по
   // серединам строк; либо заголовок свёрнутой области [data-areahead] → в её начало.
-  function projDropAt(cx, cy, draggedId) {
-    const el = document.elementFromPoint(cx, cy);
-    if (!el) return null;
-    const cont = el.closest("[data-arealists]");
-    if (cont) {
+  // Снимок «слотов» групп проектов на старте переноса: зоны [data-arealists] с
+  // серединами строк. Считаем индекс по нему, а НЕ по живым координатам (они едут от
+  // FLIP-анимации) — поэтому соседи уступают место сразу и без дрожания.
+  function projSlots(draggedId) {
+    return [...document.querySelectorAll(".planner-tree [data-arealists]")].map(cont => {
       const area = cont.dataset.arealists === "" ? null : cont.dataset.arealists;
-      const rows = [...cont.querySelectorAll("[data-projrow]")].filter(n => n.dataset.projrow !== draggedId);
-      let idx = rows.findIndex(n => { const r = n.getBoundingClientRect(); return cy < r.top + r.height / 2; });
-      if (idx === -1) idx = rows.length;
-      return { area, index: idx };
-    }
-    const head = el.closest("[data-areahead]");
+      const r = cont.getBoundingClientRect();
+      const mids = [...cont.querySelectorAll("[data-projrow]")]
+        .filter(n => n.dataset.projrow !== draggedId)
+        .map(n => { const rr = n.getBoundingClientRect(); return rr.top + rr.height / 2; });
+      return { area, top: r.top, bottom: r.bottom, mids };
+    });
+  }
+  // Куда встанет проект: зона (область) под ЦЕНТРОМ переносимого блока + индекс по
+  // зафиксированным серединам. Заголовок свёрнутой области — в её начало.
+  function projDropAt(slots, midY, cx, cy) {
+    const zone = slots.find(s => midY >= s.top && midY <= s.bottom);
+    if (zone) { const i = zone.mids.findIndex(m => midY < m); return { area: zone.area, index: i === -1 ? zone.mids.length : i }; }
+    const el = document.elementFromPoint(cx, cy);
+    const head = el && el.closest && el.closest("[data-areahead]");
     if (head) { const a = head.dataset.areahead; return { area: a === "" ? null : a, index: 0 }; }
     return null;
   }
@@ -1419,15 +1427,17 @@ function Planner() {
   function startProjDrag(l, rowEl, sx, sy) {
     const r = rowEl.getBoundingClientRect();
     const offX = sx - r.left, offY = sy - r.top;
+    const slots = projSlots(l.id);                  // стабильный снимок ДО появления placeholder
+    const midOf = (cy) => cy - offY + r.height / 2; // центр переносимого блока
     trayClickGuard.current = true; haptic();
     setProjDrag({ id: l.id, name: l.name, color: l.color || "var(--accent)", w: r.width, h: r.height,
-      offX, offY, x: sx, y: sy, ...(projDropAt(sx, sy, l.id) || { area: l.area_id || null, index: 0 }) });
+      offX, offY, x: sx, y: sy, ...(projDropAt(slots, midOf(sy), sx, sy) || { area: l.area_id || null, index: 0 }) });
     const setT = rafThrottle(setProjDrag);
     const onTouchMove = (ev) => ev.preventDefault();
-    const move = (ev) => { ev.preventDefault(); setT(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...(projDropAt(ev.clientX, ev.clientY, l.id) || {}) })); };
+    const move = (ev) => { ev.preventDefault(); setT(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...(projDropAt(slots, midOf(ev.clientY), ev.clientX, ev.clientY) || {}) })); };
     const up = (ev) => {
       cleanup(); setT.cancel();
-      const o = projDropAt(ev.clientX, ev.clientY, l.id);
+      const o = projDropAt(slots, midOf(ev.clientY), ev.clientX, ev.clientY);
       if (o) { setProjDrag(d => d && ({ ...d, dropping: true })); persistProjOrder(o.area, l.id, o.index); setTimeout(() => setProjDrag(null), 150); }
       else setProjDrag(null);
       setTimeout(() => { trayClickGuard.current = false; }, 0);
@@ -1705,7 +1715,7 @@ function Planner() {
           node.style.transition = "none";
           node.style.transform = `translate(${dx}px,${dy}px)`;
           requestAnimationFrame(() => {
-            node.style.transition = "transform .16s cubic-bezier(.3,.9,.3,1)";
+            node.style.transition = "transform .13s cubic-bezier(.3,.85,.3,1)";
             node.style.transform = "";
           });
         }
