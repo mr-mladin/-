@@ -187,7 +187,6 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
   const [isEvent, setIsEvent] = useState(!!src.is_event);
   const [cardBar, setCardBar] = useState(src.card_bar || "solid");
   const [cardBg, setCardBg] = useState(src.card_bg || "clean");
-  const [styleOpen, setStyleOpen] = useState(false); // блок «Оформление» свёрнут по умолчанию
 
   const lists = [...taskLists].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
   const areas = [...(store.areas || [])].sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
@@ -282,26 +281,19 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
         value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
 
-      ${isEvent && html`<div class="ed-sub">
-        <button class=${"ed-sub-chip" + (styleOpen ? " open" : "")} type="button" onClick=${() => setStyleOpen(o => !o)}>
-          <span class="ed-style-prev" style=${`--c:${evColor};${cardBar === "none" ? "border-left-color:transparent;" : ""}`}></span>
-          <span>Оформление</span>
-          <span class="ed-chev">${Icon.right()}</span>
-        </button>
-        ${styleOpen && html`<div class="ed-style">
-          <div class="ed-style-label">Полоса слева</div>
-          <div class="ed-style-row">
-            ${BAR_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBar === v ? " sel" : "")} onClick=${() => setCardBar(v)}>
-              <span class="ed-sw" style=${`--c:${evColor};`}>${v !== "none" ? html`<span class=${"ed-sw-bar " + v}></span>` : ""}</span>
-              <span class="ed-chip-l">${l}</span></button>`)}
-          </div>
-          <div class="ed-style-label">Фон карточки</div>
-          <div class="ed-style-row">
-            ${BG_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBg === v ? " sel" : "")} onClick=${() => setCardBg(v)}>
-              <span class=${"ed-sw bg-" + v} style=${`--c:${evColor};${v.indexOf("waves") === 0 ? "--wave:" + waveDataUrl(evColor, v) + ";" : ""}`}></span>
-              <span class="ed-chip-l">${l}</span></button>`)}
-          </div>
-        </div>`}
+      ${isEvent && html`<div class="ed-style">
+        <div class="ed-style-label">Полоса слева</div>
+        <div class="ed-style-row">
+          ${BAR_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBar === v ? " sel" : "")} onClick=${() => setCardBar(v)}>
+            <span class="ed-sw" style=${`--c:${evColor};`}>${v !== "none" ? html`<span class=${"ed-sw-bar " + v}></span>` : ""}</span>
+            <span class="ed-chip-l">${l}</span></button>`)}
+        </div>
+        <div class="ed-style-label">Фон карточки</div>
+        <div class="ed-style-row">
+          ${BG_OPTS.map(([v, l]) => html`<button type="button" key=${v} class=${"ed-chip" + (cardBg === v ? " sel" : "")} onClick=${() => setCardBg(v)}>
+            <span class=${"ed-sw bg-" + v} style=${`--c:${evColor};${v.indexOf("waves") === 0 ? "--wave:" + waveDataUrl(evColor, v) + ";" : ""}`}></span>
+            <span class="ed-chip-l">${l}</span></button>`)}
+        </div>
       </div>`}
 
       ${notesOpen
