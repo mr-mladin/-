@@ -291,6 +291,10 @@ textarea.input { resize: vertical; }
 .tree-default { background: var(--surface); border-radius: 14px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
   box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04), 0 6px 20px rgba(2, 6, 23, 0.05); }
 [data-theme="dark"] .tree-default { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+/* Пункты без раскрывающей стрелки (Все задачи / Завершено / Корзина) выравниваем
+   по иконке с «Входящими» (у тех есть стрелка-раскрытие): слева резервируем её место,
+   чтобы иконки и подписи стояли единой колонкой, без «лесенки». */
+.tree-default > .proj-opt { padding-left: 28px; }
 .tree-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-mute); padding: 16px 10px 6px; }
 
@@ -398,10 +402,13 @@ textarea.input { resize: vertical; }
 .swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; margin: 0; }
 
 /* Спецразделы: Завершено / Корзина — плоский список */
-.special-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 14px 24px; display: flex; flex-direction: column; gap: 6px; }
+.special-list { flex: 1; min-height: 0; overflow-y: auto; padding: 10px 16px 28px; display: flex; flex-direction: column; gap: 7px;
+  width: 100%; max-width: 720px; margin: 0 auto; box-sizing: border-box; }
 .special-empty { color: var(--text-mute); text-align: center; padding: 48px 16px; }
-.special-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border: 1px solid var(--border);
-  border-radius: var(--radius-sm); background: var(--surface); }
+.special-item { display: flex; align-items: center; gap: 11px; padding: 10px 12px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); transition: box-shadow .15s ease, border-color .15s ease; }
+.special-item:hover { box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08); border-color: var(--border-strong); }
 .special-item.done .special-title { color: var(--text-mute); }
 .special-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; border: none;
   background: transparent; cursor: pointer; font-family: inherit; text-align: left; padding: 0; }
@@ -438,6 +445,10 @@ textarea.input { resize: vertical; }
 .planner-date-input { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .planner-head-actions { display: flex; align-items: center; gap: 8px; }
 .view-cycle { min-width: 72px; justify-content: center; }
+/* Все контролы шапки — единой высоты (текстовые кнопки и круглые иконки на одной
+   линии): иначе «Сегодня»/«День» выглядели ниже круглых «+»/поиска/настроек. */
+.planner-head .icon-btn { width: 34px; height: 34px; }
+.planner-head .btn.sm { height: 34px; padding: 0 12px; }
 
 /* Недельная полоса дней */
 .planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 16px 0 4px; }
@@ -797,8 +808,8 @@ textarea.input { resize: vertical; }
 .week-block { position: absolute; box-sizing: border-box; border-radius: 7px; padding: 2px 7px; overflow: hidden;
   background: color-mix(in srgb, var(--c) var(--glass-strong), transparent); box-shadow: inset 2.5px 0 0 var(--c); cursor: pointer;
   -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
-  text-align: left; font-family: inherit; transition: filter .12s ease; }
-.week-block:hover { filter: brightness(0.97); }
+  text-align: left; font-family: inherit; transition: box-shadow .14s ease; }
+.week-block:hover { box-shadow: inset 2.5px 0 0 var(--c), 0 3px 10px rgba(2, 6, 23, 0.13); }
 .week-block-title { font-size: 11.5px; font-weight: 600; line-height: 1.25; display: block; overflow: hidden;
   color: color-mix(in srgb, var(--c) 72%, var(--text)); }
 .week-block.done { opacity: 0.5; }
@@ -914,6 +925,11 @@ textarea.input { resize: vertical; }
   /* Боковое дерево на мобильном — идентично «весь день» (как и на десктопе). */
   .tree-task .task-check { width: 15px; height: 15px; }
   .tree-task-title { font-size: 12px; }
+  /* На телефоне наведения нет — кнопки «изменить/удалить» у области показываем чётко
+     (а не полупрозрачными, как будто недогрузились): на тач это единственный доступ
+     к правке области. */
+  .area-actions { opacity: 1; }
+  .area-actions button { color: var(--text-soft); }
 
   /* Форма задачи — нижний лист (как в Apple Календаре): прижат к низу экрана,
      высота по содержимому (до 92% экрана), скругление сверху. Не во весь экран и без
@@ -1034,6 +1050,9 @@ textarea.input { resize: vertical; }
 .ed-typebtn.on { background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(2,6,23,0.1); }
 /* Выбор оформления события */
 .ed-style { display: flex; flex-direction: column; gap: 6px; }
+/* Свёрнутое «Оформление»: мини-превью карточки события (заливка цветом + полоса слева). */
+.ed-style-prev { width: 22px; height: 16px; border-radius: 4px; flex: none; box-sizing: border-box;
+  background: color-mix(in srgb, var(--c) 16%, var(--surface)); border-left: 3px solid var(--c); }
 .ed-style-label { font-size: 12px; color: var(--text-soft); font-weight: 600; }
 .ed-style-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .ed-chip { display: flex; flex-direction: column; align-items: center; gap: 4px; border: 0; background: none;
@@ -1096,7 +1115,7 @@ textarea.input { resize: vertical; }
 
 .ed-field { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .ed-proj { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 5px 12px;
+  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 0 14px; min-height: 34px;
   font-family: inherit; font-size: 13px; color: var(--text); box-sizing: border-box;
   -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .ed-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
