@@ -313,7 +313,7 @@ textarea.input { resize: vertical; }
   display: flex; flex-direction: column; gap: 3px; }
 .tree-empty { font-size: 12px; color: var(--text-mute); padding: 4px 8px; }
 /* Задача в боковом списке — такая же мини-капсула «жидкое стекло», как «весь день». */
-.tree-task { display: flex; align-items: center; gap: 6px; min-height: 22px; padding: 3px 8px; border-radius: 10px;
+.tree-task { display: flex; align-items: center; gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px;
   box-sizing: border-box;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
@@ -321,10 +321,11 @@ textarea.input { resize: vertical; }
 .tree-task:hover { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-strong), transparent); }
 .tree-task.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-done), transparent); }
 .tree-task:active { cursor: grabbing; }
-/* Чекбокс — идентичен «весь день»: кольцо в цвет проекта, при выполнении заливается цветом. */
-.tree-task .task-check { flex: none; width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid currentColor;
+/* Чекбокс — идентичен «весь день» (десктоп 14px, моб. 15px ниже): кольцо в цвет проекта,
+   при выполнении заливается цветом. */
+.tree-task .task-check { flex: none; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid currentColor;
   background: var(--surface); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
-.tree-task .task-check .ico { width: 9px; height: 9px; opacity: 0; transition: opacity .25s ease; }
+.tree-task .task-check .ico { width: 8px; height: 8px; opacity: 0; transition: opacity .25s ease; }
 .tree-task .task-check.on { background: currentColor; }
 .tree-task .task-check.on .ico { opacity: 1; color: #fff; }
 /* Место, куда встанет перетаскиваемая задача — соседи плавно расступаются (FLIP). */
@@ -366,7 +367,7 @@ textarea.input { resize: vertical; }
 .tree-task.dragging { opacity: 0; }
 .tree-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
   border: none; background: transparent; cursor: pointer; font-family: inherit; text-align: left; padding: 0; }
-.tree-task-title { font-size: 12.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tree-task-title { font-size: 11.5px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tree-task.done .tree-task-title { color: var(--text-mute); }
 .tree-task-meta { font-size: 10px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tree-add { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: none; background: transparent;
@@ -903,6 +904,9 @@ textarea.input { resize: vertical; }
   .allday-check { width: 15px; height: 15px; border-width: 1.5px; }
   .allday-check .ico { width: 8px; height: 8px; }
   .allday-title { font-size: 12px; }
+  /* Боковое дерево на мобильном — идентично «весь день» (как и на десктопе). */
+  .tree-task .task-check { width: 15px; height: 15px; }
+  .tree-task-title { font-size: 12px; }
 
   /* Форма задачи — нижний лист (как в Apple Календаре): прижат к низу экрана,
      высота по содержимому (до 92% экрана), скругление сверху. Не во весь экран и без
