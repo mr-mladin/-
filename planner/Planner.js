@@ -1413,12 +1413,20 @@ function Planner() {
       return { area, top: r.top, bottom: r.bottom, mids };
     });
   }
-  // Куда встанет проект. Зону (область) ищем по ЦЕНТРУ блока, а индекс — по ВЕДУЩЕМУ
-  // КРАЮ блока в направлении движения (dir): сосед уступает, как только край прошёл его
-  // середину (наезд наполовину), а не центр на центр (полное перекрытие).
-  function projDropAt(slots, midY, half, dir, cx, cy) {
+  // Куда встанет проект. Зону (область) ищем по ЦЕНТРУ блока. Индекс — симметрично в обе
+  // стороны: сосед уступает место, когда блок перекрывает его примерно наполовину. Для
+  // соседей ВЫШЕ исходной позиции считаем по верхнему краю блока, для тех что НИЖЕ — по
+  // нижнему (origMid фиксирован на старте, поэтому порог одинаков и вверх, и вниз, без
+  // скачка при смене направления). В чужой области ориентир — с какой стороны вошёл блок.
+  function projDropAt(slots, midY, half, origMid, origArea, cx, cy) {
     const zone = slots.find(s => midY >= s.top && midY <= s.bottom);
-    if (zone) { const lead = midY + dir * half; const i = zone.mids.findIndex(m => lead < m); return { area: zone.area, index: i === -1 ? zone.mids.length : i }; }
+    if (zone) {
+      const oMid = zone.area === origArea ? origMid : (midY < (zone.top + zone.bottom) / 2 ? -1e9 : 1e9);
+      const top = midY - half, bot = midY + half;
+      let index = 0;
+      for (const m of zone.mids) { if (m < oMid ? top >= m : bot > m) index++; }
+      return { area: zone.area, index };
+    }
     const el = document.elementFromPoint(cx, cy);
     const head = el && el.closest && el.closest("[data-areahead]");
     if (head) { const a = head.dataset.areahead; return { area: a === "" ? null : a, index: 0 }; }
@@ -1430,20 +1438,19 @@ function Planner() {
     const offX = sx - r.left, offY = sy - r.top, half = r.height / 2;
     const slots = projSlots(l.id);                  // стабильный снимок ДО появления placeholder
     const midOf = (cy) => cy - offY + half;         // центр переносимого блока
-    let prevY = sy, dir = 1;                         // направление переноса (для «наезда наполовину»)
+    const origMid = midOf(sy), origArea = l.area_id || null;
     trayClickGuard.current = true; haptic();
     setProjDrag({ id: l.id, name: l.name, color: l.color || "var(--accent)", w: r.width, h: r.height,
-      offX, offY, x: sx, y: sy, ...(projDropAt(slots, midOf(sy), half, dir, sx, sy) || { area: l.area_id || null, index: 0 }) });
+      offX, offY, x: sx, y: sy, ...(projDropAt(slots, origMid, half, origMid, origArea, sx, sy) || { area: origArea, index: 0 }) });
     const setT = rafThrottle(setProjDrag);
     const onTouchMove = (ev) => ev.preventDefault();
     const move = (ev) => {
       ev.preventDefault();
-      const dy = ev.clientY - prevY; if (Math.abs(dy) > 0.5) dir = dy > 0 ? 1 : -1; prevY = ev.clientY;
-      setT(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...(projDropAt(slots, midOf(ev.clientY), half, dir, ev.clientX, ev.clientY) || {}) }));
+      setT(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...(projDropAt(slots, midOf(ev.clientY), half, origMid, origArea, ev.clientX, ev.clientY) || {}) }));
     };
     const up = (ev) => {
       cleanup(); setT.cancel();
-      const o = projDropAt(slots, midOf(ev.clientY), half, dir, ev.clientX, ev.clientY);
+      const o = projDropAt(slots, midOf(ev.clientY), half, origMid, origArea, ev.clientX, ev.clientY);
       if (o) { setProjDrag(d => d && ({ ...d, dropping: true })); persistProjOrder(o.area, l.id, o.index); setTimeout(() => setProjDrag(null), 150); }
       else setProjDrag(null);
       setTimeout(() => { trayClickGuard.current = false; }, 0);
