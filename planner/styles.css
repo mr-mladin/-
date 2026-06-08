@@ -253,7 +253,8 @@ textarea.input { resize: vertical; }
    Радиус контейнера = радиусу кнопки проекта (.proj-opt, 10px), иначе по углам
    справа проглядывает красная кнопка удаления, спрятанная под строкой. */
 .proj-row { position: relative; overflow: hidden; border-radius: 10px; }
-.proj-row-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+.proj-row-actions { position: absolute; top: 0; right: 0; bottom: 0; display: none; }
+.proj-row.swiping .proj-row-actions, .proj-row.swipe-open .proj-row-actions { display: flex; }
 .proj-row-actions button { border: none; cursor: pointer; color: #fff; display: inline-flex; align-items: center; justify-content: center; width: 66px; }
 .proj-row-actions .edit { background: #64748b; }
 .proj-row-actions .del { background: var(--danger); }
@@ -265,26 +266,55 @@ textarea.input { resize: vertical; }
 .proj-row.swipe-open .proj-opt { transform: translateX(-132px); }
 .proj-opt-new.sm { margin-top: 0; border-top: none; padding-top: 8px; font-size: 13px; color: var(--text-mute); }
 
-/* Области (группы проектов) */
-.proj-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
-  color: var(--text-mute); padding: 14px 10px 6px; }
+/* Кнопка «+ Новый список» внизу панели + всплывающее меню выбора (проект/область),
+   как в Things. Меню раскрывается НАД кнопкой. */
+.tree-create { position: relative; margin-top: 6px; }
+.tree-create-btn { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none;
+  cursor: pointer; font-family: inherit; font-size: 13.5px; color: var(--text-soft);
+  padding: 8px 10px; border-radius: 10px; transition: background .13s ease, color .13s ease; }
+.tree-create-btn:hover, .tree-create-btn.open { background: var(--bg-soft); color: var(--text); }
+.tree-create-btn .ico { width: 16px; height: 16px; }
+.create-menu { position: absolute; left: 4px; bottom: calc(100% + 6px); z-index: 30;
+  width: 304px; max-width: calc(100% - 8px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 6px;
+  box-shadow: 0 1px 2px rgba(2,6,23,0.06), 0 18px 44px rgba(2,6,23,0.24);
+  display: flex; flex-direction: column; gap: 2px; animation: edPop .16s cubic-bezier(.2,.7,.3,1); }
+[data-theme="dark"] .create-menu { box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 18px 44px rgba(0,0,0,0.5); }
+.create-item { display: flex; align-items: flex-start; gap: 11px; text-align: left; border: 0; background: none;
+  cursor: pointer; font-family: inherit; padding: 10px 11px; border-radius: 10px; transition: background .12s ease; }
+.create-item:hover { background: var(--bg-soft); }
+.create-ico { flex: none; width: 28px; height: 28px; border-radius: 8px; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center; }
+.create-ico.proj { background: var(--accent-soft); color: var(--accent); }
+.create-ico.area { background: color-mix(in srgb, #16a34a 15%, transparent); color: #16a34a; }
+.create-ico .ico { width: 16px; height: 16px; }
+.create-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.create-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.create-desc { font-size: 12px; line-height: 1.35; color: var(--text-mute); }
+
+/* Области — заголовки групп (как «iCloud»/«Другие» в Apple Календаре): мелкий серый
+   текст сверху, шеврон-сворачивание справа. Проекты — простым списком под ним. */
+.proj-sep { font-size: 12px; font-weight: 600; letter-spacing: .01em;
+  color: var(--text-mute); padding: 16px 10px 5px; }
 .area-group { margin-top: 2px; }
 .area-head { display: flex; align-items: center; gap: 2px; }
-.area-head .proj-opt { flex: 1; min-width: 0; font-weight: 600; }
-.area-toggle { border: none; background: transparent; cursor: pointer; color: var(--text-mute);
-  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 32px; flex: none; padding: 0; }
-.area-chev { display: inline-flex; transition: transform 0.18s ease; }
-.area-chev .ico { width: 15px; height: 15px; }
+.area-group-btn { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px;
+  border: 0; background: none; cursor: pointer; font-family: inherit; text-align: left;
+  padding: 16px 10px 5px; -webkit-tap-highlight-color: transparent; }
+.area-group-name { font-size: 12px; font-weight: 600; letter-spacing: .01em; color: var(--text-mute);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .13s ease; }
+.area-group-btn:hover .area-group-name { color: var(--text-soft); }
+.area-chev { display: inline-flex; color: var(--text-mute); opacity: .65; transition: transform 0.18s ease; }
+.area-chev .ico { width: 13px; height: 13px; }
 .area-chev.open { transform: rotate(90deg); }
-.area-actions { display: flex; flex: none; opacity: 0.5; transition: opacity 0.15s ease; }
-.area-head:hover .area-actions { opacity: 1; }
+/* Кнопки правки области: на десктопе скрыты (правый клик → меню), на телефоне видны. */
+.area-actions { display: none; flex: none; }
 .area-actions button { border: none; background: transparent; cursor: pointer; color: var(--text-mute);
-  display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 32px; }
+  display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
 .area-actions button:hover { color: var(--text); }
 .area-actions .del:hover { color: var(--danger); }
-.area-actions .ico { width: 15px; height: 15px; }
-.area-projects { margin-left: 15px; padding-left: 9px; border-left: 1.5px solid color-mix(in srgb, var(--border) 55%, transparent);
-  display: flex; flex-direction: column; gap: 1px; }
+.area-actions .ico { width: 16px; height: 16px; }
+.area-projects { display: flex; flex-direction: column; gap: 1px; }
 
 /* Верхняя группа дефолтных разделов — выделена плашкой и отделена отступом
    от пользовательских областей/проектов. */
@@ -310,6 +340,30 @@ textarea.input { resize: vertical; }
   transition: transform 0.18s ease; }
 .proj-disc .ico { width: 14px; height: 14px; }
 .proj-disc.open { transform: rotate(90deg); }
+
+/* Чекбокс видимости проекта в календаре (как в Apple): скруглённый квадрат в цвет
+   проекта. Отмечен = залит + белая галочка (показан в сетке); снят = бледный контур. */
+.proj-check { flex: none; width: 16px; height: 16px; border-radius: 5px; padding: 0; cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--c) 50%, transparent); background: transparent; box-sizing: border-box;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: background .15s ease, border-color .15s ease; }
+.proj-check .ico { width: 10px; height: 10px; color: #fff; opacity: 0; transition: opacity .15s ease; }
+.proj-check.on { background: var(--c); border-color: var(--c); }
+.proj-check.on .ico { opacity: 1; }
+.proj-check:hover { border-color: var(--c); }
+
+/* Перетаскивание проекта в панели (reorder/смена области): живая карточка под пальцем,
+   место вставки — пунктирный плейсхолдер, соседи расступаются (FLIP). */
+/* Место вставки при переносе проекта — просто пустой промежуток (без рамки): соседи
+   расступаются, показывая, куда встанет проект (как в Apple). */
+.proj-ph { margin: 1px 0; }
+.proj-row-wrap.proj-dragging { opacity: 0; }
+.proj-drag-card { position: fixed; z-index: 80; pointer-events: none; display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 10px; box-sizing: border-box; overflow: hidden;
+  background: color-mix(in srgb, var(--c) 12%, var(--surface));
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24); transform: scale(1.02); transform-origin: left center; }
+.proj-drag-card .proj-opt-name { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-drag-card.dropping { opacity: 0; transform: scale(.97); transition: opacity .14s ease, transform .14s ease; }
 
 /* Третий уровень: задачи под проектом прямо в дереве. */
 .proj-row-wrap { display: flex; flex-direction: column; }
@@ -925,11 +979,9 @@ textarea.input { resize: vertical; }
   /* Боковое дерево на мобильном — идентично «весь день» (как и на десктопе). */
   .tree-task .task-check { width: 15px; height: 15px; }
   .tree-task-title { font-size: 12px; }
-  /* На телефоне наведения нет — кнопки «изменить/удалить» у области показываем чётко
-     (а не полупрозрачными, как будто недогрузились): на тач это единственный доступ
-     к правке области. */
-  .area-actions { opacity: 1; }
-  .area-actions button { color: var(--text-soft); }
+  /* На телефоне правого клика нет — показываем компактные кнопки «изменить/удалить»
+     у заголовка области (как действия в мобильном Apple Календаре). */
+  .area-actions { display: flex; }
 
   /* Форма задачи — нижний лист (как в Apple Календаре): прижат к низу экрана,
      высота по содержимому (до 92% экрана), скругление сверху. Не во весь экран и без
