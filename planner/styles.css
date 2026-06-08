@@ -691,6 +691,13 @@ textarea.input { resize: vertical; }
    пересчёт blur на каждый кадр и делал зум тяжёлым. После жеста всё возвращается. */
 .zooming .tl-pill, .zooming .tl-pill-icon, .zooming .tl-pill-check, .zooming .tl-title { transition: none; }
 .zooming .tl-event::before { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* Во время свайпа между днями (карусель из трёх панелей) снимаем дорогое матовое
+   стекло и доводчики: перерисовывать три дня с размытием за кадр тяжело — отсюда
+   рывки/мелькание при листании. Класс .swiping живёт только пока идёт свайп (peek),
+   после — стекло возвращается. Тот же приём, что и для зума выше. */
+.swiping .tl-event::before, .swiping .allday-item {
+  -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+.swiping .tl-event, .swiping .tl-title, .swiping .tl-pill-check { transition: none; }
 .tl-event.compact .tl-pill { justify-content: center; }
 .tl-event.compact .tl-pill-icon { width: 20px; height: 20px; margin-top: 0; }
 .tl-event.compact .tl-pill-check { width: 19px; height: 19px; margin-top: 0; }

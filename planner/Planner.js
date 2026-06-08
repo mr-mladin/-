@@ -2335,7 +2335,7 @@ function Planner() {
 
           ${!special && view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
-            <div class="planner-grid-scroll" ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+            <div class=${"planner-grid-scroll" + (peek ? " swiping" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
