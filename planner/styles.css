@@ -385,6 +385,19 @@ textarea.input { resize: vertical; }
 .emoji-opt:hover { background: var(--bg-soft); }
 .emoji-opt.sel { border-color: var(--accent); background: var(--accent-soft); }
 
+/* Выбор цвета проекта — кружки как в палитре Apple: у выделенного кольцо + белая
+   галочка, плюс «свой цвет» (радуга) с системным пикером. */
+.swatches { display: flex; flex-wrap: wrap; gap: 9px; }
+.swatch { position: relative; width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.3); transition: transform .12s ease, box-shadow .14s ease; }
+.swatch:hover { transform: scale(1.12); }
+.swatch.sel { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--text); }
+.swatch .ico { width: 15px; height: 15px; color: #fff; filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.35)); }
+.swatch-custom { overflow: hidden;
+  background: conic-gradient(from 90deg, #ef4444, #f59e0b, #eab308, #16a34a, #14b8a6, #0ea5e9, #6366f1, #a855f7, #ec4899, #ef4444); }
+.swatch-custom input { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; border: 0; padding: 0; margin: 0; }
+
 /* Спецразделы: Завершено / Корзина — плоский список */
 .special-list { flex: 1; min-height: 0; overflow-y: auto; padding: 8px 14px 24px; display: flex; flex-direction: column; gap: 6px; }
 .special-empty { color: var(--text-mute); text-align: center; padding: 48px 16px; }
