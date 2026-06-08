@@ -25,11 +25,11 @@ jobs:
 
       - name: Run VK balance sync
         env:
-          VK_ADS_SPREADSHEET_ID: ${{ secrets.VK_ADS_SPREADSHEET_ID }}
+          VK_ADS_SPREADSHEET_ID: 1URdn_vkl3G7DBRogC96g_AocsykTlhI8SZuGjOOtMIY
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           VK_ADS_BALANCE_CLIENTS_JSON: ${{ secrets.VK_ADS_BALANCE_CLIENTS_JSON }}
-          VK_ADS_MAPPING_SHEET: ${{ vars.VK_ADS_MAPPING_SHEET }}
+          VK_ADS_MAPPING_SHEET: Сопоставление
           VK_ADS_BALANCE_TARGET_SHEET: ${{ vars.VK_ADS_BALANCE_TARGET_SHEET }}
-          VK_ADS_BALANCE_ACTIVE_ONLY: ${{ vars.VK_ADS_BALANCE_ACTIVE_ONLY }}
-          VK_ADS_TIMEZONE: ${{ vars.VK_ADS_TIMEZONE }}
+          VK_ADS_BALANCE_ACTIVE_ONLY: "false"
+          VK_ADS_TIMEZONE: Europe/Moscow
         run: python sync_vk_ads_balances_to_sheets.py
