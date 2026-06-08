@@ -33,3 +33,24 @@ python3 -m http.server 8000
 ## VK Ads Sync (старое)
 
 В этом репозитории также живёт `sync_vk_ads_to_sheets.py` — отдельный скрипт автосинка VK Ads → Google Sheets, не связанный с веб-приложением.
+
+### VK Ads Balance Sync
+
+`sync_vk_ads_balances_to_sheets.py` обновляет баланс кабинетов VK Ads в основном месячном листе Google Sheets.
+
+- Workflow: `.github/workflows/vk-ads-balances.yml`
+- Расписание: каждые 30 минут
+- Для пилота баланс пишется в колонку `A` на 8 строк ниже названия проекта:
+  - Оксана: `A10`
+  - Ксения: `A27`
+
+Нужный GitHub Secret:
+
+- `VK_ADS_BALANCE_CLIENTS_JSON` — JSON со списком кабинетов и их `client_id` / `client_secret`
+
+Полезные GitHub Variables:
+
+- `VK_ADS_BALANCE_ACTIVE_ONLY=false`
+- `VK_ADS_TIMEZONE=Europe/Moscow`
+- `VK_ADS_MAPPING_SHEET=Сопоставление`
+
