@@ -291,6 +291,10 @@ textarea.input { resize: vertical; }
 .tree-default { background: var(--surface); border-radius: 14px; padding: 6px; display: flex; flex-direction: column; gap: 2px;
   box-shadow: 0 1px 2px rgba(2, 6, 23, 0.04), 0 6px 20px rgba(2, 6, 23, 0.05); }
 [data-theme="dark"] .tree-default { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); }
+/* Пункты без раскрывающей стрелки (Все задачи / Завершено / Корзина) выравниваем
+   по иконке с «Входящими» (у тех есть стрелка-раскрытие): слева резервируем её место,
+   чтобы иконки и подписи стояли единой колонкой, без «лесенки». */
+.tree-default > .proj-opt { padding-left: 28px; }
 .tree-sep { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em;
   color: var(--text-mute); padding: 16px 10px 6px; }
 
@@ -438,6 +442,10 @@ textarea.input { resize: vertical; }
 .planner-date-input { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
 .planner-head-actions { display: flex; align-items: center; gap: 8px; }
 .view-cycle { min-width: 72px; justify-content: center; }
+/* Все контролы шапки — единой высоты (текстовые кнопки и круглые иконки на одной
+   линии): иначе «Сегодня»/«День» выглядели ниже круглых «+»/поиска/настроек. */
+.planner-head .icon-btn { width: 34px; height: 34px; }
+.planner-head .btn.sm { height: 34px; padding: 0 12px; }
 
 /* Недельная полоса дней */
 .planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 16px 0 4px; }
@@ -1089,7 +1097,7 @@ textarea.input { resize: vertical; }
 
 .ed-field { position: relative; display: flex; flex-direction: column; gap: 6px; }
 .ed-proj { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 5px 12px;
+  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 0 14px; min-height: 34px;
   font-family: inherit; font-size: 13px; color: var(--text); box-sizing: border-box;
   -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .ed-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
