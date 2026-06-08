@@ -325,6 +325,18 @@ textarea.input { resize: vertical; }
 .proj-check.on .ico { opacity: 1; }
 .proj-check:hover { border-color: var(--c); }
 
+/* Перетаскивание проекта в панели (reorder/смена области): живая карточка под пальцем,
+   место вставки — пунктирный плейсхолдер, соседи расступаются (FLIP). */
+.proj-ph { border-radius: 10px; background: var(--accent-soft); margin: 1px 0;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+.proj-row-wrap.proj-dragging { opacity: 0; }
+.proj-drag-card { position: fixed; z-index: 80; pointer-events: none; display: flex; align-items: center; gap: 10px;
+  padding: 9px 10px; border-radius: 10px; box-sizing: border-box; overflow: hidden;
+  background: color-mix(in srgb, var(--c) 12%, var(--surface));
+  box-shadow: 0 12px 28px rgba(2, 6, 23, 0.24); transform: scale(1.02); transform-origin: left center; }
+.proj-drag-card .proj-opt-name { font-size: 14px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proj-drag-card.dropping { opacity: 0; transform: scale(.97); transition: opacity .14s ease, transform .14s ease; }
+
 /* Третий уровень: задачи под проектом прямо в дереве. */
 .proj-row-wrap { display: flex; flex-direction: column; }
 .tree-tasks { margin: 1px 0 4px 30px; padding-left: 8px; border-left: 1px solid var(--border);

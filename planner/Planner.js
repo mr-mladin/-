@@ -130,6 +130,11 @@ function Planner() {
   const treeDragRef = useRef(null);
   useEffect(() => { treeDragRef.current = treeDrag; }, [treeDrag]);
   const treeRects = useRef(new Map());
+  // Перетаскивание ПРОЕКТА (reorder/смена области): { id, name, color, w, h, offX, offY,
+  // x, y, area (целевая area_id|null), index, dropping }. Живая копия под пальцем, проекты
+  // в целевой группе расступаются (placeholder).
+  const [projDrag, setProjDrag] = useState(null);
+  const projRects = useRef(new Map());
   // Перенос ВЫДЕЛЕНИЯ (нескольких задач) в проект/область/входящие/«весь день».
   // { x, y, count, dropList } — dropList: id проекта | "inbox" | "area:<id>" | "__allday__" | null.
   const [selDrag, setSelDrag] = useState(null);
@@ -1364,45 +1369,115 @@ function Planner() {
     return { list_id: filter, area_id: null };
   }
   // Свайп влево по строке проекта (тач) открывает кнопки «Изменить/Удалить».
-  function projSwipe(e, l) {
-    if (e.pointerType !== "touch") return;
-    const el = e.currentTarget;
-    const startX = e.clientX, startY = e.clientY;
-    const wasOpen = swipeId === l.id;
-    let decided = false, horiz = false, dx = 0;
-    const move = (ev) => {
-      const mx = ev.clientX - startX, my = ev.clientY - startY;
-      if (!decided) {
-        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
-        decided = true; horiz = Math.abs(mx) > Math.abs(my);
-        if (!horiz) { cleanup(); return; }
-        swipedRef.current = true;
-      }
-      ev.preventDefault();
-      dx = clamp((wasOpen ? -132 : 0) + mx, -132, 0);
-      el.style.transform = `translateX(${dx}px)`;
-    };
-    const up = () => {
-      cleanup();
-      if (!horiz) return;
-      el.style.transform = "";
-      setSwipeId(dx < -50 ? l.id : null);
-      setTimeout(() => { swipedRef.current = false; }, 0);
+  // Новый порядок проектов в целевой группе (область a_id|null): переставленный встаёт
+  // на index, всем группам пишем sort_order; перетаскиваемому ещё и area_id целевой.
+  function persistProjOrder(targetArea, draggedId, index) {
+    const ta = targetArea || null;
+    const group = lists.filter(l => (l.area_id || null) === ta && l.id !== draggedId).map(l => l.id);
+    group.splice(clamp(index, 0, group.length), 0, draggedId);
+    store.batch("порядок проектов", () => {
+      group.forEach((id, idx) => {
+        const l = lists.find(x => x.id === id);
+        if (!l) return;
+        const patch = {};
+        if ((l.sort_order || 0) !== idx) patch.sort_order = idx;
+        if (id === draggedId && (l.area_id || null) !== ta) patch.area_id = ta;
+        if (Object.keys(patch).length) store.actions.taskLists.update(id, patch).catch(showErr);
+      });
+    });
+  }
+  // Куда вставить перетаскиваемый проект: контейнер группы [data-arealists] + индекс по
+  // серединам строк; либо заголовок свёрнутой области [data-areahead] → в её начало.
+  function projDropAt(cx, cy, draggedId) {
+    const el = document.elementFromPoint(cx, cy);
+    if (!el) return null;
+    const cont = el.closest("[data-arealists]");
+    if (cont) {
+      const area = cont.dataset.arealists === "" ? null : cont.dataset.arealists;
+      const rows = [...cont.querySelectorAll("[data-projrow]")].filter(n => n.dataset.projrow !== draggedId);
+      let idx = rows.findIndex(n => { const r = n.getBoundingClientRect(); return cy < r.top + r.height / 2; });
+      if (idx === -1) idx = rows.length;
+      return { area, index: idx };
+    }
+    const head = el.closest("[data-areahead]");
+    if (head) { const a = head.dataset.areahead; return { area: a === "" ? null : a, index: 0 }; }
+    return null;
+  }
+  // Живое перетаскивание проекта (reorder/смена области). rowEl — видимая строка проекта.
+  function startProjDrag(l, rowEl, sx, sy) {
+    const r = rowEl.getBoundingClientRect();
+    const offX = sx - r.left, offY = sy - r.top;
+    trayClickGuard.current = true; haptic();
+    setProjDrag({ id: l.id, name: l.name, color: l.color || "var(--accent)", w: r.width, h: r.height,
+      offX, offY, x: sx, y: sy, ...(projDropAt(sx, sy, l.id) || { area: l.area_id || null, index: 0 }) });
+    const setT = rafThrottle(setProjDrag);
+    const onTouchMove = (ev) => ev.preventDefault();
+    const move = (ev) => { ev.preventDefault(); setT(d => d && ({ ...d, x: ev.clientX, y: ev.clientY, ...(projDropAt(ev.clientX, ev.clientY, l.id) || {}) })); };
+    const up = (ev) => {
+      cleanup(); setT.cancel();
+      const o = projDropAt(ev.clientX, ev.clientY, l.id);
+      if (o) { setProjDrag(d => d && ({ ...d, dropping: true })); persistProjOrder(o.area, l.id, o.index); setTimeout(() => setProjDrag(null), 150); }
+      else setProjDrag(null);
+      setTimeout(() => { trayClickGuard.current = false; }, 0);
     };
     const cleanup = () => {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       document.removeEventListener("pointercancel", up);
+      document.removeEventListener("touchmove", onTouchMove, { passive: false });
     };
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+    document.addEventListener("pointercancel", up);
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+  }
+  // Жест по строке проекта: десктоп — потянул мышью = reorder; тач — долгое нажатие =
+  // reorder, быстрый горизонтальный свайп = кнопки «изменить/удалить», вертикаль = скролл.
+  function onProjPointerDown(e, l) {
+    if (e.target.closest && (e.target.closest(".proj-check") || e.target.closest(".proj-disc"))) return;
+    const rowEl = e.currentTarget;
+    const sx = e.clientX, sy = e.clientY;
+    if (e.pointerType !== "touch") {
+      if (e.button !== 0) return;
+      let started = false;
+      const move = (ev) => { if (!started && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 5) { started = true; detach(); startProjDrag(l, rowEl, sx, sy); } };
+      const upm = () => detach();
+      const detach = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", upm); document.removeEventListener("pointercancel", upm); };
+      document.addEventListener("pointermove", move);
+      document.addEventListener("pointerup", upm);
+      document.addEventListener("pointercancel", upm);
+      return;
+    }
+    const wasOpen = swipeId === l.id;
+    let decided = null, dx = 0;
+    let hold = setTimeout(() => { detach(); startProjDrag(l, rowEl, sx, sy); }, HOLD_MS);
+    const move = (ev) => {
+      const mx = ev.clientX - sx, my = ev.clientY - sy;
+      if (decided === null) {
+        if (Math.abs(mx) < 8 && Math.abs(my) < 8) return;
+        clearTimeout(hold);
+        decided = Math.abs(mx) > Math.abs(my) ? "swipe" : "scroll";
+        if (decided !== "swipe") { detach(); return; }
+        swipedRef.current = true;
+      }
+      ev.preventDefault();
+      dx = clamp((wasOpen ? -132 : 0) + mx, -132, 0);
+      rowEl.style.transform = `translateX(${dx}px)`;
+    };
+    const up = () => {
+      clearTimeout(hold); detach();
+      if (decided === "swipe") { rowEl.style.transform = ""; setSwipeId(dx < -50 ? l.id : null); setTimeout(() => { swipedRef.current = false; }, 0); }
+    };
+    const detach = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up); };
     document.addEventListener("pointermove", move);
     document.addEventListener("pointerup", up);
     document.addEventListener("pointercancel", up);
   }
   function selectProj(l) {
-    if (swipedRef.current) { swipedRef.current = false; return; }
+    if (trayClickGuard.current || swipedRef.current) { swipedRef.current = false; return; }
     if (swipeId === l.id) { setSwipeId(null); return; }
-    // Клик по проекту только раскрывает/сворачивает его задачи. Сетку дня это НЕ
-    // фильтрует (она всегда показывает все задачи).
+    // Клик по проекту только раскрывает/сворачивает его задачи. Видимость в сетке —
+    // отдельным чекбоксом слева.
     toggleListExpand(l.id);
   }
   // Открытые задачи раздела для бокового списка — ТОЛЬКО без даты. Задачи с датой
@@ -1599,6 +1674,32 @@ function Planner() {
     });
     for (const k of [...treeRects.current.keys()]) if (!seen.has(k)) treeRects.current.delete(k);
   }, [tasks, expandedLists, areaCollapsed, treeDrag && treeDrag.id, treeDrag && treeDrag.zone, treeDrag && treeDrag.overIndex]);
+
+  // FLIP: строки проектов плавно расступаются под перетаскиваемым проектом и доезжают
+  // на новые места при reorder/смене области.
+  useLayoutEffect(() => {
+    const nodes = document.querySelectorAll(".planner-tree [data-projrow], .planner-tree .proj-ph");
+    const seen = new Set();
+    nodes.forEach(node => {
+      const key = node.dataset.projrow || "__pph";
+      seen.add(key);
+      const rr = node.getBoundingClientRect();
+      const prev = projRects.current.get(key);
+      if (prev) {
+        const dx = prev.left - rr.left, dy = prev.top - rr.top;
+        if (dx || dy) {
+          node.style.transition = "none";
+          node.style.transform = `translate(${dx}px,${dy}px)`;
+          requestAnimationFrame(() => {
+            node.style.transition = "transform .22s cubic-bezier(.2,.9,.25,1)";
+            node.style.transform = "";
+          });
+        }
+      }
+      projRects.current.set(key, rr);
+    });
+    for (const k of [...projRects.current.keys()]) if (!seen.has(k)) projRects.current.delete(k);
+  }, [lists, areasSorted, areaCollapsed, projDrag && projDrag.id, projDrag && projDrag.area, projDrag && projDrag.index]);
 
   function shift(delta) {
     const d = fromISO(dateRef.current);
@@ -2210,7 +2311,7 @@ function Planner() {
   const projRowEl = (l) => {
     const open = expandedLists.has(l.id);
     return html`
-    <div class="proj-row-wrap" key=${l.id}>
+    <div class=${"proj-row-wrap" + (projDrag && projDrag.id === l.id ? " proj-dragging" : "")} key=${l.id} data-projrow=${l.id}>
       <div class=${"proj-row" + (swipeId === l.id ? " swipe-open" : "")}>
         <div class="proj-row-actions">
           <button class="edit" title="Изменить" onClick=${() => { setListModal(l); setSwipeId(null); }}>${Icon.edit()}</button>
@@ -2218,7 +2319,7 @@ function Planner() {
         </div>
         <button class=${"proj-opt" + (open ? " expanded" : "") + (dropHi(l.id) ? " drop-target" : "")}
           data-droplist=${l.id}
-          onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
+          onPointerDown=${e => onProjPointerDown(e, l)} onClick=${() => selectProj(l)}
           onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
           <span class=${"proj-disc" + (open ? " open" : "")}>${Icon.right()}</span>
           ${projCheckEl(l.id, l.color)}
@@ -2227,6 +2328,17 @@ function Planner() {
       </div>
       ${open && treeTasksEl(l.id, l.color || "var(--accent)")}
     </div>`;
+  };
+  // Список проектов группы с «местом вставки» (placeholder) при перетаскивании проекта.
+  // areaId — id области либо null (свободные проекты). data-arealists — зона-приёмник.
+  const projListEl = (projs, areaId) => {
+    const here = projDrag && (projDrag.area ?? null) === (areaId ?? null);
+    const others = projDrag ? projs.filter(l => l.id !== projDrag.id) : projs;
+    const rows = others.map(l => ({ ph: false, l }));
+    if (here) rows.splice(clamp(projDrag.index ?? others.length, 0, others.length), 0, { ph: true });
+    return rows.map(r => r.ph
+      ? html`<div class="proj-ph" key="__pph" style=${`height:${projDrag.h}px;`}></div>`
+      : projRowEl(r.l));
   };
 
   return html`
@@ -2257,7 +2369,7 @@ function Planner() {
               <div class="area-group" key=${a.id}>
                 <div class="area-head">
                   <button class=${"area-group-btn" + (dropHi("area:" + a.id) ? " drop-target" : "")}
-                    data-droplist=${"area:" + a.id}
+                    data-droplist=${"area:" + a.id} data-areahead=${a.id}
                     onClick=${() => toggleArea(a.id)}
                     onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
                     <span class="area-group-name">${a.name}</span>
@@ -2267,17 +2379,19 @@ function Planner() {
                     <button class="del" title="Удалить" onClick=${() => setDelArea(a)}>${Icon.trash()}</button>
                   </div>
                 </div>
-                ${!areaCollapsed.has(a.id) && html`<div class="area-projects">
+                ${!areaCollapsed.has(a.id) && html`<div class="area-projects" data-arealists=${a.id}>
                   ${openTasksOfList("area:" + a.id).length > 0 && treeTasksEl("area:" + a.id, "var(--accent)")}
-                  ${lists.filter(l => l.area_id === a.id).map(projRowEl)}
+                  ${projListEl(lists.filter(l => l.area_id === a.id), a.id)}
                   <button class="proj-opt proj-opt-new sm" onClick=${() => setListModal({ area_id: a.id })}>
                     <span class="proj-opt-ico">${Icon.plus()}</span>
                     <span class="proj-opt-name">Проект в области</span></button>
                 </div>`}
               </div>`)}
 
-            ${looseProjects.length > 0 && areasSorted.length > 0 && html`<div class="proj-sep">Проекты</div>`}
-            ${looseProjects.map(projRowEl)}
+            ${(looseProjects.length > 0 || projDrag) && areasSorted.length > 0 && html`<div class="proj-sep">Проекты</div>`}
+            <div class="area-projects loose" data-arealists="">
+              ${projListEl(looseProjects, null)}
+            </div>
 
             <button class="proj-opt proj-opt-new" onClick=${() => setListModal("new")}>
               <span class="proj-opt-ico">${Icon.plus()}</span>
@@ -2586,6 +2700,11 @@ function Planner() {
         ? html`<span class="tree-evmark" style=${`background:${treeDrag.color};`}></span>`
         : html`<span class="task-check"></span>`}
       <span class="tree-task-title">${treeDrag.title}</span>
+    </div>`}
+    ${projDrag && html`<div class=${"proj-drag-card" + (projDrag.dropping ? " dropping" : "")}
+      style=${`left:${projDrag.x - projDrag.offX}px;top:${projDrag.y - projDrag.offY}px;width:${projDrag.w}px;height:${projDrag.h}px;--c:${projDrag.color};`}>
+      <span class="proj-check on"></span>
+      <span class="proj-opt-name">${projDrag.name}</span>
     </div>`}
     <input ref=${kbPrimerRef} class="kb-primer" type="text" inputmode="text" />
     ${selRange && html`<div class="tl-marquee" style=${`left:${selRange.x}px;top:${selRange.y}px;width:${selRange.w}px;height:${selRange.h}px;`}></div>`}
