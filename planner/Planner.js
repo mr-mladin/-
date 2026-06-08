@@ -2155,8 +2155,8 @@ function Planner() {
       data-treekey=${t.id} key=${t.id} style=${`--c:${color};`} onPointerDown=${e => startTreeDrag(e, t)}>
       ${t.is_event
         ? html`<span class="tree-evmark" style=${`background:${color};`}></span>`
-        : html`<button class=${"task-check" + (t.done ? " on" : "")} title="Выполнено"
-            style=${t.done ? `background:${color};border-color:${color};` : ""}
+        : html`<button class=${"task-check" + (t.done ? " on" : "")} type="button" title="Выполнено"
+            style=${`border-color:${color};color:${color};${t.done ? `background:${color};` : ""}`}
             onPointerDown=${e => e.stopPropagation()}
             onClick=${e => { e.stopPropagation(); if (!t.done) popConfetti("tree:" + t.id); toggleDone({ kind: "concrete", id: t.id, done: t.done }); }}>
             ${Icon.check()}${confettiEl("tree:" + t.id, "center")}</button>`}
