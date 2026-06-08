@@ -472,6 +472,10 @@ export function ListForm({ initial, defaultArea, onDelete, onClose }) {
           <div style="display:flex;gap:8px;flex-wrap:wrap;">
             ${COLORS.map(c => html`<button type="button" key=${c} onClick=${() => setColor(c)}
               style=${`width:28px;height:28px;border-radius:50%;border:2px solid ${color === c ? "var(--text)" : "transparent"};background:${c};cursor:pointer;`}></button>`)}
+            <label title="Свой цвет" style=${`position:relative;width:28px;height:28px;border-radius:50%;cursor:pointer;overflow:hidden;box-sizing:border-box;border:2px solid ${!COLORS.includes(color) ? "var(--text)" : "transparent"};background:${!COLORS.includes(color) ? color : "conic-gradient(from 0deg,#ef4444,#f59e0b,#16a34a,#14b8a6,#0ea5e9,#6366f1,#ec4899,#ef4444)"};`}>
+              <input type="color" value=${color} onInput=${e => setColor(e.target.value)}
+                style="position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0;" />
+            </label>
           </div></div>
         ${areas.length > 0 && html`<div class="field"><label>Область</label>
           <select class="input" value=${areaId} onChange=${e => setAreaId(e.target.value)}>
