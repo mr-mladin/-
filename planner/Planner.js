@@ -23,6 +23,15 @@ function readCollapsed() {
 function writeCollapsed(set) {
   try { localStorage.setItem("planner.areasCollapsed", JSON.stringify([...set])); } catch (e) {}
 }
+// Скрытые из календаря проекты (чекбокс видимости, как в Apple Календаре). Локальная
+// настройка вида (не данные) — у каждого устройства своя. Ключ "inbox" — задачи без проекта.
+function readHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem("planner.hiddenLists") || "[]")); }
+  catch (e) { return new Set(); }
+}
+function writeHidden(set) {
+  try { localStorage.setItem("planner.hiddenLists", JSON.stringify([...set])); } catch (e) {}
+}
 
 const HOUR_DEFAULT = 80;
 const HOUR_MIN = 14;
@@ -111,6 +120,9 @@ function Planner() {
   // Проекты с раскрытым третьим уровнем (задачи под проектом) в дереве панели.
   const [expandedLists, setExpandedLists] = useState(() => new Set());
   const toggleListExpand = (id) => setExpandedLists(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  // Видимость проектов в календаре (чекбоксы, как в Apple): set СКРЫТЫХ id (+"inbox").
+  const [hiddenLists, setHiddenLists] = useState(readHidden);
+  const toggleListVisible = (id) => setHiddenLists(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); writeHidden(n); return n; });
   // Перетаскивание задачи в боковом дереве: { id, listId, title, color, w, h, offX,
   // offY, x, y, zone:"tree"|"grid", overIndex, gridMin, dur, landing }. Двигается сама
   // карточка задачи (живая копия под пальцем), соседи расступаются (FLIP).
@@ -584,7 +596,9 @@ function Planner() {
 
   // Сетка дня (день/неделя/месяц) ВСЕГДА показывает все задачи — выбор папки в
   // боковой панели на сетку не влияет.
-  const dayItems = useMemo(() => itemsForDate(tasks, date), [tasks, date, taskLists]);
+  // Скрытые чекбоксом проекты не показываем в сетке (день/неделя/месяц). "inbox" — без проекта.
+  const hideFilter = (i) => !hiddenLists.has(i.list_id || "inbox");
+  const dayItems = useMemo(() => itemsForDate(tasks, date).filter(hideFilter), [tasks, date, taskLists, hiddenLists]);
   const timed = useMemo(() => dayItems.filter(i => i.start_min !== null && i.start_min !== undefined), [dayItems]);
   // Порядок задач «весь день» задаётся sort_order строки; на drag перезаписываем его.
   const sortOrderById = useMemo(() => {
@@ -638,14 +652,14 @@ function Planner() {
     if (view !== "month" || !monthWeeks) return null;
     const map = {};
     for (const wk of monthWeeks) for (const c of wk) {
-      map[c.iso] = itemsForDate(tasks, c.iso)
+      map[c.iso] = itemsForDate(tasks, c.iso).filter(hideFilter)
         .sort((a, b) => {
           const at = a.start_min ?? 1e9, bt = b.start_min ?? 1e9;
           return at - bt;
         });
     }
     return map;
-  }, [view, monthWeeks, tasks, taskLists]);
+  }, [view, monthWeeks, tasks, taskLists, hiddenLists]);
 
   const weekDays = useMemo(() => {
     if (view !== "week") return null;
@@ -654,7 +668,7 @@ function Planner() {
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       const iso = toISO(dd);
-      const items = itemsForDate(tasks, iso);
+      const items = itemsForDate(tasks, iso).filter(hideFilter);
       const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
       return {
         iso, day: dd.getDate(), short: WD[k], isToday: iso === todayISO(),
@@ -662,7 +676,7 @@ function Planner() {
         untimed: items.filter(i => i.start_min === null || i.start_min === undefined),
       };
     });
-  }, [view, date, tasks, taskLists]);
+  }, [view, date, tasks, taskLists, hiddenLists]);
 
   useEffect(() => {
     // Свайп дня — позицию сетки восстанавливает useLayoutEffect ниже (до отрисовки).
@@ -1976,7 +1990,7 @@ function Planner() {
   const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();
   // Статичная (без жестов) панель соседнего дня — для предпросмотра в карусели.
   function dayStaticPane(pd) {
-    const items = itemsForDate(tasks, pd)
+    const items = itemsForDate(tasks, pd).filter(hideFilter)
       .filter(i => i.vTop !== null && i.vTop !== undefined)
       .sort((a, b) => (a.vTop - b.vTop) || ((a.vEnd - a.vTop) - (b.vEnd - b.vTop)));
     const td = pd === todayISO();
@@ -2017,7 +2031,7 @@ function Planner() {
   // Соседняя панель в карусели дня: статичные задачи «весь день» + статичная сетка.
   // Чтобы зона «весь день» уезжала вместе со свайпом, она лежит внутри каждой панели.
   function dayPeekPane(pd) {
-    const all = itemsForDate(tasks, pd)
+    const all = itemsForDate(tasks, pd).filter(hideFilter)
       .filter(i => (i.start_min === null || i.start_min === undefined));
     const rowIdOfX = (i) => i.kind === "occurrence" ? i.templateId : i.id;
     all.sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)
@@ -2043,7 +2057,7 @@ function Planner() {
     return Array.from({ length: 7 }, (_, k) => {
       const dd = new Date(mon); dd.setDate(mon.getDate() + k);
       const iso = toISO(dd);
-      const items = itemsForDate(tasks, iso);
+      const items = itemsForDate(tasks, iso).filter(hideFilter);
       const t = items.filter(i => i.start_min !== null && i.start_min !== undefined);
       return { iso, day: dd.getDate(), short: WD_SHORT[k], isToday: iso === todayISO(),
         timed: layoutColumns(t, null), untimed: items.filter(i => i.start_min === null || i.start_min === undefined) };
@@ -2053,7 +2067,7 @@ function Planner() {
     const weeks = monthMatrix(baseISO);
     const items = {};
     for (const wk of weeks) for (const c of wk)
-      items[c.iso] = itemsForDate(tasks, c.iso)
+      items[c.iso] = itemsForDate(tasks, c.iso).filter(hideFilter)
         .sort((a, b) => ((a.start_min ?? 1e9) - (b.start_min ?? 1e9)));
     return { weeks, items };
   }
@@ -2140,12 +2154,17 @@ function Planner() {
   const filterList = (filter && listById[filter]) || null;
   // Подсветка строки-цели при перетаскивании (одиночном или переносе выделения).
   const dropHi = (key) => (treeDrag && treeDrag.zone === "section" && treeDrag.dropList === key) || (selDrag && selDrag.dropList === key) || (liftDrag && liftDrag.section === key);
-  // Иконка проекта — эмодзи в кружке (цвет проекта тонирует фон). Без эмодзи —
-  // маленький кружок в цвете проекта.
-  const projTint = (c) => `color-mix(in srgb, ${c || "var(--accent)"} 20%, var(--surface))`;
-  const projIconEl = (l) => l && l.emoji
-    ? html`<span class="proj-emoji" style=${`background:${projTint(l.color)};`}>${l.emoji}</span>`
-    : html`<span class="proj-emoji empty" style=${`--pc:${(l && l.color) || "var(--accent)"};`}></span>`;
+  // Чекбокс видимости проекта в календаре (как в Apple Календаре): скруглённый квадрат
+  // в цвет проекта. Отмечен (галочка) = проект показан в сетке; снят = скрыт. Клик
+  // переключает (не раскрывает строку). id: проекта или "inbox".
+  const projCheckEl = (id, color) => {
+    const on = !hiddenLists.has(id);
+    return html`<button class=${"proj-check" + (on ? " on" : "")} type="button"
+      title=${on ? "Скрыть из календаря" : "Показать в календаре"}
+      style=${`--c:${color || "var(--accent)"};`}
+      onPointerDown=${e => e.stopPropagation()}
+      onClick=${e => { e.stopPropagation(); toggleListVisible(id); }}>${Icon.check()}</button>`;
+  };
   // Проекты без области (или область удалена) показываем отдельной группой снизу.
   const looseProjects = lists.filter(l => !l.area_id || !areaById[l.area_id]);
 
@@ -2202,7 +2221,7 @@ function Planner() {
           onPointerDown=${e => projSwipe(e, l)} onClick=${() => selectProj(l)}
           onContextMenu=${e => { e.preventDefault(); setSwipeId(null); setCtx({ list: l, x: e.clientX, y: e.clientY }); }}>
           <span class=${"proj-disc" + (open ? " open" : "")}>${Icon.right()}</span>
-          ${projIconEl(l)}
+          ${projCheckEl(l.id, l.color)}
           <span class="proj-opt-name">${l.name}</span>
           <span class="proj-opt-count">${countOpen(tasks, l.id)}</span></button>
       </div>
@@ -2216,42 +2235,33 @@ function Planner() {
         <aside class="planner-aside" ref=${asideRef} onTouchStart=${onAsideSwipeStart}>
           <div class="planner-tree">
             <div class="tree-default">
-              <button class=${"proj-opt" + (filter === "all" ? " active" : "")} onClick=${() => setFilter("all")}>
-                <span class="proj-opt-ico" style="color:var(--accent);">${Icon.calendar()}</span>
-                <span class="proj-opt-name">Все задачи</span></button>
               <div class="proj-row-wrap">
                 <button class=${"proj-opt" + (expandedLists.has("inbox") ? " expanded" : "") + (dropHi("inbox") ? " drop-target" : "")}
                   data-droplist="inbox" onClick=${() => toggleListExpand("inbox")}>
                   <span class=${"proj-disc" + (expandedLists.has("inbox") ? " open" : "")}>${Icon.right()}</span>
-                  <span class="proj-opt-ico" style="color:#64748b;">${Icon.inbox()}</span>
+                  ${projCheckEl("inbox", "var(--inbox)")}
                   <span class="proj-opt-name">Входящие</span>
                   <span class="proj-opt-count">${countOpen(tasks, null)}</span></button>
                 ${expandedLists.has("inbox") && treeTasksEl("inbox", "var(--inbox)")}
               </div>
-              <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => setFilter("done")}>
+              <button class=${"proj-opt" + (filter === "done" ? " active" : "")} onClick=${() => setFilter(filter === "done" ? "all" : "done")}>
                 <span class="proj-opt-ico" style="color:#16a34a;">${Icon.check()}</span>
                 <span class="proj-opt-name">Завершено</span></button>
-              <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => setFilter("trash")}>
+              <button class=${"proj-opt" + (filter === "trash" ? " active" : "")} onClick=${() => setFilter(filter === "trash" ? "all" : "trash")}>
                 <span class="proj-opt-ico" style="color:#94a3b8;">${Icon.trash()}</span>
                 <span class="proj-opt-name">Корзина</span>
                 <span class="proj-opt-count">${trashTasks.length || ""}</span></button>
             </div>
 
-            <div class="tree-sep">Области и проекты</div>
-
             ${areasSorted.map(a => html`
               <div class="area-group" key=${a.id}>
                 <div class="area-head">
-                  <button class="area-toggle" title=${areaCollapsed.has(a.id) ? "Развернуть" : "Свернуть"}
-                    onClick=${() => toggleArea(a.id)}>
-                    <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
-                  <button class=${"proj-opt area-opt" + (dropHi("area:" + a.id) ? " drop-target" : "")}
+                  <button class=${"area-group-btn" + (dropHi("area:" + a.id) ? " drop-target" : "")}
                     data-droplist=${"area:" + a.id}
                     onClick=${() => toggleArea(a.id)}
                     onContextMenu=${e => { e.preventDefault(); setCtx({ area: a, x: e.clientX, y: e.clientY }); }}>
-                    <span class="proj-opt-ico" style="color:var(--accent);">${Icon.folder()}</span>
-                    <span class="proj-opt-name">${a.name}</span>
-                    <span class="proj-opt-count">${countArea(tasks, a.id, areaOfList)}</span></button>
+                    <span class="area-group-name">${a.name}</span>
+                    <span class=${"area-chev" + (areaCollapsed.has(a.id) ? "" : " open")}>${Icon.right()}</span></button>
                   <div class="area-actions">
                     <button class="edit" title="Изменить" onClick=${() => setAreaModal(a)}>${Icon.edit()}</button>
                     <button class="del" title="Удалить" onClick=${() => setDelArea(a)}>${Icon.trash()}</button>
