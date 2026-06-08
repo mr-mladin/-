@@ -82,6 +82,7 @@ function Planner() {
   const special = filter === "done" || filter === "trash";
   const [creating, setCreating] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [liveEdit, setLiveEdit] = useState(null); // живое имя задачи при правке в форме: { id, title }
   const [edClosing, setEdClosing] = useState(false); // форма закрывается — проигрываем анимацию ухода перед размонтированием
   const [drag, setDrag] = useState(null);
   const [liftDrag, setLiftDrag] = useState(null); // мобильный «подъём» задачи: { key, dx, dy, landing, done } — едет за пальцем
@@ -1920,14 +1921,15 @@ function Planner() {
   const closeEditor = () => {
     if (edClosing) return;
     setEdClosing(true);
-    setTimeout(() => { setEditing(null); setCreating(null); setEdClosing(false); }, 240);
+    setTimeout(() => { setEditing(null); setCreating(null); setEdClosing(false); setLiveEdit(null); }, 240);
   };
   const editorEl = (editing || creating)
     ? html`<${TaskEditor} key=${editing ? "e" + editing.task.id : "c"}
         initial=${editing ? editing.task : undefined}
         occ=${editing ? editing.occ : undefined}
         defaults=${creating || undefined}
-        onClose=${closeEditor} />`
+        onClose=${closeEditor}
+        onLiveTitle=${editing ? (t => setLiveEdit({ id: editing.task.id, title: t })) : undefined} />`
     : null;
   // Минута начала задачи, к которой привязываем форму (для повторов — позиция
   // конкретного повторения на текущем дне). null — у задачи нет времени/другой день.
@@ -1941,46 +1943,39 @@ function Planner() {
   // в саму сетку класть нельзя (у .planner-grid-scroll user-select:none — в
   // standalone-PWA это гасит клавиатуру). Поэтому на телефоне форма — оверлей вне
   // сетки, который мы позиционируем по блоку через useLayoutEffect ниже.
-  const edGridMin = !isMobile ? edAnchorMin : null;
-  // Задачи без даты (и быстрое создание) теперь правим/создаём отдельной плавающей
-  // карточкой — отдельного нижнего списка в панели больше нет.
   const edPanel = false;
-  // Плавающая карточка — всё остальное (другой день, не «День», и т.п.).
-  const edFloat = !!(editing || creating) && edGridMin == null && !edPanel;
-  // На мобильном привязываем оверлей формы к блоку задачи: карточка встаёт на уровень
-  // блока (как на десктопе), но физически остаётся вне сетки — клавиатура не страдает.
+  // Форма — всегда плавающий оверлей (в сетку не кладём). Десктоп — поповер-облачко
+  // СБОКУ от задачи (не перекрывает её, сетку НЕ двигает). Мобильный — лист снизу /
+  // привязанный к блоку оверлей (там в сетку нельзя из-за user-select и клавиатуры).
+  const edFloat = !!(editing || creating) && !edPanel;
   const edAnchorMobile = isMobile && edFloat && edAnchorMin != null;
+  const edPopover = !isMobile && edFloat && edAnchorMin != null && view === "day";
   useLayoutEffect(() => {
     const back = edBackRef.current;
     if (!back) return;
     const card = back.querySelector(".ed-card");
     if (!card) return;
-    if (!edAnchorMobile) { card.style.marginTop = ""; return; } // не привязано — обычный лист снизу
     const grid = innerRef.current;
-    if (!grid) return;
-    // Желаемый верх карточки = экранная Y блока задачи; ограничиваем, чтобы форма не
-    // уезжала за верх/низ экрана (с отступами под safe-area).
-    const gridTop = grid.getBoundingClientRect().top;
-    const blockY = gridTop + (edAnchorMin / 60) * hourPx;
-    const vh = window.innerHeight;
-    const ch = card.offsetHeight || 0;
-    const top = clamp(blockY, 56, Math.max(56, vh - ch - 16));
-    card.style.marginTop = top + "px";
-  }, [edAnchorMobile, edAnchorMin, hourPx, editing, creating, isMobile]);
-
-  // Десктоп: форма прирастает к блоку прямо в сетке. Если блок внизу, форма уходит за
-  // нижний край видимой области и часть её не видно. Подкручиваем прокрутку сетки, чтобы
-  // карточка помещалась целиком (как поповер в Календаре Apple — он не вылезает за экран).
-  useLayoutEffect(() => {
-    if (isMobile || edGridMin == null) return;
-    const scroll = scrollRef.current;
-    if (!scroll) return;
-    const card = scroll.querySelector(".ed-anchor .ed-card");
-    if (!card) return;
-    const r = card.getBoundingClientRect(), sr = scroll.getBoundingClientRect();
-    if (r.bottom > sr.bottom - 8) scroll.scrollTop += (r.bottom - sr.bottom) + 16;
-    else if (r.top < sr.top + 8) scroll.scrollTop -= (sr.top - r.top) + 16;
-  }, [editing, creating, edGridMin, hourPx, isMobile]);
+    const blockY = grid ? grid.getBoundingClientRect().top + (edAnchorMin / 60) * hourPx : 0;
+    const vh = window.innerHeight, vw = window.innerWidth, ch = card.offsetHeight || 0;
+    if (edPopover && grid) {
+      // Поповер сбоку от сетки: слева, если влезает (там панель проектов), иначе справа.
+      // По вертикали — на уровне задачи, с ограничением по экрану. Сетку не трогаем.
+      const sRect = (scrollRef.current || grid).getBoundingClientRect();
+      const cw = card.offsetWidth || 0;
+      let left = sRect.left - cw - 12;
+      if (left < 8) left = sRect.right + 12;
+      if (left + cw > vw - 8) left = Math.max(8, vw - cw - 8);
+      card.style.marginTop = "";
+      card.style.left = left + "px";
+      card.style.top = clamp(blockY, 8, Math.max(8, vh - ch - 8)) + "px";
+    } else if (edAnchorMobile && grid) {
+      card.style.left = ""; card.style.top = "";
+      card.style.marginTop = clamp(blockY, 56, Math.max(56, vh - ch - 16)) + "px";
+    } else {
+      card.style.marginTop = ""; card.style.left = ""; card.style.top = "";
+    }
+  }, [edPopover, edAnchorMobile, edAnchorMin, hourPx, editing, creating, isMobile, view]);
 
   const prevDate = (() => { const x = fromISO(date); x.setDate(x.getDate() - 1); return toISO(x); })();
   const nextDate = (() => { const x = fromISO(date); x.setDate(x.getDate() + 1); return toISO(x); })();
@@ -2388,7 +2383,6 @@ function Planner() {
                 <div class="tl-spine"></div>
                 ${isToday && html`<div class="grid-now" style=${`top:${(nowMin / 60) * hourPx}px;`}>
                   <span class="grid-now-time">${minToHHMM(nowMin)}</span><span class="grid-now-dot"></span></div>`}
-                ${edGridMin != null && html`<div class="ed-anchor" style=${`top:${(edGridMin / 60) * hourPx}px;`}>${editorEl}</div>`}
                 ${dayTl.map(i => {
                   // Переходящая через полночь задача рисуется сегментом дня и не
                   // перетаскивается/не тянется (правка — через карточку по тапу).
@@ -2444,7 +2438,7 @@ function Planner() {
                       <div class="tl-text">
                         <div class="tl-titlerow">
                           <div class="tl-title"
-                            onClick=${e => { if (spanning) { e.stopPropagation(); openPreview(i); } }}>${i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
+                            onClick=${e => { if (spanning) { e.stopPropagation(); openPreview(i); } }}>${(liveEdit && rowIdOf(i) === liveEdit.id) ? liveEdit.title : i.title}${i.recurring ? html` <span class="tl-rep">${Icon.repeat()}</span>` : ""}</div>
                         </div>
                         <div class="tl-meta">${minRangeLabel(dragging ? vTop : i.start_min, dragging ? vDur : (i.duration_min || 0))} (${durHuman(dragging ? vDur : (i.duration_min || 0))})</div>
                         ${(i.subtasks && i.subtasks.length && !spanning) ? html`
@@ -2596,7 +2590,7 @@ function Planner() {
       <span class="sel-drag-count">${selDrag.count}</span>
       <span class="sel-drag-label">${selDrag.count === 1 ? "задача" : (selDrag.count < 5 ? "задачи" : "задач")}</span>
     </div>`}
-    ${edFloat && html`<div ref=${edBackRef} class=${"ed-float-back" + (edClosing ? " closing" : "") + (edAnchorMobile ? " anchored" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
+    ${edFloat && html`<div ref=${edBackRef} class=${"ed-float-back" + (edClosing ? " closing" : "") + (edAnchorMobile ? " anchored" : "") + (edPopover ? " popover" : "")} onPointerDown=${e => { if (e.target === e.currentTarget) closeEditor(); }}>${editorEl}</div>`}
     ${listModal && html`<${ListForm}
       initial=${(listModal !== "new" && listModal.id) ? listModal : null}
       defaultArea=${listModal !== "new" && !listModal.id ? listModal.area_id : null}

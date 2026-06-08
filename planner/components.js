@@ -156,7 +156,7 @@ function authHint(msg) {
 // собственного позиционирования — обёртку/место задаёт родитель (в сетке дня
 // карточка «прирастает» к задаче, в боковой панели раскрывается на месте).
 // Иерархия: Название → Заметки → Подзадачи → Проект → Начало → Конец → Повтор.
-export function TaskEditor({ initial, defaults, occ, onClose }) {
+export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
   const store = useStore();
   const { taskLists } = store;
   const editing = !!initial;
@@ -278,7 +278,7 @@ export function TaskEditor({ initial, defaults, occ, onClose }) {
 
       <input class="ed-title" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
         ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
-        value=${title} onInput=${e => setTitle(e.target.value)}
+        value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
         onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }} />
 
       ${isEvent && html`<div class="ed-style">

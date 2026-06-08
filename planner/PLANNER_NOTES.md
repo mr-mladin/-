@@ -72,6 +72,14 @@
 ### Тень блока
 - Единая для `sel` / `lifted` / `landing`, мягкая: `0 5px 16px rgba(2,6,23,0.15)`.
 
+### Форма задачи (TaskEditor)
+- Десктоп — **поповер-облачко СБОКУ** от задачи (`edPopover`: `.ed-float-back.popover`,
+  `.ed-card` position fixed, координаты из JS-useLayoutEffect, фон overlay прозрачный —
+  сетку НЕ двигаем, задачу не перекрываем). Мобильный — лист снизу / привязанный оверлей
+  (`edAnchorMobile`), в сетку класть нельзя (user-select гасит клавиатуру в PWA).
+- Стекло (`backdrop-filter`) на `.ed-card`. Живое имя: форма зовёт `onLiveTitle` → `liveEdit`
+  в Planner → карточка в сетке (`tl-title`) сразу показывает новое название.
+
 ### Клавиатура (десктоп)
 - Cmd/Ctrl+Z / Shift+Z — undo/redo. Delete/Backspace — удалить выделенное.
 - **Shift+стрелки** двигают выделенные: ↑/↓ — ±5 мин, ←/→ — соседний день (с переездом
