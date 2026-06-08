@@ -313,22 +313,17 @@ textarea.input { resize: vertical; }
   display: flex; flex-direction: column; gap: 3px; }
 .tree-empty { font-size: 12px; color: var(--text-mute); padding: 4px 8px; }
 /* Задача в боковом списке — такая же мини-капсула «жидкое стекло», как «весь день». */
-.tree-task { display: flex; align-items: center; gap: 8px; padding: 5px 10px; border-radius: 12px;
+.tree-task { display: flex; align-items: center; gap: 6px; padding: 3px 9px; border-radius: 10px;
   background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass), transparent);
   -webkit-backdrop-filter: blur(var(--glass-blur)); backdrop-filter: blur(var(--glass-blur));
   touch-action: pan-y; cursor: grab; transition: background .14s ease, box-shadow .14s ease; }
 .tree-task:hover { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-strong), transparent); }
 .tree-task.done { background-color: color-mix(in srgb, var(--c, var(--inbox)) var(--glass-done), transparent); }
 .tree-task:active { cursor: grabbing; }
-/* Кружок-галочка — тонкое кольцо в цвет проекта, как в «весь день» и в сетке. */
-.tree-task .task-check { width: 18px; height: 18px; border-width: 1.5px;
+/* Кружок-галочка — тонкое кольцо в цвет проекта (компактный, как в «весь день»). */
+.tree-task .task-check { width: 15px; height: 15px; border-width: 1.5px;
   border-color: color-mix(in srgb, var(--c, var(--border-strong)) 80%, transparent); }
-.tree-task .task-check .ico { width: 11px; height: 11px; }
-/* Кнопка «запланировать на день» — проявляется при наведении на строку. */
-.tree-sched { width: 28px; height: 28px; flex: none; opacity: 0; transition: opacity .15s ease; }
-.tree-sched .ico { width: 16px; height: 16px; }
-.tree-task:hover .tree-sched { opacity: .65; }
-.tree-sched:hover { opacity: 1 !important; }
+.tree-task .task-check .ico { width: 9px; height: 9px; }
 /* Место, куда встанет перетаскиваемая задача — соседи плавно расступаются (FLIP). */
 .tree-ph { border-radius: var(--radius-sm); background: var(--accent-soft);
   border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
@@ -368,9 +363,9 @@ textarea.input { resize: vertical; }
 .tree-task.dragging { opacity: 0; }
 .tree-task-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 1px;
   border: none; background: transparent; cursor: pointer; font-family: inherit; text-align: left; padding: 0; }
-.tree-task-title { font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tree-task-title { font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tree-task.done .tree-task-title { color: var(--text-mute); }
-.tree-task-meta { font-size: 11px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.tree-task-meta { font-size: 10px; color: var(--text-mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
 .tree-add { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border: none; background: transparent;
   border-radius: var(--radius-sm); cursor: pointer; color: var(--text-soft); font-family: inherit; font-size: 12.5px; text-align: left; }
 .tree-add:hover { background: var(--bg-soft); color: var(--text); }

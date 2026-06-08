@@ -1349,11 +1349,6 @@ function Planner() {
     if (filter === "all" || filter === "inbox" || special) return { list_id: null, area_id: null };
     return { list_id: filter, area_id: null };
   }
-  function quickSchedule(t) {
-    const now = new Date();
-    const start = date === todayISO() ? clamp(snap(now.getHours() * 60 + now.getMinutes() + 5), 0, 1440 - 60) : 9 * 60;
-    store.actions.tasks.update(t.id, { date, start_min: start, duration_min: 60 }).catch(showErr);
-  }
   // Свайп влево по строке проекта (тач) открывает кнопки «Изменить/Удалить».
   function projSwipe(e, l) {
     if (e.pointerType !== "touch") return;
@@ -2167,8 +2162,6 @@ function Planner() {
             ${Icon.check()}${confettiEl("tree:" + t.id, "center")}</button>`}
       <button class="tree-task-body" onClick=${() => { if (trayClickGuard.current) return; setEditing({ task: t, occ: null }); }}>
         <span class="tree-task-title">${t.title}</span></button>
-      <button class="btn-mini tree-sched" title="Запланировать на этот день"
-        onPointerDown=${e => e.stopPropagation()} onClick=${() => quickSchedule(t)}>${Icon.clock()}</button>
     </div>`;
 
   // Список задач раздела (третий уровень). target — id проекта, "inbox" или "area:<id>".
