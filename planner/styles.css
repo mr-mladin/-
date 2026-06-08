@@ -1067,7 +1067,7 @@ textarea.input { resize: vertical; }
   max-height: calc(100vh - 16px); margin: 0; }
 /* Хвостик облачка (как речевой пузырь из комиксов): треугольник со стороны задачи.
    --tail-pos задаёт смещение хвостика вдоль грани (JS наводит его на центр задачи). */
-.ed-float-back.popover .ed-card { --ed-tail: var(--surface); }
+.ed-float-back.popover .ed-card { --ed-tail: var(--surface); overflow: visible; }
 .ed-card.tail-top::after, .ed-card.tail-bottom::after, .ed-card.tail-left::after, .ed-card.tail-right::after {
   content: ""; position: absolute; width: 0; height: 0; }
 .ed-card.tail-top::after { top: -9px; left: var(--tail-pos, 50%); transform: translateX(-50%);
@@ -1141,11 +1141,11 @@ textarea.input { resize: vertical; }
 .ed-title, .ed-notes, .ed-sub-input, .ed-input {
   -webkit-user-select: text !important; user-select: text !important;
   -webkit-touch-callout: default; touch-action: auto; pointer-events: auto; cursor: text; }
-.ed-title { border: 0; background: none; font-family: inherit; font-size: 18px; font-weight: 650;
+.ed-title { border: 0; background: none; font-family: inherit; font-size: 16px; font-weight: 600;
   color: var(--text); padding: 0 2px; outline: none;
   /* длинное название переносится на новую строку, поле растёт по содержимому */
-  resize: none; line-height: 1.25; overflow: hidden; field-sizing: content; }
-.ed-title::placeholder { color: var(--text-mute); font-weight: 600; }
+  resize: none; line-height: 1.3; overflow: hidden; field-sizing: content; }
+.ed-title::placeholder { color: var(--text-mute); font-weight: 500; }
 /* Шапка формы: название слева, цветная точка проекта справа (как в Apple Календаре). */
 .ed-head { display: flex; align-items: flex-start; gap: 8px; }
 .ed-head .ed-title { flex: 1; min-width: 0; margin-top: 1px; }
