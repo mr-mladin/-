@@ -253,7 +253,8 @@ textarea.input { resize: vertical; }
    Радиус контейнера = радиусу кнопки проекта (.proj-opt, 10px), иначе по углам
    справа проглядывает красная кнопка удаления, спрятанная под строкой. */
 .proj-row { position: relative; overflow: hidden; border-radius: 10px; }
-.proj-row-actions { position: absolute; top: 0; right: 0; bottom: 0; display: flex; }
+.proj-row-actions { position: absolute; top: 0; right: 0; bottom: 0; display: none; }
+.proj-row.swiping .proj-row-actions, .proj-row.swipe-open .proj-row-actions { display: flex; }
 .proj-row-actions button { border: none; cursor: pointer; color: #fff; display: inline-flex; align-items: center; justify-content: center; width: 66px; }
 .proj-row-actions .edit { background: #64748b; }
 .proj-row-actions .del { background: var(--danger); }
@@ -264,6 +265,32 @@ textarea.input { resize: vertical; }
 .proj-row .proj-opt.active { background: var(--accent-soft); color: var(--accent); }
 .proj-row.swipe-open .proj-opt { transform: translateX(-132px); }
 .proj-opt-new.sm { margin-top: 0; border-top: none; padding-top: 8px; font-size: 13px; color: var(--text-mute); }
+
+/* Кнопка «+ Новый список» внизу панели + всплывающее меню выбора (проект/область),
+   как в Things. Меню раскрывается НАД кнопкой. */
+.tree-create { position: relative; margin-top: 6px; }
+.tree-create-btn { display: inline-flex; align-items: center; gap: 8px; border: 0; background: none;
+  cursor: pointer; font-family: inherit; font-size: 13.5px; color: var(--text-soft);
+  padding: 8px 10px; border-radius: 10px; transition: background .13s ease, color .13s ease; }
+.tree-create-btn:hover, .tree-create-btn.open { background: var(--bg-soft); color: var(--text); }
+.tree-create-btn .ico { width: 16px; height: 16px; }
+.create-menu { position: absolute; left: 4px; bottom: calc(100% + 6px); z-index: 30;
+  width: 304px; max-width: calc(100% - 8px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 6px;
+  box-shadow: 0 1px 2px rgba(2,6,23,0.06), 0 18px 44px rgba(2,6,23,0.24);
+  display: flex; flex-direction: column; gap: 2px; animation: edPop .16s cubic-bezier(.2,.7,.3,1); }
+[data-theme="dark"] .create-menu { box-shadow: 0 1px 2px rgba(0,0,0,0.4), 0 18px 44px rgba(0,0,0,0.5); }
+.create-item { display: flex; align-items: flex-start; gap: 11px; text-align: left; border: 0; background: none;
+  cursor: pointer; font-family: inherit; padding: 10px 11px; border-radius: 10px; transition: background .12s ease; }
+.create-item:hover { background: var(--bg-soft); }
+.create-ico { flex: none; width: 28px; height: 28px; border-radius: 8px; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center; }
+.create-ico.proj { background: var(--accent-soft); color: var(--accent); }
+.create-ico.area { background: color-mix(in srgb, #16a34a 15%, transparent); color: #16a34a; }
+.create-ico .ico { width: 16px; height: 16px; }
+.create-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.create-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.create-desc { font-size: 12px; line-height: 1.35; color: var(--text-mute); }
 
 /* Области — заголовки групп (как «iCloud»/«Другие» в Apple Календаре): мелкий серый
    текст сверху, шеврон-сворачивание справа. Проекты — простым списком под ним. */
@@ -316,19 +343,20 @@ textarea.input { resize: vertical; }
 
 /* Чекбокс видимости проекта в календаре (как в Apple): скруглённый квадрат в цвет
    проекта. Отмечен = залит + белая галочка (показан в сетке); снят = бледный контур. */
-.proj-check { flex: none; width: 18px; height: 18px; border-radius: 5px; padding: 0; cursor: pointer;
-  border: 2px solid color-mix(in srgb, var(--c) 45%, transparent); background: transparent; box-sizing: border-box;
+.proj-check { flex: none; width: 16px; height: 16px; border-radius: 5px; padding: 0; cursor: pointer;
+  border: 1.5px solid color-mix(in srgb, var(--c) 50%, transparent); background: transparent; box-sizing: border-box;
   display: inline-flex; align-items: center; justify-content: center;
   transition: background .15s ease, border-color .15s ease; }
-.proj-check .ico { width: 12px; height: 12px; color: #fff; opacity: 0; transition: opacity .15s ease; }
+.proj-check .ico { width: 10px; height: 10px; color: #fff; opacity: 0; transition: opacity .15s ease; }
 .proj-check.on { background: var(--c); border-color: var(--c); }
 .proj-check.on .ico { opacity: 1; }
 .proj-check:hover { border-color: var(--c); }
 
 /* Перетаскивание проекта в панели (reorder/смена области): живая карточка под пальцем,
    место вставки — пунктирный плейсхолдер, соседи расступаются (FLIP). */
-.proj-ph { border-radius: 10px; background: var(--accent-soft); margin: 1px 0;
-  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); }
+/* Место вставки при переносе проекта — просто пустой промежуток (без рамки): соседи
+   расступаются, показывая, куда встанет проект (как в Apple). */
+.proj-ph { margin: 1px 0; }
 .proj-row-wrap.proj-dragging { opacity: 0; }
 .proj-drag-card { position: fixed; z-index: 80; pointer-events: none; display: flex; align-items: center; gap: 10px;
   padding: 9px 10px; border-radius: 10px; box-sizing: border-box; overflow: hidden;

@@ -147,6 +147,8 @@ function Planner() {
   const [swipeId, setSwipeId] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [newMenu, setNewMenu] = useState(false); // меню «+» внизу панели: создать проект/область
+  const newMenuRef = useRef(null);
   const [selected, setSelected] = useState(() => new Set());
   const [selRange, setSelRange] = useState(null);
   const [asideOpen, setAsideOpen] = useState(false);
@@ -195,6 +197,16 @@ function Planner() {
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
   }, [projOpen]);
+
+  // Меню «+» (создать проект/область) — закрываем кликом вне и по Esc.
+  useEffect(() => {
+    if (!newMenu) return;
+    const onDown = (e) => { if (newMenuRef.current && !newMenuRef.current.contains(e.target)) setNewMenu(false); };
+    const onKey = (e) => { if (e.key === "Escape") setNewMenu(false); };
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("pointerdown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [newMenu]);
 
   useEffect(() => { try { localStorage.setItem("planner.view", view); } catch (e) {} }, [view]);
   useEffect(() => () => clearTimeout(peekTimerRef.current), []); // не оставлять таймер при размонтировании
@@ -1449,6 +1461,7 @@ function Planner() {
       return;
     }
     const wasOpen = swipeId === l.id;
+    const rowBox = rowEl.closest(".proj-row");
     let decided = null, dx = 0;
     let hold = setTimeout(() => { detach(); startProjDrag(l, rowEl, sx, sy); }, HOLD_MS);
     const move = (ev) => {
@@ -1459,6 +1472,7 @@ function Planner() {
         decided = Math.abs(mx) > Math.abs(my) ? "swipe" : "scroll";
         if (decided !== "swipe") { detach(); return; }
         swipedRef.current = true;
+        rowBox && rowBox.classList.add("swiping"); // показать кнопки только на время жеста
       }
       ev.preventDefault();
       dx = clamp((wasOpen ? -132 : 0) + mx, -132, 0);
@@ -1466,7 +1480,7 @@ function Planner() {
     };
     const up = () => {
       clearTimeout(hold); detach();
-      if (decided === "swipe") { rowEl.style.transform = ""; setSwipeId(dx < -50 ? l.id : null); setTimeout(() => { swipedRef.current = false; }, 0); }
+      if (decided === "swipe") { rowEl.style.transform = ""; rowBox && rowBox.classList.remove("swiping"); setSwipeId(dx < -50 ? l.id : null); setTimeout(() => { swipedRef.current = false; }, 0); }
     };
     const detach = () => { document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", up); document.removeEventListener("pointercancel", up); };
     document.addEventListener("pointermove", move);
@@ -1691,7 +1705,7 @@ function Planner() {
           node.style.transition = "none";
           node.style.transform = `translate(${dx}px,${dy}px)`;
           requestAnimationFrame(() => {
-            node.style.transition = "transform .22s cubic-bezier(.2,.9,.25,1)";
+            node.style.transition = "transform .16s cubic-bezier(.3,.9,.3,1)";
             node.style.transform = "";
           });
         }
@@ -2393,12 +2407,24 @@ function Planner() {
               ${projListEl(looseProjects, null)}
             </div>
 
-            <button class="proj-opt proj-opt-new" onClick=${() => setListModal("new")}>
-              <span class="proj-opt-ico">${Icon.plus()}</span>
-              <span class="proj-opt-name">Новый проект</span></button>
-            <button class="proj-opt proj-opt-new" onClick=${() => setAreaModal("new")}>
-              <span class="proj-opt-ico">${Icon.folder()}</span>
-              <span class="proj-opt-name">Новая область</span></button>
+            <div class="tree-create" ref=${newMenuRef}>
+              ${newMenu && html`<div class="create-menu">
+                <button class="create-item" onClick=${() => { setNewMenu(false); setListModal("new"); }}>
+                  <span class="create-ico proj">${Icon.dot()}</span>
+                  <span class="create-body">
+                    <span class="create-title">Новый проект</span>
+                    <span class="create-desc">Создаёт проект, все задачи в котором направлены на достижение одной цели.</span>
+                  </span></button>
+                <button class="create-item" onClick=${() => { setNewMenu(false); setAreaModal("new"); }}>
+                  <span class="create-ico area">${Icon.folder()}</span>
+                  <span class="create-body">
+                    <span class="create-title">Новая область</span>
+                    <span class="create-desc">Проекты или задачи, объединённые общей тематикой — например «Семья» или «Работа».</span>
+                  </span></button>
+              </div>`}
+              <button class=${"tree-create-btn" + (newMenu ? " open" : "")} onClick=${() => setNewMenu(o => !o)}>
+                ${Icon.plus()}<span>Новый список</span></button>
+            </div>
           </div>
         </aside>
 
