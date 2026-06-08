@@ -112,10 +112,13 @@ html[data-theme="dark"].is-scrolling .planner-tree::-webkit-scrollbar-thumb { ba
    клике мышью или тапе её нет — поэтому внешний вид при касании не меняется. */
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* Текстовые поля гасят системную обводку — поэтому показываем кольцо тенью вокруг. */
-.input:focus-visible, .select:focus-visible, .search-input:focus-visible,
+.input:focus-visible, .select:focus-visible, .search-input:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+/* Inline-поля (название/заметка/подзадача в форме и сетке) — фокус виден кареткой, поэтому
+   обводку НЕ показываем: она выскакивала автоматически при автофокусе формы и мешала.
+   Tab-обводка остаётся на кнопках (через глобальный :focus-visible выше). */
 .ed-title:focus-visible, .ed-notes:focus-visible, .ed-input:focus-visible,
 .ed-sub-input:focus-visible, .tl-title-edit:focus-visible, .tl-subs-edit:focus-visible,
-.allday-edit:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--accent); }
+.allday-edit:focus-visible { outline: none; box-shadow: none; }
 
 .boot { height: 100dvh; display: grid; place-items: center; }
 .boot-spinner { width: 38px; height: 38px; border-radius: 50%;
