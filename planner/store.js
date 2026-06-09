@@ -199,15 +199,16 @@ export function StoreProvider({ children }) {
     rollOverdue(rows);
   }
 
-  // Перенос: все невыполненные разовые задачи с прошедших дней переезжают на
-  // сегодня в раздел «весь день» (без времени). Повторяющиеся и их исключения
-  // не трогаем. Идемпотентно: за один день переносим один раз.
+  // Перенос: все невыполненные разовые ЗАДАЧИ с прошедших дней переезжают на
+  // сегодня в раздел «весь день» (без времени). События (is_event) НЕ трогаем — у них
+  // нет отметки «выполнено», они остаются на своём времени, пока их не двинут вручную.
+  // Повторяющиеся и их исключения тоже не трогаем. Идемпотентно: за один день один раз.
   function rollOverdue(rows) {
     const today = todayISO();
     if (rolledFor.current === today) return;
     rolledFor.current = today;
     const overdue = (rows || []).filter(t =>
-      !t.recurrence && !t.recurrence_parent && !t.done && !t.deleted_at && t.date && t.date < today);
+      !t.is_event && !t.recurrence && !t.recurrence_parent && !t.done && !t.deleted_at && t.date && t.date < today);
     if (!overdue.length) return;
     writeAt.current = Date.now();
     const patch = { start_min: null, duration_min: null };
