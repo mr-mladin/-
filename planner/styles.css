@@ -1375,8 +1375,14 @@ textarea.input { resize: vertical; }
    что у .tl: центрируется, сдвиг 32px, левый край контента = 58px как у блоков,
    правый = 8px) и делаем задачи компактнее. */
 @media (min-width: 861px) {
-  .allday { box-sizing: border-box; position: relative; left: 32px; width: 100%; max-width: 720px;
-    margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
+  /* Зона «весь день» ЗАКРЕПЛЕНА сверху: при скролле сетки она остаётся на месте
+     (sticky top:0), часы уезжают под неё. Фон surface + z-index перекрывают
+     уезжающие события. Сдвиг под сетку — через transform(32px), а НЕ left:32px:
+     у sticky-элемента left стал бы горизонтальным порогом залипания (сдвиг бы
+     пропал). Тот же приём работает в недельном виде (.week-head). */
+  .allday { box-sizing: border-box; position: sticky; top: 0; z-index: 9; transform: translateX(32px);
+    width: 100%; max-width: 720px; margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px;
+    background: var(--surface); }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
