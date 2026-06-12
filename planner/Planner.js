@@ -2210,7 +2210,7 @@ function Planner() {
         if (bx + bw + GAP + cw <= vw - 8) { left = bx + bw + GAP; tail = "left"; }
         else { left = bx - GAP - cw; tail = "right"; }
         top = clamp(bcy - ch / 2, 8, Math.max(8, vh - ch - 8));
-        card.style.setProperty("--tail-pos", clamp(bcy - top, 16, ch - 16) + "px");
+        card.style.setProperty("--tail-pos", clamp(bcy - top, 20, ch - 20) + "px");
       } else {
         left = clamp(bcx - cw / 2, 8, Math.max(8, vw - cw - 8));
         if (by < vh / 2) { top = by + bh + GAP; tail = "top"; }   // задача выше → форма снизу
