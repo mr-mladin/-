@@ -408,7 +408,7 @@ export const Icon = {
   dot: () => wrap(html`<circle cx="12" cy="12" r="3" fill="currentColor"/>`),
   // Чек-лист (для переключателя «Задача»): верхний пункт — залитый кружок с белой
   // галочкой (чисто читается на малом размере), нижний — контурный; справа линии.
-  checklist: () => wrap(html`<circle cx="5.5" cy="7.5" r="3" fill="currentColor" stroke="none"/><path d="M4.3 7.5l0.9 0.9 1.7-1.9" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="5.5" cy="16.5" r="3"/><path d="M11 7.5H19"/><path d="M11 16.5H19"/>`),
+  checklist: () => wrap(html`<circle cx="5.5" cy="7.5" r="3" fill="currentColor"/><path d="M4.3 7.5l0.9 0.9 1.7-1.9" fill="none" stroke="#fff" stroke-width="1.6"/><circle cx="5.5" cy="16.5" r="3"/><path d="M11 7.5H19"/><path d="M11 16.5H19"/>`),
   sun: () => wrap(html`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`),
   moon: () => wrap(html`<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>`),
   signout: () => wrap(html`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`),

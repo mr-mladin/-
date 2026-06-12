@@ -1081,23 +1081,23 @@ textarea.input { resize: vertical; }
    маской по форме скруглённого треугольника к задаче. Базой на 1px заходит под карточку
    (бесшовно). --tail-pos — смещение вдоль грани (JS наводит на центр задачи). */
 .ed-float-back.popover .ed-card { overflow: visible;
-  --tail-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='15'%3E%3Cpath d='M1 15 L11 3.4 Q14 0.4 17 3.4 L27 15 Z' fill='%23000'/%3E%3C/svg%3E");
-  --tail-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='15'%3E%3Cpath d='M1 0 L11 11.6 Q14 14.6 17 11.6 L27 0 Z' fill='%23000'/%3E%3C/svg%3E");
-  --tail-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='28'%3E%3Cpath d='M15 1 L3.4 11 Q0.4 14 3.4 17 L15 27 Z' fill='%23000'/%3E%3C/svg%3E");
-  --tail-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='28'%3E%3Cpath d='M0 1 L11.6 11 Q14.6 14 11.6 17 L0 27 Z' fill='%23000'/%3E%3C/svg%3E"); }
+  --tail-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='14'%3E%3Cpath d='M2 14 C9 14 11 12 13 5 Q15 1.5 17 5 C19 12 21 14 28 14 Z' fill='%23000'/%3E%3C/svg%3E");
+  --tail-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='30' height='14'%3E%3Cpath d='M2 0 C9 0 11 2 13 9 Q15 12.5 17 9 C19 2 21 0 28 0 Z' fill='%23000'/%3E%3C/svg%3E");
+  --tail-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='30'%3E%3Cpath d='M14 2 C14 9 12 11 5 13 Q1.5 15 5 17 C12 19 14 21 14 28 Z' fill='%23000'/%3E%3C/svg%3E");
+  --tail-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='30'%3E%3Cpath d='M0 2 C0 9 2 11 9 13 Q12.5 15 9 17 C2 19 0 21 0 28 Z' fill='%23000'/%3E%3C/svg%3E"); }
 /* Хвостик — НЕПРОЗРАЧНЫЙ цвет карточки (var(--surface)), без backdrop-filter: полупрозрачный
    тёмный хвостик на тёмном фоне сливался (был невидим в тёмной теме) и не подхватывал оттенок
    стекла (выглядел отдельной нашлёпкой). Сплошной цвет ⇒ виден в обеих темах и как часть формы. */
 .ed-card.tail-top::after, .ed-card.tail-bottom::after, .ed-card.tail-left::after, .ed-card.tail-right::after {
   content: ""; position: absolute; background: var(--surface);
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
-.ed-card.tail-top::after { width: 28px; height: 15px; top: -13px; left: var(--tail-pos, 50%); transform: translateX(-50%);
+.ed-card.tail-top::after { width: 30px; height: 14px; top: -12px; left: var(--tail-pos, 50%); transform: translateX(-50%);
   -webkit-mask-image: var(--tail-up); mask-image: var(--tail-up); }
-.ed-card.tail-bottom::after { width: 28px; height: 15px; bottom: -13px; left: var(--tail-pos, 50%); transform: translateX(-50%);
+.ed-card.tail-bottom::after { width: 30px; height: 14px; bottom: -12px; left: var(--tail-pos, 50%); transform: translateX(-50%);
   -webkit-mask-image: var(--tail-down); mask-image: var(--tail-down); }
-.ed-card.tail-left::after { width: 15px; height: 28px; left: -13px; top: var(--tail-pos, 50%); transform: translateY(-50%);
+.ed-card.tail-left::after { width: 14px; height: 30px; left: -12px; top: var(--tail-pos, 50%); transform: translateY(-50%);
   -webkit-mask-image: var(--tail-left); mask-image: var(--tail-left); }
-.ed-card.tail-right::after { width: 15px; height: 28px; right: -13px; top: var(--tail-pos, 50%); transform: translateY(-50%);
+.ed-card.tail-right::after { width: 14px; height: 30px; right: -12px; top: var(--tail-pos, 50%); transform: translateY(-50%);
   -webkit-mask-image: var(--tail-right); mask-image: var(--tail-right); }
 
 .ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px;
