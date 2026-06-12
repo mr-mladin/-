@@ -406,6 +406,7 @@ export const Icon = {
   clock: () => wrap(html`<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>`),
   repeat: () => wrap(html`<path d="M17 2l4 4-4 4"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><path d="M7 22l-4-4 4-4"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>`),
   dot: () => wrap(html`<circle cx="12" cy="12" r="3" fill="currentColor"/>`),
+  circle: () => wrap(html`<circle cx="12" cy="12" r="8"/>`),
   sun: () => wrap(html`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`),
   moon: () => wrap(html`<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>`),
   signout: () => wrap(html`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`),

@@ -265,40 +265,43 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
   return html`
     <div class="ed-card" ref=${cardRef}>
       <div class="ed-top">
-        <button class="ed-cancel" type="button" onClick=${onClose}>Отменить</button>
-        <button class="ed-save" type="button" disabled=${busy} onClick=${save}>Готово</button>
-      </div>
-
-      <div class="ed-typeseg">
-        <button class=${"ed-typebtn" + (!isEvent ? " on" : "")} type="button" onClick=${() => setIsEvent(false)}>Задача</button>
-        <button class=${"ed-typebtn" + (isEvent ? " on" : "")} type="button" onClick=${() => setIsEvent(true)}>Событие</button>
+        <button class="ed-icbtn ed-cancel" type="button" title="Отменить" aria-label="Отменить" onClick=${onClose}>${Icon.close()}</button>
+        <div class="ed-typeseg" role="group" aria-label="Тип записи">
+          <button class=${"ed-typebtn" + (!isEvent ? " on" : "")} type="button" title="Задача" aria-label="Задача" aria-pressed=${!isEvent} onClick=${() => setIsEvent(false)}>${Icon.circle()}</button>
+          <button class=${"ed-typebtn" + (isEvent ? " on" : "")} type="button" title="Событие" aria-label="Событие" aria-pressed=${isEvent} onClick=${() => setIsEvent(true)}>${Icon.calendar()}</button>
+        </div>
+        <button class="ed-icbtn ed-save" type="button" title="Готово" aria-label="Готово" disabled=${busy} onClick=${save}>${Icon.check()}</button>
       </div>
 
       ${error && html`<div class="ed-error">${error}</div>`}
 
-      <div class="ed-head">
-        <textarea class="ed-title" rows="1" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
-          ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
-          value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
-          onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }}></textarea>
-        <div class="ed-field ed-projsel">
-          <button class="ed-projdot" type="button" title=${targetName} aria-label=${"Проект: " + targetName} onClick=${() => setProjOpen(o => !o)}>
-            <span class="ed-dot" style=${`background:${dotColor};`}></span>
-            <span class="ed-projdot-chev">${Icon.stepper()}</span>
-          </button>
-          ${projOpen && html`
-            <div class="ed-menu ed-menu-right">
-              <button class=${"ed-menu-item" + (!listId && !areaId ? " sel" : "")} type="button"
-                onClick=${() => { setListId(""); setAreaId(""); setProjOpen(false); }}>
-                <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
-              ${areas.map(a => html`<button class=${"ed-menu-item" + (!listId && areaId === a.id ? " sel" : "")} type="button" key=${"a" + a.id}
-                onClick=${() => { setAreaId(a.id); setListId(""); setProjOpen(false); }}>
-                <span class="ed-menu-ico">${Icon.folder()}</span> ${a.name}</button>`)}
-              ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
-                onClick=${() => { setListId(l.id); setAreaId(""); setProjOpen(false); }}>
-                <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
-            </div>`}
+      <div class="ed-headgroup">
+        <div class="ed-head">
+          <textarea class="ed-title" rows="1" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
+            ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
+            value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
+            onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }}></textarea>
+          <div class="ed-field ed-projsel">
+            <button class="ed-projdot" type="button" title=${targetName} aria-label=${"Проект: " + targetName} onClick=${() => setProjOpen(o => !o)}>
+              <span class="ed-dot" style=${`background:${dotColor};`}></span>
+              <span class="ed-projdot-chev">${Icon.stepper()}</span>
+            </button>
+            ${projOpen && html`
+              <div class="ed-menu ed-menu-right">
+                <button class=${"ed-menu-item" + (!listId && !areaId ? " sel" : "")} type="button"
+                  onClick=${() => { setListId(""); setAreaId(""); setProjOpen(false); }}>
+                  <span class="ed-dot" style="background:var(--text-mute);"></span> Входящие</button>
+                ${areas.map(a => html`<button class=${"ed-menu-item" + (!listId && areaId === a.id ? " sel" : "")} type="button" key=${"a" + a.id}
+                  onClick=${() => { setAreaId(a.id); setListId(""); setProjOpen(false); }}>
+                  <span class="ed-menu-ico">${Icon.folder()}</span> ${a.name}</button>`)}
+                ${lists.map(l => html`<button class=${"ed-menu-item" + (listId === l.id ? " sel" : "")} type="button" key=${l.id}
+                  onClick=${() => { setListId(l.id); setAreaId(""); setProjOpen(false); }}>
+                  <span class="ed-dot" style=${`background:${l.color};`}></span> ${l.name}</button>`)}
+              </div>`}
+          </div>
         </div>
+        <textarea class="ed-notes" rows="1" placeholder="Заметка"
+          value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>
       </div>
 
       ${isEvent && html`<div class="ed-sub">
@@ -398,9 +401,6 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
               </div>
             </div>`}
           </div>`}
-
-      <textarea class="ed-notes" rows="1" placeholder="Заметка"
-        value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>
 
       <div class="ed-sub">
         ${subtasks.length === 0
