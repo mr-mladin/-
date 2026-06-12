@@ -1376,13 +1376,17 @@ textarea.input { resize: vertical; }
    правый = 8px) и делаем задачи компактнее. */
 @media (min-width: 861px) {
   .allday { box-sizing: border-box; position: relative; left: 32px; width: 100%; max-width: 720px;
-    margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; }
+    margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; background: var(--surface); }
   /* Зона «весь день» ЗАКРЕПЛЕНА сверху при скролле: липкой делаем ОБЁРТКУ .allday-stick
      (full-width, БЕЗ transform — как рабочий .week-head в недельном виде), а .allday внутри
      по-прежнему центрируется и сдвигается на 32px под сетку (relative; left:32px). Прошлый
      заход (sticky+transform прямо на .allday) не залипал: self-transform на sticky-элементе
-     в Safari ломает залипание. Фон surface + z-index перекрывают уезжающие под зону события. */
-  .allday-stick { position: sticky; top: 0; z-index: 9; background: var(--surface); }
+     в Safari ломает залипание.
+     ОБА фона (surface) + z-index + isolation перекрывают уезжающие под зону события: фон
+     на самой .allday (где события, 720) И на обёртке (full-width); isolation на обёртке
+     создаёт явный слой над сеткой (страховка от Safari-квирка sticky-в-transform, когда
+     z-index не поднимает слой). */
+  .allday-stick { position: sticky; top: 0; z-index: 9; background: var(--surface); isolation: isolate; }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
