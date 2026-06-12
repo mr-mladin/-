@@ -2192,7 +2192,6 @@ function Planner() {
     const grid = innerRef.current;
     const blockY = grid ? grid.getBoundingClientRect().top + (edAnchorMin / 60) * hourPx : 0;
     const vh = window.innerHeight, vw = window.innerWidth, ch = card.offsetHeight || 0;
-    card.classList.remove("tail-top", "tail-bottom", "tail-left", "tail-right");
     if (edPopover && grid) {
       const cw = card.offsetWidth || 0, GAP = 14;
       // Геометрия блока задачи: берём реальный прямоугольник из сетки, иначе считаем по
@@ -2205,23 +2204,20 @@ function Planner() {
       else { bx = gr.left; bw = gr.width; by = blockY; bh = Math.max(MIN_EVENT_PX, (edDur / 60) * hourPx); }
       const bcx = bx + bw / 2, bcy = by + bh / 2;
       const narrow = bw < gr.width * 0.6; // узкий блок (колонка пересечения) → форму сбоку
-      let left, top, tail;
+      let left, top;
       if (narrow) {
-        if (bx + bw + GAP + cw <= vw - 8) { left = bx + bw + GAP; tail = "left"; }
-        else { left = bx - GAP - cw; tail = "right"; }
+        if (bx + bw + GAP + cw <= vw - 8) left = bx + bw + GAP;
+        else left = bx - GAP - cw;
         top = clamp(bcy - ch / 2, 8, Math.max(8, vh - ch - 8));
-        card.style.setProperty("--tail-pos", clamp(bcy - top, 20, ch - 20) + "px");
       } else {
         left = clamp(bcx - cw / 2, 8, Math.max(8, vw - cw - 8));
-        if (by < vh / 2) { top = by + bh + GAP; tail = "top"; }   // задача выше → форма снизу
-        else { top = by - GAP - ch; tail = "bottom"; }            // задача ниже → форма сверху
+        if (by < vh / 2) top = by + bh + GAP;   // задача выше → форма снизу
+        else top = by - GAP - ch;               // задача ниже → форма сверху
         top = clamp(top, 8, Math.max(8, vh - ch - 8));
-        card.style.setProperty("--tail-pos", clamp(bcx - left, 18, cw - 18) + "px");
       }
       card.style.marginTop = "";
       card.style.left = left + "px";
       card.style.top = top + "px";
-      card.classList.add("tail-" + tail);
     } else if (edAnchorMobile && grid) {
       card.style.left = ""; card.style.top = "";
       card.style.marginTop = clamp(blockY, 56, Math.max(56, vh - ch - 16)) + "px";

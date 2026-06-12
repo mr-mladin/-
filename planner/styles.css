@@ -1076,30 +1076,10 @@ textarea.input { resize: vertical; }
 .ed-float-back.popover { background: transparent; display: block; padding: 0; overflow: visible; animation: none; }
 .ed-float-back.popover .ed-card { position: fixed; width: 380px; max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px); margin: 0; }
-/* Хвостик облачка — скруглённый «капле-треугольник» из того же стекла (как у Apple),
-   а не острый CSS-треугольник. Маленький бокс с фоном/размытием карточки, обрезанный
-   маской по форме скруглённого треугольника к задаче. Базой на 1px заходит под карточку
-   (бесшовно). --tail-pos — смещение вдоль грани (JS наводит на центр задачи). */
-.ed-float-back.popover .ed-card { overflow: visible;
-  --tail-up: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='16'%3E%3Cpath d='M4 16 L15 5.5 Q18 3 21 5.5 L32 16 Z' fill='%23000'/%3E%3C/svg%3E");
-  --tail-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='36' height='16'%3E%3Cpath d='M4 0 L15 10.5 Q18 13 21 10.5 L32 0 Z' fill='%23000'/%3E%3C/svg%3E");
-  --tail-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='36'%3E%3Cpath d='M16 4 L5.5 15 Q3 18 5.5 21 L16 32 Z' fill='%23000'/%3E%3C/svg%3E");
-  --tail-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='36'%3E%3Cpath d='M0 4 L10.5 15 Q13 18 10.5 21 L0 32 Z' fill='%23000'/%3E%3C/svg%3E"); }
-/* Хвостик — то же СТЕКЛО, что и карточка (var(--glass-card) + backdrop-filter): подхватывает
-   тот же оттенок и читается как часть формы (а не белая нашлёпка). Карточка теперь плотная
-   (~88–90% surface), поэтому полупрозрачный хвостик виден и в тёмной теме. */
-.ed-card.tail-top::after, .ed-card.tail-bottom::after, .ed-card.tail-left::after, .ed-card.tail-right::after {
-  content: ""; position: absolute; background: var(--glass-card);
-  -webkit-backdrop-filter: var(--glass-card-blur); backdrop-filter: var(--glass-card-blur);
-  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
-.ed-card.tail-top::after { width: 36px; height: 16px; top: -14px; left: var(--tail-pos, 50%); transform: translateX(-50%);
-  -webkit-mask-image: var(--tail-up); mask-image: var(--tail-up); }
-.ed-card.tail-bottom::after { width: 36px; height: 16px; bottom: -14px; left: var(--tail-pos, 50%); transform: translateX(-50%);
-  -webkit-mask-image: var(--tail-down); mask-image: var(--tail-down); }
-.ed-card.tail-left::after { width: 16px; height: 36px; left: -14px; top: var(--tail-pos, 50%); transform: translateY(-50%);
-  -webkit-mask-image: var(--tail-left); mask-image: var(--tail-left); }
-.ed-card.tail-right::after { width: 16px; height: 36px; right: -14px; top: var(--tail-pos, 50%); transform: translateY(-50%);
-  -webkit-mask-image: var(--tail-right); mask-image: var(--tail-right); }
+/* Десктоп-поповер БЕЗ хвостика: «облачко» просто всплывает у задачи. Хвостик убрали —
+   масочный псевдоэлемент в браузере не подхватывал тон стекла карточки (выглядел отдельной
+   нашлёпкой) и сливался с фоном в тёмной теме. Карточка скроллится по высоте базовым
+   overflow-y:auto (см. .ed-card ниже), отдельный overflow:visible больше не нужен. */
 
 .ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px;
   background: var(--glass-card);
