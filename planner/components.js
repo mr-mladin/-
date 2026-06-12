@@ -266,8 +266,9 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
     <div class="ed-card" ref=${cardRef}>
       <div class="ed-top">
         <button class="ed-icbtn ed-cancel" type="button" title="Отменить" aria-label="Отменить" onClick=${onClose}>${Icon.close()}</button>
-        <div class="ed-typeseg" role="group" aria-label="Тип записи">
-          <button class=${"ed-typebtn" + (!isEvent ? " on" : "")} type="button" title="Задача" aria-label="Задача" aria-pressed=${!isEvent} onClick=${() => setIsEvent(false)}>${Icon.circle()}</button>
+        <div class=${"ed-typeseg" + (isEvent ? " on-event" : "")} role="group" aria-label="Тип записи">
+          <span class="ed-typeseg-ind" aria-hidden="true"></span>
+          <button class=${"ed-typebtn" + (!isEvent ? " on" : "")} type="button" title="Задача" aria-label="Задача" aria-pressed=${!isEvent} onClick=${() => setIsEvent(false)}>${Icon.checklist()}</button>
           <button class=${"ed-typebtn" + (isEvent ? " on" : "")} type="button" title="Событие" aria-label="Событие" aria-pressed=${isEvent} onClick=${() => setIsEvent(true)}>${Icon.calendar()}</button>
         </div>
         <button class="ed-icbtn ed-save" type="button" title="Готово" aria-label="Готово" disabled=${busy} onClick=${save}>${Icon.check()}</button>

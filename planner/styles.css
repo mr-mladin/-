@@ -13,10 +13,9 @@
   --glass: 10%; --glass-done: 5%; --glass-strong: 16%; --glass-blur: 6px;
   /* «Жидкое стекло» формы: полупрозрачная заливка карточки, стеклянная кромка/блик,
      слегка серый фрост-панель для внутренних блоков (название+заметка, дата). */
-  --glass-card: color-mix(in srgb, var(--surface) 70%, transparent);
-  --glass-card-blur: blur(34px) saturate(1.9);
-  --glass-edge: rgba(255, 255, 255, 0.55);
-  --glass-hi: rgba(255, 255, 255, 0.65);
+  --glass-card: color-mix(in srgb, var(--surface) 88%, transparent);
+  --glass-card-blur: blur(26px) saturate(1.7);
+  --glass-hi: rgba(255, 255, 255, 0.6);
   --glass-panel: color-mix(in srgb, #0b1220 5%, transparent);
   --glass-panel-edge: rgba(15, 23, 42, 0.06);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -28,8 +27,7 @@
   --accent: #38bdf8; --accent-soft: rgba(56, 189, 248, 0.16);
   --inbox: #5a6478; /* серо-белый для «Входящих» в тёмной теме (приглушённее) */
   --glass: 18%; --glass-done: 10%; --glass-strong: 26%;
-  --glass-card: color-mix(in srgb, var(--surface) 64%, transparent);
-  --glass-edge: rgba(255, 255, 255, 0.12);
+  --glass-card: color-mix(in srgb, var(--surface) 82%, transparent);
   --glass-hi: rgba(255, 255, 255, 0.1);
   --glass-panel: rgba(255, 255, 255, 0.06);
   --glass-panel-edge: rgba(255, 255, 255, 0.08);
@@ -1091,20 +1089,20 @@ textarea.input { resize: vertical; }
   content: ""; position: absolute; background: var(--glass-card);
   -webkit-backdrop-filter: var(--glass-card-blur); backdrop-filter: var(--glass-card-blur);
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
-.ed-card.tail-top::after { width: 28px; height: 15px; top: -14px; left: var(--tail-pos, 50%); transform: translateX(-50%);
+.ed-card.tail-top::after { width: 28px; height: 15px; top: -13px; left: var(--tail-pos, 50%); transform: translateX(-50%);
   -webkit-mask-image: var(--tail-up); mask-image: var(--tail-up); }
-.ed-card.tail-bottom::after { width: 28px; height: 15px; bottom: -14px; left: var(--tail-pos, 50%); transform: translateX(-50%);
+.ed-card.tail-bottom::after { width: 28px; height: 15px; bottom: -13px; left: var(--tail-pos, 50%); transform: translateX(-50%);
   -webkit-mask-image: var(--tail-down); mask-image: var(--tail-down); }
-.ed-card.tail-left::after { width: 15px; height: 28px; left: -14px; top: var(--tail-pos, 50%); transform: translateY(-50%);
+.ed-card.tail-left::after { width: 15px; height: 28px; left: -13px; top: var(--tail-pos, 50%); transform: translateY(-50%);
   -webkit-mask-image: var(--tail-left); mask-image: var(--tail-left); }
-.ed-card.tail-right::after { width: 15px; height: 28px; right: -14px; top: var(--tail-pos, 50%); transform: translateY(-50%);
+.ed-card.tail-right::after { width: 15px; height: 28px; right: -13px; top: var(--tail-pos, 50%); transform: translateY(-50%);
   -webkit-mask-image: var(--tail-right); mask-image: var(--tail-right); }
 
 .ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px;
   background: var(--glass-card);
   -webkit-backdrop-filter: var(--glass-card-blur); backdrop-filter: var(--glass-card-blur);
-  border: 1px solid var(--glass-edge); border-radius: 22px;
-  box-shadow: 0 24px 64px rgba(2, 6, 23, 0.30), inset 0 1px 0 var(--glass-hi); padding: 14px 16px 16px;
+  border: 0; border-radius: 22px;
+  box-shadow: 0 22px 56px rgba(2, 6, 23, 0.26), 0 2px 10px rgba(2, 6, 23, 0.10), inset 0 1px 0 var(--glass-hi); padding: 14px 16px 16px;
   max-height: 80dvh; overflow-y: auto; animation: edPop .2s cubic-bezier(.2,.7,.3,1);
   /* Рвём наследование user-select:none (с body) на КОНТЕЙНЕРЕ формы. В standalone-PWA
      на iOS WebKit блокирует фокус/курсор полей, если у любого их родителя стоит
@@ -1119,10 +1117,12 @@ textarea.input { resize: vertical; }
 
 /* Верхняя строка: ✕ слева, переключатель типа по центру, ✓ справа (symmetric → центр). */
 .ed-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-/* Кнопки-иконки крестик/галочка. «Отменить» — мягкая стеклянная, «Готово» — акцентная. */
+/* Кнопки-иконки крестик/галочка. «Отменить» — мягкая стеклянная, «Готово» — акцентная.
+   line-height:0 + .ico{display:block} убирают baseline-зазор inline-svg → символ строго по центру круга. */
 .ed-icbtn { display: inline-flex; align-items: center; justify-content: center; flex: none; cursor: pointer;
-  width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0; transition: background .15s, opacity .15s, transform .1s; }
-.ed-icbtn .ico { width: 17px; height: 17px; stroke-width: 2.4; }
+  width: 30px; height: 30px; border-radius: 50%; border: 0; padding: 0; line-height: 0;
+  transition: background .15s, opacity .15s, transform .1s; }
+.ed-icbtn .ico { display: block; width: 17px; height: 17px; stroke-width: 2.4; }
 .ed-icbtn:active { transform: scale(.92); }
 .ed-cancel { background: var(--glass-panel); color: var(--text-soft); }
 .ed-cancel:hover { background: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); }
@@ -1133,13 +1133,19 @@ textarea.input { resize: vertical; }
 .ed-error { font-size: 12px; color: var(--danger); background: rgba(239,68,68,0.1);
   padding: 6px 10px; border-radius: var(--radius-sm); }
 
-/* Переключатель «Задача | Событие» — иконочный сегмент по центру верхней строки. */
-.ed-typeseg { display: flex; background: var(--glass-panel); border-radius: 999px; padding: 3px; gap: 2px; }
-.ed-typebtn { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 26px;
-  border: 0; border-radius: 999px; background: transparent; cursor: pointer; color: var(--text-mute);
-  transition: background .15s, color .15s, box-shadow .15s; }
-.ed-typebtn .ico { width: 16px; height: 16px; }
-.ed-typebtn.on { background: var(--surface); color: var(--accent); box-shadow: 0 1px 4px rgba(2,6,23,0.14); }
+/* Переключатель «Задача | Событие» — иконочный сегмент по центру верхней строки.
+   Белая пилюля-индикатор плавно скользит между вариантами (translateX). */
+.ed-typeseg { position: relative; display: flex; background: var(--glass-panel); border-radius: 999px; padding: 3px; }
+.ed-typeseg-ind { position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px;
+  background: var(--surface); box-shadow: 0 1px 4px rgba(2,6,23,0.16);
+  transition: transform .28s cubic-bezier(.32,.72,0,1); }
+.ed-typeseg.on-event .ed-typeseg-ind { transform: translateX(100%); }
+.ed-typebtn { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center;
+  width: 38px; height: 26px; border: 0; border-radius: 999px; background: transparent; cursor: pointer;
+  color: var(--text-mute); line-height: 0; transition: color .2s; }
+.ed-typebtn .ico { display: block; width: 16px; height: 16px; }
+.ed-typebtn.on { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { .ed-typeseg-ind { transition: none; } }
 /* Выбор оформления события */
 .ed-style { display: flex; flex-direction: column; gap: 6px; }
 /* Свёрнутое «Оформление»: мини-превью карточки события (заливка цветом + полоса слева). */
