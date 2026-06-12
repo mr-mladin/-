@@ -1382,11 +1382,14 @@ textarea.input { resize: vertical; }
      по-прежнему центрируется и сдвигается на 32px под сетку (relative; left:32px). Прошлый
      заход (sticky+transform прямо на .allday) не залипал: self-transform на sticky-элементе
      в Safari ломает залипание.
-     ОБА фона (surface) + z-index + isolation перекрывают уезжающие под зону события: фон
-     на самой .allday (где события, 720) И на обёртке (full-width); isolation на обёртке
-     создаёт явный слой над сеткой (страховка от Safari-квирка sticky-в-transform, когда
-     z-index не поднимает слой). */
-  .allday-stick { position: sticky; top: 0; z-index: 9; background: var(--surface); isolation: isolate; }
+     Перекрытие сетки: непрозрачный фон surface + **backdrop-filter** на обёртке. КЛЮЧ —
+     именно backdrop-filter: он принудительно выносит обёртку на ОТДЕЛЬНЫЙ КОМПОЗИТНЫЙ СЛОЙ
+     поверх сетки. Без него Safari-квирк (sticky внутри `transform`-трека) не поднимал слой
+     по z-index, и события просвечивали сквозь зону. Тот же приём (и причина) у .week-head в
+     недельном виде — он по этой же причине не просвечивает. Фон оставляем непрозрачным
+     (blur не виден, но слой поднимается). Доп. фон на .allday (где события) — страховка. */
+  .allday-stick { position: sticky; top: 0; z-index: 9; background: var(--surface);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
