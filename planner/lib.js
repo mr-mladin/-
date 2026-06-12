@@ -408,7 +408,7 @@ export const Icon = {
   dot: () => wrap(html`<circle cx="12" cy="12" r="3" fill="currentColor"/>`),
   // Чек-лист (переключатель «Задача»): верхний кружок ЗАЛИТ акцентом, галочка — цвета фона
   // (var(--surface), как вырезанная); нижний — контурный; справа линии. Обводка тонкая (CSS).
-  checklist: () => wrap(html`<circle cx="5.6" cy="7.5" r="3.4" fill="currentColor"/><path class="ed-task-check" d="M4.1 7.55l1.0 1.05 1.85-2.1"/><circle cx="5.6" cy="16.5" r="3.4"/><path d="M11.5 7.5H20"/><path d="M11.5 16.5H20"/>`),
+  checklist: () => wrap(html`<circle cx="5.6" cy="6.5" r="3.4" fill="currentColor"/><path class="ed-task-check" d="M4.1 6.55l1.0 1.05 1.85-2.1"/><circle cx="5.6" cy="17.5" r="3.4"/><path d="M11.5 6.5H20"/><path d="M11.5 17.5H20"/>`),
   sun: () => wrap(html`<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>`),
   moon: () => wrap(html`<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>`),
   signout: () => wrap(html`<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/>`),
