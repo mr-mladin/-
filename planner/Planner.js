@@ -190,6 +190,7 @@ function Planner() {
   const adGridRef = useRef(null);   // контейнер зоны «весь день»
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
+  const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
 
   useEffect(() => {
     if (!projOpen) { setSwipeId(null); return; }
@@ -982,6 +983,42 @@ function Planner() {
     });
   }
 
+  // Снимок задачи/события для копирования (Cmd+C): только переносимые поля, без id/дат.
+  function snapForCopy(it) {
+    return { title: it.title || "", notes: it.notes || null, color: it.color || null,
+      list_id: it.list_id || null, area_id: it.area_id || null,
+      is_event: !!it.is_event, card_bar: it.card_bar || null, card_bg: it.card_bg || null,
+      start_min: (it.start_min ?? null), duration_min: (it.duration_min ?? null),
+      subtasks: Array.isArray(it.subtasks) ? it.subtasks.map(s => ({ title: s.title || "" })) : [] };
+  }
+  // Вставка копий (Cmd+V) в текущий день: тот же проект и время, что у оригинала.
+  function pasteSnaps(snaps) {
+    if (!snaps || !snaps.length) return;
+    store.batch("вставка", () => {
+      for (const s of snaps) {
+        store.actions.tasks.create({
+          title: s.title || "", notes: s.notes || null, color: s.color || null,
+          list_id: s.list_id || null, area_id: s.area_id || null,
+          is_event: !!s.is_event, card_bar: s.card_bar || null, card_bg: s.card_bg || null,
+          date: dateRef.current, start_min: s.start_min ?? null, duration_min: s.duration_min ?? null,
+          subtasks: (s.subtasks || []).map(x => ({ id: "s-" + Math.random().toString(36).slice(2), title: x.title || "", done: false })),
+        }).catch(showErr);
+      }
+    });
+    store.pushToast(snaps.length > 1 ? `Вставлено: ${snaps.length}` : "Вставлено", "success");
+  }
+  // Перетаскивание текста извне (из Напоминаний/Календаря и т.п.) в сетку дня —
+  // создаём задачу с этим названием на времени точки сброса, открываем форму.
+  function onExternalDrop(e) {
+    const dt = e.dataTransfer;
+    if (!dt) return;
+    const text = (dt.getData("text/plain") || dt.getData("text") || "").trim();
+    if (!text) return;
+    e.preventDefault();
+    const start = innerRef.current ? clamp(snap(yToMin(e.clientY)), 0, 1440 - 60) : null;
+    setCreating({ ...newTaskTarget(), title: text.split("\n")[0].slice(0, 250),
+      date: dateRef.current, start_min: start, duration_min: start != null ? 60 : null });
+  }
   function copyPayload(it, startMin) {
     return { title: it.title || "", notes: it.notes || null, color: it.color || null, icon: it.icon || null,
       list_id: it.list_id || null, date, start_min: startMin, duration_min: it.duration_min || 60 };
@@ -2052,6 +2089,52 @@ function Planner() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [selected, dayTl, allDay]);
+
+  // Cmd/Ctrl+C — копировать выделенные задачи/события (в свой буфер + системный, чтобы
+  // можно было вставить и в другие приложения). Размещён ПОСЛЕ dayTl/allDay (TDZ).
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || (e.key || "").toLowerCase() !== "c") return;
+      const t = e.target, tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      const items = [...dayTl, ...allDay].filter(i => selected.has(i.key));
+      if (!items.length) return;
+      e.preventDefault();
+      const snaps = items.map(snapForCopy);
+      clipRef.current = snaps;
+      try { navigator.clipboard && navigator.clipboard.writeText(JSON.stringify({ __planner: 1, snaps })); } catch (e2) {}
+      store.pushToast(snaps.length > 1 ? `Скопировано: ${snaps.length}` : "Скопировано", "info");
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, dayTl, allDay]);
+
+  // Cmd/Ctrl+V — вставка. Наш JSON (из Cmd+C) → дубль копий в текущий день. Внешний
+  // текст (из Напоминаний/Календаря и т.п.) → форма создания с этим названием.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey) || (e.key || "").toLowerCase() !== "v") return;
+      const t = e.target, tag = t && t.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) return;
+      if (editing || creating || special) return; // форма открыта / спецраздел — не вмешиваемся
+      e.preventDefault();
+      const handle = (text) => {
+        let data = null;
+        try { const p = JSON.parse(text); if (p && p.__planner && Array.isArray(p.snaps)) data = p.snaps; } catch (_) {}
+        if (data) pasteSnaps(data);
+        else if (text && text.trim()) {
+          const title = text.trim().split("\n")[0].slice(0, 250);
+          setCreating({ ...newTaskTarget(), title, date: dateRef.current });
+        } else if (clipRef.current) pasteSnaps(clipRef.current);
+      };
+      // Пытаемся прочитать системный буфер (для текста извне); при отказе — свой буфер.
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(handle).catch(() => { if (clipRef.current) pasteSnaps(clipRef.current); });
+      } else if (clipRef.current) pasteSnaps(clipRef.current);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [editing, creating, special, filter, view, date]);
   // Раскладка пересекающихся задач по колонкам (как в Календаре Apple). СТАТИЧНАЯ:
   // соседние задачи стоят на месте и НЕ двигаются при переносе. В сторону уезжает
   // только призрак перетаскиваемой задачи (см. ghostLane ниже) — он обтекает чужие
@@ -2531,7 +2614,8 @@ function Planner() {
 
           ${!special && view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
-            <div class=${"planner-grid-scroll" + (peek ? " swiping" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}>
+            <div class=${"planner-grid-scroll" + (peek ? " swiping" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}
+              onDragOver=${e => { if (e.dataTransfer) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop=${onExternalDrop}>
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
