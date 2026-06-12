@@ -10,16 +10,10 @@ const BG_OPTS = [["clean", "Чистый"], ["waves", "Волны"], ["waves2", 
 
 const addDaysISO = (iso, n) => { const d = fromISO(iso); d.setDate(d.getDate() + n); return toISO(d); };
 const daysBetweenISO = (a, b) => Math.round((fromISO(b) - fromISO(a)) / 86400000);
-const WD_SHORT = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"];
-const MON_SHORT = ["янв", "фев", "мар", "апр", "мая", "июн", "июл", "авг", "сен", "окт", "ноя", "дек"];
-function humanDate(iso) {
+// Дата для строк «Начало/Конец/Дата»: «12 июня 2026» (родительный падеж месяца, как в Apple).
+function medDate(iso) {
   const d = fromISO(iso);
-  return `${WD_SHORT[d.getDay()]}, ${d.getDate()} ${monthGen(d)} ${d.getFullYear()} г.`;
-}
-// Короткая дата для пилюль «Начало/Конец»: «3 июн» (год не нужен — место в колонке).
-function shortDate(iso) {
-  const d = fromISO(iso);
-  return `${d.getDate()} ${MON_SHORT[d.getMonth()]}`;
+  return `${d.getDate()} ${monthGen(d)} ${d.getFullYear()}`;
 }
 
 export const COLORS = ["#0ea5e9", "#16a34a", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899", "#14b8a6", "#f97316", "#6366f1", "#64748b"];
@@ -155,7 +149,8 @@ function authHint(msg) {
 // Встроенный редактор задачи (вместо модальной формы). Рендерит карточку без
 // собственного позиционирования — обёртку/место задаёт родитель (в сетке дня
 // карточка «прирастает» к задаче, в боковой панели раскрывается на месте).
-// Иерархия: Название → Заметки → Подзадачи → Проект → Начало → Конец → Повтор.
+// Иерархия (как в Apple Календаре): Название (+ степпер проекта) → Дата/время/повтор
+// одной сгруппированной карточкой → Заметка → Подзадачи → Удалить.
 export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
   const store = useStore();
   const { taskLists } = store;
@@ -198,6 +193,8 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
   const dotColor = list?.color || (area ? "var(--accent)" : "var(--text-mute)");
   const evColor = list?.color || "var(--accent)";
   const subDone = subtasks.filter(s => s.done).length;
+  // «Весь день» = дата есть, но времени нет (задача в зоне «весь день»).
+  const allDay = !!date && !startTime;
 
   const cardRef = useRef(null);
   const titleRef = useRef(null);
@@ -212,6 +209,8 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
 
   function changeDate(v) { setDate(v); if (!endDate || endDate < v) setEndDate(v); if (!v) { setStartTime(""); setRecurrence(""); } }
   function changeStart(v) { setStartTime(v); if (v && !endTime) { setEndTime(minToHHMM(hhmmToMin(v) + 60)); if (!endDate) setEndDate(date); } }
+  // Тумблер «Весь день»: вкл → убираем время (задача весь день), выкл → ставим 09:00.
+  function toggleAllDay() { if (startTime) { setStartTime(""); setEndTime(""); } else { changeStart("09:00"); } }
 
   // ---- Подзадачи ----
   const newSub = () => ({ id: "s-" + Math.random().toString(36).slice(2), title: "", done: false });
@@ -285,7 +284,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
         <div class="ed-field ed-projsel">
           <button class="ed-projdot" type="button" title=${targetName} aria-label=${"Проект: " + targetName} onClick=${() => setProjOpen(o => !o)}>
             <span class="ed-dot" style=${`background:${dotColor};`}></span>
-            <span class="ed-projdot-chev">${Icon.down()}</span>
+            <span class="ed-projdot-chev">${Icon.stepper()}</span>
           </button>
           ${projOpen && html`
             <div class="ed-menu ed-menu-right">
@@ -324,6 +323,82 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
         </div>`}
       </div>`}
 
+      ${!date
+        ? html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Добавить дату</button>`
+        : html`<div class="ed-datebox">
+            <div class="ed-daterow">
+              <span class="ed-daterow-label">Весь день</span>
+              <button class=${"ed-switch" + (allDay ? " on" : "")} type="button" role="switch"
+                aria-checked=${allDay} aria-label="Весь день" onClick=${toggleAllDay}>
+                <span class="ed-switch-knob"></span>
+              </button>
+            </div>
+            ${allDay
+              ? html`<div class="ed-daterow">
+                  <span class="ed-daterow-label">Дата</span>
+                  <div class="ed-daterow-ctl">
+                    <div class="ed-datepill">
+                      <span class="ed-datepill-text">${medDate(date)}</span>
+                      <span class="ed-datepill-chev">${Icon.down()}</span>
+                      <input class="ed-date-over" type="date" value=${date}
+                        aria-label="Дата" onInput=${e => changeDate(e.target.value)} />
+                    </div>
+                  </div>
+                </div>`
+              : html`
+                <div class="ed-daterow">
+                  <span class="ed-daterow-label">Начало</span>
+                  <div class="ed-daterow-ctl">
+                    <div class="ed-datepill">
+                      <span class="ed-datepill-text">${medDate(date)}</span>
+                      <span class="ed-datepill-chev">${Icon.down()}</span>
+                      <input class="ed-date-over" type="date" value=${date}
+                        aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
+                    </div>
+                    <input class="ed-timepill" type="time" value=${startTime}
+                      aria-label="Время начала" onInput=${e => { if (e.target.value) setStartTime(e.target.value); }} />
+                  </div>
+                </div>
+                <div class="ed-daterow">
+                  <span class="ed-daterow-label">Конец</span>
+                  <div class="ed-daterow-ctl">
+                    <div class="ed-datepill">
+                      <span class="ed-datepill-text">${medDate(endDate || date)}</span>
+                      <span class="ed-datepill-chev">${Icon.down()}</span>
+                      <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
+                        aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
+                    </div>
+                    <input class="ed-timepill" type="time" value=${endTime || startTime}
+                      aria-label="Время конца" onInput=${e => { if (e.target.value) setEndTime(e.target.value); }} />
+                  </div>
+                </div>`}
+            <div class="ed-daterow">
+              <span class="ed-daterow-label">Повтор</span>
+              <div class="ed-rep-wrap">
+                <button class=${"ed-rep-val" + (recurrence ? " on" : "")} type="button"
+                  aria-label="Повтор" onClick=${() => setRepOpen(o => !o)}>
+                  <span>${recurLabel}</span><span class="ed-daterow-chev">${Icon.down()}</span>
+                </button>
+                ${repOpen && html`<div class="ed-menu ed-menu-right">
+                  ${RECUR_OPTIONS.map(o => html`<button class=${"ed-menu-item" + (recurrence === o.value ? " sel" : "")} type="button" key=${o.value}
+                    onClick=${() => { setRecurrence(o.value); setRepOpen(false); }}>${o.label}</button>`)}
+                </div>`}
+              </div>
+            </div>
+            ${recurrence && html`<div class="ed-daterow">
+              <span class="ed-daterow-label">Завершить</span>
+              <div class="ed-daterow-ctl">
+                <div class="ed-datepill">
+                  <span class="ed-datepill-text">${until ? medDate(until) : "Никогда"}</span>
+                  <span class="ed-datepill-chev">${Icon.down()}</span>
+                  <input class="ed-date-over" type="date" value=${until}
+                    aria-label="Повтор до" onInput=${e => setUntil(e.target.value)} />
+                </div>
+                ${until && html`<button class="ed-mini-clear" type="button" title="Убрать дату окончания" onClick=${() => setUntil("")}>${Icon.close()}</button>`}
+              </div>
+            </div>`}
+          </div>`}
+
       <textarea class="ed-notes" rows="1" placeholder="Заметка"
         value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>
 
@@ -351,68 +426,6 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
             <button class="ed-add sm" type="button" onClick=${addSub}>${Icon.plus()} Ещё подзадача</button>
           </div>`}
       </div>
-
-      ${date && html`
-        <div class="ed-row ed-rep-row">
-          <div class="ed-field">
-            <button class=${"ed-rep-btn" + (recurrence ? " on" : "")} type="button" title=${recurLabel}
-              aria-label="Повтор" onClick=${() => setRepOpen(o => !o)}>${Icon.repeat()}</button>
-            ${repOpen && html`
-              <div class="ed-menu">
-                ${RECUR_OPTIONS.map(o => html`<button class=${"ed-menu-item" + (recurrence === o.value ? " sel" : "")} type="button" key=${o.value}
-                  onClick=${() => { setRecurrence(o.value); setRepOpen(false); }}>${o.label}</button>`)}
-              </div>`}
-          </div>
-        </div>`}
-
-      ${!date
-        ? html`<button class="ed-add" type="button" onClick=${() => changeDate(todayISO())}>${Icon.calendar()} Назначить дату</button>`
-        : !startTime
-          ? html`<div class="ed-when-row">
-              <div class="ed-when-pill">
-                <span class="ed-date-ico">${Icon.calendar()}</span>
-                <span class="ed-date-text">${humanDate(date)}</span>
-                <input class="ed-date-over" type="date" value=${date}
-                  aria-label="Дата задачи" onInput=${e => changeDate(e.target.value)} />
-              </div>
-            </div>
-            <button class="ed-add" type="button" onClick=${() => changeStart("09:00")}>${Icon.clock()} Добавить время</button>`
-          : html`
-            <div class="ed-when">
-              <div class="ed-when-col">
-                <span class="ed-when-label">Начало</span>
-                <div class="ed-when-pickers">
-                  <div class="ed-when-date">
-                    <span class="ed-when-date-text">${shortDate(date)}</span>
-                    <span class="ed-when-date-chev">${Icon.down()}</span>
-                    <input class="ed-date-over" type="date" value=${date}
-                      aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
-                  </div>
-                  <input class="ed-when-time" type="time" value=${startTime}
-                    aria-label="Время начала" onInput=${e => { if (e.target.value) setStartTime(e.target.value); }} />
-                </div>
-              </div>
-              <div class="ed-when-col">
-                <span class="ed-when-label">Конец</span>
-                <div class="ed-when-pickers">
-                  <div class="ed-when-date">
-                    <span class="ed-when-date-text">${shortDate(endDate || date)}</span>
-                    <span class="ed-when-date-chev">${Icon.down()}</span>
-                    <input class="ed-date-over" type="date" value=${endDate || date} min=${date}
-                      aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
-                  </div>
-                  <input class="ed-when-time" type="time" value=${endTime || startTime}
-                    aria-label="Время конца" onInput=${e => { if (e.target.value) setEndTime(e.target.value); }} />
-                </div>
-              </div>
-            </div>
-            <button class="ed-add ed-time-clear" type="button" onClick=${() => { setStartTime(""); setEndTime(""); }}>${Icon.close()} Убрать время</button>`}
-
-      ${date && recurrence && html`<div class="ed-until">
-        <span>повтор до</span>
-        <input class="ed-input dt-date" type="date" value=${until} onInput=${e => setUntil(e.target.value)} />
-        ${until && html`<button class="ed-dt-clear" type="button" onClick=${() => setUntil("")}>${Icon.close()}</button>`}
-      </div>`}
 
       ${editing && !confirmDel && html`
         <button class="ed-del" type="button" onClick=${() => setConfirmDel(true)}>${Icon.trash()} ${isEvent ? "Удалить событие" : "Удалить задачу"}</button>`}

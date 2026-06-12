@@ -965,7 +965,7 @@ textarea.input { resize: vertical; }
 
   /* iOS зумит страницу при фокусе на поле со шрифтом < 16px. Поэтому все поля
      ввода на мобильном — ровно 16px: масштаб больше не скачет при наборе текста. */
-  .input, .select, textarea.input, .ed-notes, .ed-sub-input, .ed-input,
+  .input, .select, textarea.input, .ed-notes, .ed-sub-input, .ed-timepill,
   .tl-title-edit, .tl-subs-edit, .allday-edit, .search-input { font-size: 16px; }
 
   /* Зона «весь день» компактнее: мельче кружок, шрифт и отступы. */
@@ -1063,7 +1063,7 @@ textarea.input { resize: vertical; }
 /* Десктоп-поповер (облачко рядом с задачей): фон НЕ затемняем — видно задачу и сетку,
    карточка позиционируется JS-ом сбоку (left/top). */
 .ed-float-back.popover { background: transparent; display: block; padding: 0; overflow: visible; animation: none; }
-.ed-float-back.popover .ed-card { position: fixed; width: 360px; max-width: calc(100vw - 16px);
+.ed-float-back.popover .ed-card { position: fixed; width: 380px; max-width: calc(100vw - 16px);
   max-height: calc(100vh - 16px); margin: 0; }
 /* Хвостик облачка (как речевой пузырь из комиксов): треугольник со стороны задачи.
    --tail-pos задаёт смещение хвостика вдоль грани (JS наводит его на центр задачи). */
@@ -1079,11 +1079,11 @@ textarea.input { resize: vertical; }
 .ed-card.tail-right::after { right: -9px; top: var(--tail-pos, 50%); transform: translateY(-50%);
   border-top: 9px solid transparent; border-bottom: 9px solid transparent; border-left: 9px solid var(--ed-tail); }
 
-.ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px;
+.ed-card { width: 100%; max-width: 440px; box-sizing: border-box; display: flex; flex-direction: column; gap: 12px;
   background: color-mix(in srgb, var(--surface) 82%, transparent);
   -webkit-backdrop-filter: blur(20px) saturate(1.6); backdrop-filter: blur(20px) saturate(1.6);
   border: 1px solid var(--border-strong); border-radius: var(--radius-lg);
-  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28); padding: 12px 14px 14px;
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.28); padding: 14px 16px 16px;
   max-height: 80dvh; overflow-y: auto; animation: edPop .2s cubic-bezier(.2,.7,.3,1);
   /* Рвём наследование user-select:none (с body) на КОНТЕЙНЕРЕ формы. В standalone-PWA
      на iOS WebKit блокирует фокус/курсор полей, если у любого их родителя стоит
@@ -1138,28 +1138,28 @@ textarea.input { resize: vertical; }
 
 /* Поля формы задачи — гарантированно доступны для ввода и каретки на iOS
    (перебиваем любой унаследованный user-select:none, который гасил курсор/фокус). */
-.ed-title, .ed-notes, .ed-sub-input, .ed-input {
+.ed-title, .ed-notes, .ed-sub-input {
   -webkit-user-select: text !important; user-select: text !important;
   -webkit-touch-callout: default; touch-action: auto; pointer-events: auto; cursor: text; }
-.ed-title { border: 0; background: none; font-family: inherit; font-size: 16px; font-weight: 600;
-  color: var(--text); padding: 0 2px; outline: none;
+.ed-title { border: 0; background: none; font-family: inherit; font-size: 19px; font-weight: 600;
+  color: var(--text); padding: 0 2px; outline: none; letter-spacing: -0.01em;
   /* длинное название переносится на новую строку, поле растёт по содержимому */
-  resize: none; line-height: 1.3; overflow: hidden; field-sizing: content; }
+  resize: none; line-height: 1.25; overflow: hidden; field-sizing: content; }
 .ed-title::placeholder { color: var(--text-mute); font-weight: 500; }
 /* Шапка формы: название слева, цветная точка проекта справа (как в Apple Календаре). */
 .ed-head { display: flex; align-items: flex-start; gap: 8px; }
 .ed-head .ed-title { flex: 1; min-width: 0; margin-top: 1px; }
 .ed-projsel { position: relative; flex: none; }
-.ed-projdot { display: inline-flex; align-items: center; gap: 1px; border: 0; cursor: pointer;
-  background: var(--bg-soft); border-radius: 999px; padding: 5px 6px 5px 9px; }
+.ed-projdot { display: inline-flex; align-items: center; gap: 4px; border: 0; cursor: pointer;
+  background: var(--bg-soft); border-radius: 999px; padding: 5px 7px 5px 10px; transition: background .15s; }
 .ed-projdot:hover { background: color-mix(in srgb, var(--text) 10%, transparent); }
-.ed-projdot .ed-dot { width: 13px; height: 13px; border-radius: 50%; flex: none; }
+.ed-projdot .ed-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
 .ed-projdot-chev { display: inline-flex; color: var(--text-mute); }
-.ed-projdot-chev .ico { width: 14px; height: 14px; }
+.ed-projdot-chev .ico { width: 14px; height: 15px; }
 
-.ed-notes { border: 0; background: var(--bg-soft); border-radius: var(--radius-sm);
-  font-family: inherit; font-size: 14px; color: var(--text); padding: 8px 11px; outline: none;
-  resize: none; field-sizing: content; line-height: 1.35; }
+.ed-notes { border: 0; background: var(--bg-soft); border-radius: var(--radius);
+  font-family: inherit; font-size: 15px; color: var(--text); padding: 11px 14px; outline: none;
+  resize: none; field-sizing: content; line-height: 1.35; min-height: 44px; box-sizing: border-box; }
 .ed-notes::placeholder { color: var(--text-mute); }
 
 /* «Добавить …» — лёгкая пунктирная кнопка-приглашение. */
@@ -1193,21 +1193,7 @@ textarea.input { resize: vertical; }
 .ed-sub-del .ico { width: 14px; height: 14px; }
 
 .ed-field { position: relative; display: flex; flex-direction: column; gap: 6px; }
-.ed-proj { align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; cursor: pointer;
-  background: var(--bg-soft); border: 0; border-radius: 999px; padding: 0 14px; min-height: 34px;
-  font-family: inherit; font-size: 13px; color: var(--text); box-sizing: border-box;
-  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
 .ed-dot { width: 11px; height: 11px; border-radius: 50%; flex: none; }
-.ed-rep-ico { display: inline-flex; color: var(--text-mute); }
-.ed-rep-ico .ico { width: 15px; height: 15px; }
-/* Строка «проект + повтор»: проект слева, иконка повтора прижата вправо. */
-.ed-row { display: flex; align-items: center; gap: 8px; }
-.ed-row .ed-field:last-child { margin-left: auto; }
-/* Повтор — компактная иконка-кнопка рядом с проектом (текст убран). */
-.ed-rep-btn { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px;
-  flex: none; border-radius: 50%; border: 0; cursor: pointer; background: var(--bg-soft); color: var(--text-mute); }
-.ed-rep-btn .ico { width: 17px; height: 17px; }
-.ed-rep-btn.on { background: var(--accent-soft); color: var(--accent); }
 /* Выпадашка раскрывается НАКЛАДКОЙ поверх формы, не толкая поля под собой. */
 .ed-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 6; min-width: 210px;
   display: flex; flex-direction: column; gap: 1px; background: var(--surface);
@@ -1220,14 +1206,6 @@ textarea.input { resize: vertical; }
   font-size: 14px; color: var(--text); }
 .ed-menu-item:hover { background: var(--bg-soft); }
 .ed-menu-item.sel { background: var(--accent-soft); }
-
-.ed-input { border: 1px solid var(--border); background: var(--bg-soft); border-radius: var(--radius-sm);
-  font-family: inherit; font-size: 14px; color: var(--text); padding: 6px 8px; outline: none; }
-.ed-input.dt-date { flex: 1; min-width: 0; }
-.ed-dt-clear { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px;
-  width: 19px; height: 19px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; }
-.ed-dt-clear .ico { width: 15px; height: 15px; }
-.ed-until { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); }
 
 .ed-del { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
   background: none; border: 0; color: var(--danger); font-family: inherit; font-size: 13px; padding: 4px 2px; }
@@ -1242,36 +1220,50 @@ textarea.input { resize: vertical; }
   border: 0; opacity: 0; background: transparent; -webkit-appearance: none; appearance: none;
   font-size: 16px; cursor: pointer; }
 
-/* Дата без времени — одна пилюля-строка (открывает нативный date-picker). */
-.ed-when-row { display: flex; }
-.ed-when-pill { position: relative; display: inline-flex; align-items: center; gap: 9px;
-  background: var(--bg-soft); border-radius: 999px; padding: 9px 14px; font-size: 14px; color: var(--text); }
-.ed-when-pill .ed-date-ico { display: inline-flex; color: var(--text-mute); }
-.ed-when-pill .ed-date-ico .ico { width: 17px; height: 17px; }
-
-/* ---- Начало / Конец: две колонки, в каждой дата + НАТИВНЫЙ пикер времени ---- */
-/* Время задаётся через <input type=time>: на iPhone по тапу открывается настоящий
-   системный барабан Apple (как в Календаре), на десктопе — стандартное поле времени. */
-.ed-when { display: flex; gap: 10px; }
-.ed-when-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;
-  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 12px; }
-.ed-when-label { font-size: 15px; font-weight: 650; color: var(--text); }
-.ed-when-pickers { display: flex; flex-direction: column; gap: 8px; }
-/* Выбор даты — мягкая пилюля с шевроном, поверх неё прозрачный date-input. */
-.ed-when-date { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
-  background: var(--bg-soft); border-radius: 10px; padding: 7px 10px;
-  font-size: 13px; color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; }
-.ed-when-date-chev { display: inline-flex; color: var(--text-mute); }
-.ed-when-date-chev .ico { width: 14px; height: 14px; }
-/* Поле времени — крупная плашка; тап открывает системный пикер времени. */
-.ed-when-time { display: block; width: 100%; box-sizing: border-box; text-align: center;
-  border: 0; background: var(--bg-soft); border-radius: 10px; padding: 9px 6px;
-  font-family: inherit; font-size: 20px; font-weight: 600; color: var(--text);
-  font-variant-numeric: tabular-nums; -webkit-appearance: none; appearance: none; outline: none; cursor: pointer; }
-.ed-when-time::-webkit-calendar-picker-indicator { display: none; }
-.ed-when-time::-webkit-date-and-time-value { text-align: center; }
-.ed-when-time:focus { box-shadow: 0 0 0 2px var(--accent-soft) inset; }
-.ed-time-clear { align-self: flex-start; }
+/* ---- Дата / время / повтор — одна сгруппированная карточка (как в Apple Календаре) ----
+   Строки со светлым фоном группы и тонкими разделителями; внутри — белые пилюли-контролы
+   (дата с прозрачным date-input поверх + нативный <input type=time>). На iPhone тап по
+   пилюле/полю открывает системный барабан Apple, на десктопе — стандартные поля. */
+.ed-datebox { display: flex; flex-direction: column; background: var(--bg-soft); border-radius: var(--radius); }
+.ed-daterow { display: flex; align-items: center; gap: 10px; min-height: 46px; padding: 6px 14px; }
+.ed-daterow + .ed-daterow { border-top: 1px solid var(--border); }
+.ed-daterow-label { flex: 1; min-width: 0; font-size: 15px; color: var(--text); }
+.ed-daterow-ctl { flex: none; display: flex; align-items: center; gap: 7px; }
+/* Дата — компактная пилюля с шевроном (поверх прозрачный date-input). */
+.ed-datepill { position: relative; display: inline-flex; align-items: center; gap: 3px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 6px 7px 6px 10px;
+  font-size: 14px; color: var(--text); cursor: pointer; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ed-datepill:hover { border-color: var(--border-strong); }
+.ed-datepill-chev { display: inline-flex; color: var(--text-mute); }
+.ed-datepill-chev .ico { width: 14px; height: 14px; }
+/* Время — нативный пикер в такой же пилюле. */
+.ed-timepill { box-sizing: border-box; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 9px; padding: 6px 9px; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--text);
+  font-variant-numeric: tabular-nums; text-align: center; -webkit-appearance: none; appearance: none;
+  outline: none; cursor: pointer; }
+.ed-timepill::-webkit-calendar-picker-indicator { display: none; }
+.ed-timepill::-webkit-date-and-time-value { text-align: center; }
+.ed-timepill:hover { border-color: var(--border-strong); }
+.ed-timepill:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+/* «Весь день» — iOS-тумблер (зелёный во включённом, как у Apple). */
+.ed-switch { position: relative; flex: none; width: 42px; height: 25px; border: 0; padding: 0; cursor: pointer;
+  border-radius: 999px; background: color-mix(in srgb, var(--text) 20%, transparent); transition: background .2s ease; }
+.ed-switch.on { background: #34c759; }
+[data-theme="dark"] .ed-switch.on { background: #30d158; }
+.ed-switch-knob { position: absolute; top: 2px; left: 2px; width: 21px; height: 21px; border-radius: 50%;
+  background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25); transition: transform .2s ease; }
+.ed-switch.on .ed-switch-knob { transform: translateX(17px); }
+/* Повтор — значение справа, по клику раскрывается меню (.ed-menu-right). */
+.ed-rep-wrap { position: relative; flex: none; }
+.ed-rep-val { display: inline-flex; align-items: center; gap: 2px; border: 0; background: none; cursor: pointer;
+  font-family: inherit; font-size: 15px; color: var(--text-mute); padding: 4px 0; }
+.ed-rep-val.on { color: var(--accent); }
+.ed-daterow-chev { display: inline-flex; }
+.ed-daterow-chev .ico { width: 16px; height: 16px; }
+/* Убрать дату окончания повтора. */
+.ed-mini-clear { flex: none; border: 0; background: none; color: var(--text-mute); cursor: pointer; padding: 2px;
+  display: inline-flex; align-items: center; justify-content: center; }
+.ed-mini-clear .ico { width: 16px; height: 16px; }
 
 /* ---- Подзадачи на пилюле в сетке (раскрытие/сворачивание) ---- */
 .tl-event.subs-open { z-index: 7; }
