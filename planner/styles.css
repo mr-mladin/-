@@ -13,7 +13,7 @@
   --glass: 10%; --glass-done: 5%; --glass-strong: 16%; --glass-blur: 6px;
   /* «Жидкое стекло» формы: полупрозрачная заливка карточки, стеклянная кромка/блик,
      слегка серый фрост-панель для внутренних блоков (название+заметка, дата). */
-  --glass-card: color-mix(in srgb, var(--surface) 88%, transparent);
+  --glass-card: color-mix(in srgb, var(--surface) 90%, transparent);
   --glass-card-blur: blur(26px) saturate(1.7);
   --glass-hi: rgba(255, 255, 255, 0.6);
   --glass-panel: color-mix(in srgb, #0b1220 5%, transparent);
@@ -27,7 +27,7 @@
   --accent: #38bdf8; --accent-soft: rgba(56, 189, 248, 0.16);
   --inbox: #5a6478; /* серо-белый для «Входящих» в тёмной теме (приглушённее) */
   --glass: 18%; --glass-done: 10%; --glass-strong: 26%;
-  --glass-card: color-mix(in srgb, var(--surface) 82%, transparent);
+  --glass-card: color-mix(in srgb, var(--surface) 88%, transparent);
   --glass-hi: rgba(255, 255, 255, 0.1);
   --glass-panel: rgba(255, 255, 255, 0.06);
   --glass-panel-edge: rgba(255, 255, 255, 0.08);
@@ -1085,9 +1085,11 @@ textarea.input { resize: vertical; }
   --tail-down: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='15'%3E%3Cpath d='M1 0 L11 11.6 Q14 14.6 17 11.6 L27 0 Z' fill='%23000'/%3E%3C/svg%3E");
   --tail-left: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='28'%3E%3Cpath d='M15 1 L3.4 11 Q0.4 14 3.4 17 L15 27 Z' fill='%23000'/%3E%3C/svg%3E");
   --tail-right: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='28'%3E%3Cpath d='M0 1 L11.6 11 Q14.6 14 11.6 17 L0 27 Z' fill='%23000'/%3E%3C/svg%3E"); }
+/* Хвостик — НЕПРОЗРАЧНЫЙ цвет карточки (var(--surface)), без backdrop-filter: полупрозрачный
+   тёмный хвостик на тёмном фоне сливался (был невидим в тёмной теме) и не подхватывал оттенок
+   стекла (выглядел отдельной нашлёпкой). Сплошной цвет ⇒ виден в обеих темах и как часть формы. */
 .ed-card.tail-top::after, .ed-card.tail-bottom::after, .ed-card.tail-left::after, .ed-card.tail-right::after {
-  content: ""; position: absolute; background: var(--glass-card);
-  -webkit-backdrop-filter: var(--glass-card-blur); backdrop-filter: var(--glass-card-blur);
+  content: ""; position: absolute; background: var(--surface);
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-size: 100% 100%; mask-size: 100% 100%; }
 .ed-card.tail-top::after { width: 28px; height: 15px; top: -13px; left: var(--tail-pos, 50%); transform: translateX(-50%);
   -webkit-mask-image: var(--tail-up); mask-image: var(--tail-up); }
@@ -1188,13 +1190,13 @@ textarea.input { resize: vertical; }
 .ed-head { display: flex; align-items: flex-start; gap: 8px; padding: 11px 14px 9px; }
 .ed-head .ed-title { flex: 1; min-width: 0; margin-top: 2px; }
 .ed-projsel { position: relative; flex: none; }
-.ed-projdot { display: inline-flex; align-items: center; gap: 4px; cursor: pointer;
+.ed-projdot { display: inline-flex; align-items: center; gap: 5px; cursor: pointer;
   background: var(--surface); border: 1px solid var(--glass-panel-edge); border-radius: 999px;
-  padding: 5px 7px 5px 10px; transition: background .15s, border-color .15s; }
+  padding: 6px 9px 6px 13px; transition: background .15s, border-color .15s; }
 .ed-projdot:hover { border-color: var(--border-strong); }
-.ed-projdot .ed-dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.ed-projdot .ed-dot { width: 14px; height: 14px; border-radius: 50%; flex: none; }
 .ed-projdot-chev { display: inline-flex; color: var(--text-mute); }
-.ed-projdot-chev .ico { width: 14px; height: 15px; }
+.ed-projdot-chev .ico { width: 15px; height: 17px; }
 
 /* Заметка — второе поле в том же блоке, через тонкий разделитель (фон даёт группа). */
 .ed-notes { border: 0; border-top: 1px solid var(--border); background: none;
