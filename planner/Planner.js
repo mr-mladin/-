@@ -188,6 +188,8 @@ function Planner() {
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
   const adGridRef = useRef(null);   // контейнер зоны «весь день»
+  const weekStripRef = useRef(null); // свайп строки дат: { x, y } старта касания
+  const weekWheelRef = useRef(0);    // троттлинг горизонтального колеса для смены недели
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
   const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
@@ -2006,6 +2008,21 @@ function Planner() {
     document.addEventListener("touchend", end);
     document.addEventListener("touchcancel", end);
   }
+  // Свайп/горизонтальная прокрутка по строке дат — смена недели (±7 дней от текущей даты).
+  // Тап по дню (малое смещение) не трогаем — отрабатывает onClick кнопки .wday.
+  function shiftWeek(dir) { const d = fromISO(date); d.setDate(d.getDate() + dir * 7); setDate(toISO(d)); }
+  function onWeekStripTouchStart(e) { const t = e.touches && e.touches[0]; if (t) weekStripRef.current = { x: t.clientX, y: t.clientY }; }
+  function onWeekStripTouchEnd(e) {
+    const s = weekStripRef.current; weekStripRef.current = null; if (!s) return;
+    const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
+    const dx = t.clientX - s.x, dy = t.clientY - s.y;
+    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) shiftWeek(dx < 0 ? 1 : -1);
+  }
+  function onWeekStripWheel(e) {
+    if (Math.abs(e.deltaX) < 18 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // только явная горизонталь
+    const now = Date.now(); if (now - weekWheelRef.current < 350) return; // один шаг за жест
+    weekWheelRef.current = now; shiftWeek(e.deltaX > 0 ? 1 : -1);
+  }
   function onDaySwipeStart(e) {
     // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
     if (liftDragRef.current || createActiveRef.current) { runDaySwipe(e.changedTouches[0], true); return; }
@@ -2601,7 +2618,8 @@ function Planner() {
                 </div>`)}
           </div>`}
 
-          ${!special && view === "day" && html`<div class="planner-week">
+          ${!special && view === "day" && html`<div class="planner-week"
+            onTouchStart=${onWeekStripTouchStart} onTouchEnd=${onWeekStripTouchEnd} onWheel=${onWeekStripWheel}>
             ${week.map(w => html`<button key=${w.iso}
               class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
               onClick=${() => setDate(w.iso)}>

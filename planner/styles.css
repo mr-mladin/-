@@ -516,13 +516,15 @@ textarea.input { resize: vertical; }
 .planner-head .btn.sm { height: 34px; padding: 0 12px; }
 
 /* Недельная полоса дней */
-.planner-week { display: flex; gap: 4px; margin-bottom: 12px; padding: 0 16px 0 4px; }
-.wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 8px;
+/* Компактная строка дат, можно свайпать влево-вправо для смены недели (touch/wheel в JS).
+   touch-action: pan-y — вертикальный скролл сетки не перехватываем, горизонталь ловит свайп. */
+.planner-week { display: flex; gap: 2px; margin-bottom: 7px; padding: 0 16px 0 4px; touch-action: pan-y; }
+.wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 0 4px;
   border: none; background: transparent; cursor: pointer; border-radius: var(--radius); font-family: inherit; color: var(--text); }
 .wday:hover { background: var(--bg-soft); }
-.wday-name { font-size: 11px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.03em; }
-.wday-num { font-size: 16px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
-  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
+.wday-name { font-size: 10px; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.03em; }
+.wday-num { font-size: 14px; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums;
+  width: 27px; height: 27px; display: flex; align-items: center; justify-content: center; border-radius: 50%;
   position: relative; z-index: 0; transition: color .2s ease; }
 /* Кружок выделения — отдельный слой: при смене дня старый сжимается в точку,
    новый вырастает из точки (лёгкий «пружинный» доводчик). */
@@ -1382,14 +1384,15 @@ textarea.input { resize: vertical; }
      по-прежнему центрируется и сдвигается на 32px под сетку (relative; left:32px). Прошлый
      заход (sticky+transform прямо на .allday) не залипал: self-transform на sticky-элементе
      в Safari ломает залипание.
-     Перекрытие сетки: непрозрачный фон surface + **backdrop-filter** на обёртке. КЛЮЧ —
-     именно backdrop-filter: он принудительно выносит обёртку на ОТДЕЛЬНЫЙ КОМПОЗИТНЫЙ СЛОЙ
-     поверх сетки. Без него Safari-квирк (sticky внутри `transform`-трека) не поднимал слой
-     по z-index, и события просвечивали сквозь зону. Тот же приём (и причина) у .week-head в
-     недельном виде — он по этой же причине не просвечивает. Фон оставляем непрозрачным
-     (blur не виден, но слой поднимается). Доп. фон на .allday (где события) — страховка. */
-  .allday-stick { position: sticky; top: 0; z-index: 9; background: var(--surface);
-    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+     Перекрытие сетки: **полупрозрачный** фон + backdrop-filter на обёртке (как у .week-head).
+     ВАЖНО: фон должен быть НЕ полностью непрозрачным — иначе браузер «выкидывает»
+     backdrop-filter (он невидим), композитный слой не создаётся, и Safari-квирк (sticky
+     внутри transform-трека не поднимается по z-index) возвращается — сетка просвечивает.
+     При полупрозрачном фоне фильтр активен → слой поднимается над сеткой. Внутренняя .allday
+     остаётся непрозрачной (сплошное перекрытие области с задачами); фрост-края — без событий. */
+  .allday-stick { position: sticky; top: 0; z-index: 9;
+    background: color-mix(in srgb, var(--surface) 85%, transparent);
+    -webkit-backdrop-filter: saturate(1.6) blur(12px); backdrop-filter: saturate(1.6) blur(12px); }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
