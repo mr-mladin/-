@@ -2365,11 +2365,27 @@ function Planner() {
       })}
     </div>`;
   }
-  // Соседняя панель в карусели дня — статичная сетка часов. Зона «весь день» теперь
-  // отдельной полосой НАД сеткой (в горизонтальном свайпе не участвует), поэтому в
-  // панель-сосед её не кладём — панели карусели стали однородными (только часы).
+  // Соседняя панель в карусели дня: статичные задачи «весь день» + статичная сетка.
+  // Чтобы зона «весь день» уезжала вместе со свайпом, она лежит внутри каждой панели.
   function dayPeekPane(pd) {
-    return dayStaticPane(pd);
+    const all = itemsForDate(tasks, pd).filter(hideFilter)
+      .filter(i => (i.start_min === null || i.start_min === undefined));
+    const rowIdOfX = (i) => i.kind === "occurrence" ? i.templateId : i.id;
+    all.sort((a, b) => (a.done === b.done ? 0 : a.done ? 1 : -1)
+      || ((sortOrderById.get(rowIdOfX(a)) ?? 0) - (sortOrderById.get(rowIdOfX(b)) ?? 0))
+      || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    return html`<div class="tl-peek">
+      <div class=${"allday" + (all.length === 0 ? " empty" : "") + (all.length ? " grid" : "")} style=${`--adh:${AD_COLLAPSED}px`}>
+        ${all.map(i => html`<div class=${"allday-item" + (i.done ? " done" : "")} key=${i.key} style=${`--c:${colorOf(i)};`}>
+          ${i.is_event
+            ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
+            : html`<span class=${"allday-check" + (i.done ? " on" : "")} style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}>${Icon.check()}</span>`}
+          <span class="allday-title">${i.title}</span>
+        </div>`)}
+      </div>
+      <div class="allday-handle"><span class="allday-grip"></span></div>
+      ${dayStaticPane(pd)}
+    </div>`;
   }
 
   // Данные недели/месяца для произвольной даты (для соседних панелей карусели).
@@ -2695,40 +2711,6 @@ function Planner() {
             </div>
           </div>`}
 
-          ${!special && view === "day" && html`<div class="planner-allday-bar">
-            <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") || (selDrag && selDrag.dropList === "__allday__") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}
-              onPointerDown=${e => { if (e.shiftKey && !(e.target.closest && e.target.closest(".allday-item"))) startRangeSelect(e); }}>
-              ${(() => {
-                const cell = (i) => html`
-                  <div class=${"allday-item" + (i.done ? " done" : "") + (selected.has(i.key) ? " sel" : "") + (treeDrag && treeDrag.key === i.key ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
-                    style=${`--c:${colorOf(i)};`}
-                    onPointerDown=${e => { if (i.id) startTreeDrag(e, i, true); }}
-                    onClick=${e => { if (trayClickGuard.current) return; handleTap(i, e.shiftKey); }}>
-                    ${i.is_event
-                      ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
-                      : html`<button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
-                          style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
-                          onPointerDown=${e => e.stopPropagation()}
-                          onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
-                    <span class="allday-title">${i.title}</span>
-                  </div>`;
-                // Во время перестановки внутри «весь день» переставляем капсулы вживую
-                // (перетаскиваемая остаётся в потоке, но невидима) — соседи плавно
-                // расступаются за счёт FLIP-анимации.
-                if (treeDrag && treeDrag.zone === "allday" && treeDrag.adIndex != null) {
-                  const di = allDay.findIndex(x => x.key === treeDrag.key);
-                  if (di >= 0) {
-                    const rest = allDay.filter((_, k) => k !== di);
-                    rest.splice(clamp(treeDrag.adIndex, 0, rest.length), 0, allDay[di]);
-                    return rest.map(cell);
-                  }
-                }
-                return allDay.map(cell);
-              })()}
-            </div>
-            <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
-          </div>`}
-
           ${!special && view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
             <div class=${"planner-grid-scroll" + (peek ? " swiping" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}
@@ -2736,6 +2718,39 @@ function Planner() {
               <div class="tl-track" ref=${trackRef}>
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
+              <div class="allday-stick">
+              <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") || (selDrag && selDrag.dropList === "__allday__") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}
+                onPointerDown=${e => { if (e.shiftKey && !(e.target.closest && e.target.closest(".allday-item"))) startRangeSelect(e); }}>
+                ${(() => {
+                  const cell = (i) => html`
+                    <div class=${"allday-item" + (i.done ? " done" : "") + (selected.has(i.key) ? " sel" : "") + (treeDrag && treeDrag.key === i.key ? " is-dragging" : "")} key=${i.key} data-adkey=${i.key}
+                      style=${`--c:${colorOf(i)};`}
+                      onPointerDown=${e => { if (i.id) startTreeDrag(e, i, true); }}
+                      onClick=${e => { if (trayClickGuard.current) return; handleTap(i, e.shiftKey); }}>
+                      ${i.is_event
+                        ? html`<span class="allday-evmark" style=${`background:${colorOf(i)};`}></span>`
+                        : html`<button class=${"allday-check" + (i.done ? " on" : "")} type="button" title="Выполнено"
+                            style=${`border-color:${colorOf(i)};color:${colorOf(i)};`}
+                            onPointerDown=${e => e.stopPropagation()}
+                            onClick=${e => { e.stopPropagation(); if (trayClickGuard.current) return; if (!i.done) popConfetti("ad:" + i.key); toggleDone(i); }}>${Icon.check()}${confettiEl("ad:" + i.key, "center")}</button>`}
+                      <span class="allday-title">${i.title}</span>
+                    </div>`;
+                  // Во время перестановки внутри «весь день» переставляем капсулы вживую
+                  // (перетаскиваемая остаётся в потоке, но невидима) — соседи плавно
+                  // расступаются за счёт FLIP-анимации.
+                  if (treeDrag && treeDrag.zone === "allday" && treeDrag.adIndex != null) {
+                    const di = allDay.findIndex(x => x.key === treeDrag.key);
+                    if (di >= 0) {
+                      const rest = allDay.filter((_, k) => k !== di);
+                      rest.splice(clamp(treeDrag.adIndex, 0, rest.length), 0, allDay[di]);
+                      return rest.map(cell);
+                    }
+                  }
+                  return allDay.map(cell);
+                })()}
+              </div>
+              <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
+              </div>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class=${"grid-hour-label" + (h === 24 ? " last" : "")}>${(h % 24 === 0 ? "00" : String(h).padStart(2, "0"))}:00</span></div>`)}
