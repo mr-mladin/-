@@ -11,6 +11,17 @@ import { ConfirmModal, Toasts, TaskEditor, ListForm, AreaForm, MoveTasksModal, A
 
 const VIEWS = [["day", "День"], ["week", "Неделя"], ["month", "Месяц"]];
 const WD_SHORT = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+// Неделя (Пн–Вс) для строки дат от любой даты. Используется для карусели свайпа.
+function barWeek(baseISO) {
+  const base = fromISO(baseISO);
+  const off = (base.getDay() + 6) % 7;
+  const mon = new Date(base); mon.setDate(base.getDate() - off);
+  return Array.from({ length: 7 }, (_, k) => {
+    const dd = new Date(mon); dd.setDate(mon.getDate() + k);
+    return { iso: toISO(dd), day: dd.getDate(), short: WD_SHORT[k] };
+  });
+}
+function addDaysISO(baseISO, n) { const d = fromISO(baseISO); d.setDate(d.getDate() + n); return toISO(d); }
 function readView() {
   try { const v = localStorage.getItem("planner.view"); return VIEWS.some(x => x[0] === v) ? v : "day"; }
   catch (e) { return "day"; }
@@ -188,8 +199,10 @@ function Planner() {
   const swipedRef = useRef(false);
   const trayClickGuard = useRef(false);
   const adGridRef = useRef(null);   // контейнер зоны «весь день»
-  const weekStripRef = useRef(null); // свайп строки дат: { x, y } старта касания
-  const weekWheelRef = useRef(0);    // троттлинг горизонтального колеса для смены недели
+  const weekTrackRef = useRef(null);   // трек-карусель строки дат (3 недели), едет за пальцем
+  const weekRecenterRef = useRef(false); // после коммита недели вернуть трек в центр без мигания
+  const weekBarFinalizeRef = useRef(null); // финализатор доводки недели (защита от двойного вызова)
+  const weekWheelRef = useRef(0);      // троттлинг горизонтального колеса (десктоп-трекпад)
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
   const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
@@ -739,6 +752,15 @@ function Planner() {
       cont.scrollTop += (cur - want);
     }
     schedulePeekOff(); // соседние дни прячем с задержкой (для листания подряд)
+  }, [date]);
+
+  // Карусель строки дат: после смены недели свайпом возвращаем трек в центр (-100%)
+  // ДО отрисовки — новая неделя уже в центральной панели, поэтому без мигания.
+  useLayoutEffect(() => {
+    if (!weekRecenterRef.current) return;
+    weekRecenterRef.current = false;
+    const track = weekTrackRef.current;
+    if (track) { track.style.transition = "none"; track.style.transform = "translateX(-100%)"; }
   }, [date]);
 
   const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
@@ -2008,19 +2030,61 @@ function Planner() {
     document.addEventListener("touchend", end);
     document.addEventListener("touchcancel", end);
   }
-  // Свайп/горизонтальная прокрутка по строке дат — смена недели (±7 дней от текущей даты).
-  // Тап по дню (малое смещение) не трогаем — отрабатывает onClick кнопки .wday.
-  function shiftWeek(dir) { const d = fromISO(date); d.setDate(d.getDate() + dir * 7); setDate(toISO(d)); }
-  function onWeekStripTouchStart(e) { const t = e.touches && e.touches[0]; if (t) weekStripRef.current = { x: t.clientX, y: t.clientY }; }
-  function onWeekStripTouchEnd(e) {
-    const s = weekStripRef.current; weekStripRef.current = null; if (!s) return;
-    const t = e.changedTouches && e.changedTouches[0]; if (!t) return;
-    const dx = t.clientX - s.x, dy = t.clientY - s.y;
-    if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.4) shiftWeek(dx < 0 ? 1 : -1);
+  // ---- Строка дат: карусель из 3 недель, трек физически едет за пальцем (как сетка дня) ----
+  function shiftWeek(dir) { setDate(addDaysISO(date, dir * 7)); }
+  function onWeekBarTouchStart(e) {
+    if (e.touches.length !== 1) return;
+    const track = weekTrackRef.current; if (!track) return;
+    const vp = track.parentElement; const W = vp ? vp.getBoundingClientRect().width : window.innerWidth;
+    const sx = e.touches[0].clientX, sy = e.touches[0].clientY;
+    let horiz = null, dx = 0, lastX = sx, lastT = performance.now(), vx = 0;
+    const move = ev => {
+      const t = ev.touches[0]; if (!t) return;
+      dx = t.clientX - sx; const dy = t.clientY - sy;
+      if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) { horiz = Math.abs(dx) > Math.abs(dy); if (!horiz) { cleanup(); return; } }
+      if (!horiz) return;
+      ev.preventDefault();
+      const now = performance.now(); if (now > lastT) vx = (t.clientX - lastX) / (now - lastT); lastX = t.clientX; lastT = now;
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
+    };
+    const finish = () => {
+      cleanup(); if (!horiz) return;
+      const commit = Math.abs(dx) > Math.min(60, W * 0.14) || Math.abs(vx) > 0.18;
+      if (commit) weekBarCommit(dx < 0 ? 1 : -1); else weekBarSnapBack();
+    };
+    const cleanup = () => { document.removeEventListener("touchmove", move, { passive: false }); document.removeEventListener("touchend", finish); document.removeEventListener("touchcancel", finish); };
+    document.addEventListener("touchmove", move, { passive: false });
+    document.addEventListener("touchend", finish);
+    document.addEventListener("touchcancel", finish);
   }
+  // Доводка до соседней недели → на transitionend меняем дату и (в useLayoutEffect) возвращаем
+  // трек в центр уже с новой неделей — без мигания (как карусель дня).
+  function weekBarCommit(dir) {
+    const track = weekTrackRef.current; if (!track) return;
+    haptic();
+    const done = () => {
+      if (weekBarFinalizeRef.current !== done) return;
+      weekBarFinalizeRef.current = null; clearTimeout(safety);
+      track.removeEventListener("transitionend", done);
+      weekRecenterRef.current = true; shiftWeek(dir);
+    };
+    weekBarFinalizeRef.current = done;
+    track.style.transition = "transform .3s cubic-bezier(.22,.61,.36,1)";
+    void track.offsetWidth;
+    track.style.transform = `translateX(${dir > 0 ? "-200%" : "0%"})`;
+    track.addEventListener("transitionend", done);
+    const safety = setTimeout(done, 380);
+  }
+  function weekBarSnapBack() {
+    const track = weekTrackRef.current; if (!track) return;
+    track.style.transition = "transform .25s cubic-bezier(.22,.61,.36,1)";
+    track.style.transform = "translateX(-100%)";
+  }
+  // Десктоп-трекпад: горизонтальный жест колесом — шаг на неделю (без покадровой анимации).
   function onWeekStripWheel(e) {
-    if (Math.abs(e.deltaX) < 18 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // только явная горизонталь
-    const now = Date.now(); if (now - weekWheelRef.current < 350) return; // один шаг за жест
+    if (Math.abs(e.deltaX) < 18 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+    const now = Date.now(); if (now - weekWheelRef.current < 350) return;
     weekWheelRef.current = now; shiftWeek(e.deltaX > 0 ? 1 : -1);
   }
   function onDaySwipeStart(e) {
@@ -2618,12 +2682,17 @@ function Planner() {
                 </div>`)}
           </div>`}
 
-          ${!special && view === "day" && html`<div class="planner-week"
-            onTouchStart=${onWeekStripTouchStart} onTouchEnd=${onWeekStripTouchEnd} onWheel=${onWeekStripWheel}>
-            ${week.map(w => html`<button key=${w.iso}
-              class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
-              onClick=${() => setDate(w.iso)}>
-              <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
+          ${!special && view === "day" && html`<div class="planner-week-vp"
+            onTouchStart=${onWeekBarTouchStart} onWheel=${onWeekStripWheel}>
+            <div class="planner-week-track" ref=${weekTrackRef}>
+              ${[barWeek(addDaysISO(date, -7)), week, barWeek(addDaysISO(date, 7))].map((wk, pi) => html`
+                <div class="planner-week" key=${"wk" + pi}>
+                  ${wk.map(w => html`<button key=${w.iso}
+                    class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
+                    onClick=${() => setDate(w.iso)}>
+                    <span class="wday-num">${w.day}</span><span class="wday-name">${w.short}</span></button>`)}
+                </div>`)}
+            </div>
           </div>`}
 
           ${!special && view === "day" && html`<div class="planner-body">

@@ -516,9 +516,12 @@ textarea.input { resize: vertical; }
 .planner-head .btn.sm { height: 34px; padding: 0 12px; }
 
 /* Недельная полоса дней */
-/* Компактная строка дат, можно свайпать влево-вправо для смены недели (touch/wheel в JS).
-   touch-action: pan-y — вертикальный скролл сетки не перехватываем, горизонталь ловит свайп. */
-.planner-week { display: flex; gap: 2px; margin-bottom: 7px; padding: 0 16px 0 4px; touch-action: pan-y; }
+/* Компактная строка дат — КАРУСЕЛЬ из 3 недель: окно (overflow hidden) + лента, которая
+   физически едет за пальцем (JS), как карусель сетки дня. touch-action: pan-y — вертикальный
+   скролл не перехватываем, горизонталь ловит свайп. */
+.planner-week-vp { overflow: hidden; margin-bottom: 7px; touch-action: pan-y; }
+.planner-week-track { display: flex; transform: translateX(-100%); will-change: transform; }
+.planner-week { flex: 0 0 100%; display: flex; gap: 2px; padding: 0 16px 0 4px; }
 .wday { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 3px 0 4px;
   border: none; background: transparent; cursor: pointer; border-radius: var(--radius); font-family: inherit; color: var(--text); }
 .wday:hover { background: var(--bg-soft); }
@@ -958,7 +961,8 @@ textarea.input { resize: vertical; }
     margin-right: calc(-10px - env(safe-area-inset-right)); }
   .tl { left: 0; }
   .planner-head { gap: 8px; padding: 0 4px; margin-bottom: 8px; }
-  .planner-week { padding: 0 4px; margin-bottom: 8px; }
+  .planner-week-vp { margin-bottom: 8px; }
+  .planner-week { padding: 0 4px; }
   /* Полоса недели плотнее — больше места под сетку дня. */
   .wday { padding: 4px 0 5px; gap: 2px; }
   .wday-num { width: 28px; height: 28px; font-size: 15px; }
@@ -1390,9 +1394,9 @@ textarea.input { resize: vertical; }
      внутри transform-трека не поднимается по z-index) возвращается — сетка просвечивает.
      При полупрозрачном фоне фильтр активен → слой поднимается над сеткой. Внутренняя .allday
      остаётся непрозрачной (сплошное перекрытие области с задачами); фрост-края — без событий. */
-  .allday-stick { position: sticky; top: 0; z-index: 9;
-    background: color-mix(in srgb, var(--surface) 85%, transparent);
-    -webkit-backdrop-filter: saturate(1.6) blur(12px); backdrop-filter: saturate(1.6) blur(12px); }
+  .allday-stick { position: sticky; top: -3px; z-index: 9;
+    background: color-mix(in srgb, var(--surface) 92%, transparent);
+    -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
