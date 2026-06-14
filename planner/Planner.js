@@ -495,13 +495,17 @@ function Planner() {
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
-    const triggerSnap = () => {
+    // vx — скорость в px/мс (для «флика»): быстрый короткий смах листает, даже если путь
+    // не дотянул до позиционного порога (как в карусели строки дат).
+    const triggerSnap = (vx) => {
       const w = el.clientWidth;
       if (!w) return;
-      const threshold = w * 0.12; // низкий порог — даже короткий свайп листает
+      const threshold = w * 0.12; // низкий позиционный порог — даже короткий свайп листает
+      const flick = Math.abs(vx || 0) > 0.25; // быстрый смах
       let target = 0;
       if (dx < -threshold) target = -w;
       else if (dx > threshold) target = w;
+      else if (flick) target = (vx < 0) ? -w : w; // короткий быстрый смах — по направлению скорости
       if (target !== 0) haptic(); // лёгкая вибрация в начале листания (как в неделе/месяце)
       animateTo(target);
     };
@@ -509,7 +513,7 @@ function Planner() {
       reset: () => { cancelAnim(); dx = 0; track.style.transition = "none"; track.style.transform = "translateX(-100%)"; },
       getDx: () => dx,
       setDx: (v) => { cancelAnim(); const w = el.clientWidth; dx = Math.max(-w, Math.min(w, v)); apply(); },
-      snap: () => { clearTimeout(endTimer); triggerSnap(); },
+      snap: (vx) => { clearTimeout(endTimer); triggerSnap(vx); },
       cancel: () => { cancelAnim(); clearTimeout(endTimer); },
     };
     const onWheel = (e) => {
@@ -2000,10 +2004,10 @@ function Planner() {
     if (view !== "day" || !st || !touch) return;
     const id = touch.identifier;
     const sx = touch.clientX, sy = touch.clientY;
-    let horiz = null, startDx = 0;
+    let horiz = null, startDx = 0, lastX = sx, lastT = performance.now(), vx = 0;
     const find = (list) => { for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i]; return null; };
     const move = (ev) => {
-      if (!multi && (createActiveRef.current || liftedNowRef.current)) { if (horiz === true) st.snap(); cleanup(); return; } // обычный свайп уступил создание/подъёму задачи
+      if (!multi && (createActiveRef.current || liftedNowRef.current)) { if (horiz === true) st.snap(0); cleanup(); return; } // обычный свайп уступил создание/подъёму задачи
       const t = find(ev.touches); if (!t) return;
       const dxF = t.clientX - sx, dyF = t.clientY - sy;
       if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
@@ -2016,11 +2020,12 @@ function Planner() {
       }
       if (!horiz) return;
       ev.preventDefault();
+      const now = performance.now(); if (now > lastT) vx = (t.clientX - lastX) / (now - lastT); lastX = t.clientX; lastT = now;
       st.setDx(startDx + dxF);
     };
     const end = (ev) => {
       if (find(ev.touches)) return; // наш палец ещё на экране — свайп продолжается
-      cleanup(); if (horiz === true) st.snap();
+      cleanup(); if (horiz === true) st.snap(vx);
     };
     const cleanup = () => {
       document.removeEventListener("touchmove", move, { passive: false });

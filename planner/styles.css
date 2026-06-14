@@ -1339,16 +1339,13 @@ textarea.input { resize: vertical; }
   font-size: 11px; color: var(--text); padding: 0; }
 
 /* ---- Зона «весь день»: задачи с датой, но без времени — сверху внутри сетки ---- */
-/* Обёртка .allday-stick ЗАКРЕПЛЕНА сверху при скролле (на десктопе И телефоне). Перекрытие
-   сетки: полупрозрачный фон + backdrop-filter (фильтр должен быть «виден» → фон НЕ полностью
-   непрозрачный, иначе слой не создаётся). isolation на .tl-pane гарантирует, что зона рисуется
-   над сеткой (обход Safari-квирка sticky внутри transform-трека). top:-3px перекрывает шов
-   сверху. Во время свайпа дня blur снимаем (.swiping) — иначе тормозит карусель. */
-.allday-stick { position: sticky; top: -3px; z-index: 9;
-  background: color-mix(in srgb, var(--surface) 92%, transparent);
-  -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
-.planner-grid-scroll.swiping .allday-stick { -webkit-backdrop-filter: none; backdrop-filter: none;
-  background: var(--surface); }
+/* Обёртка .allday-stick ЗАКРЕПЛЕНА сверху при скролле (десктоп И телефон). Перекрытие сетки —
+   ПОЛНОСТЬЮ НЕПРОЗРАЧНЫЙ фон (var(--surface)), БЕЗ backdrop-filter. Почему так: backdrop-filter
+   НЕ работает внутри элемента с transform-предком (баг WebKit, а лента дня .tl-track на
+   transform) — фрост был «мёртвый», и сквозь полупрозрачный фон просвечивали события. Сплошной
+   фон + isolation на .tl-pane (z-index зоны авторитетен → рисуется НАД сеткой) перекрывают
+   надёжно, без фильтра. top:-3px перекрывает шов сверху. */
+.allday-stick { position: sticky; top: -3px; z-index: 9; background: var(--surface); }
 .allday { display: flex; flex-direction: column; gap: 7px; padding: 11px 16px 11px 20px;
   border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1); }
 .allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; row-gap: 7px;
