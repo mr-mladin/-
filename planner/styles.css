@@ -1338,19 +1338,17 @@ textarea.input { resize: vertical; }
 .tl-subs-edit { flex: 1; min-width: 0; border: 0; background: none; outline: none; font-family: inherit;
   font-size: 11px; color: var(--text); padding: 0; }
 
-/* ---- Зона «весь день»: задачи с датой, но без времени — сверху внутри сетки ---- */
-/* Обёртка .allday-stick ЗАКРЕПЛЕНА сверху при скролле (десктоп И телефон). Перекрытие сетки —
-   ПОЛНОСТЬЮ НЕПРОЗРАЧНЫЙ фон (var(--surface)), БЕЗ backdrop-filter. Почему так: backdrop-filter
-   НЕ работает внутри элемента с transform-предком (баг WebKit, а лента дня .tl-track на
-   transform) — фрост был «мёртвый», и сквозь полупрозрачный фон просвечивали события. Сплошной
-   фон + isolation на .tl-pane (z-index зоны авторитетен → рисуется НАД сеткой) перекрывают
-   надёжно, без фильтра. top:-3px перекрывает шов сверху. */
-.allday-stick { position: sticky; top: -3px; z-index: 9; background: var(--surface); }
-.allday { display: flex; flex-direction: column; gap: 7px; padding: 11px 16px 11px 20px;
-  border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1); }
+/* ---- Зона «весь день»: задачи с датой, но без времени ----
+   ОТДЕЛЬНАЯ ПОЛОСА между строкой дат и сеткой дня (НЕ внутри сетки). Фон ПРОЗРАЧНЫЙ —
+   совпадает с фоном страницы (как у строки дат). Капсулы — «жидкое стекло» в цвет проекта.
+   Почему вынесли из сетки: раньше зона лежала поверх ленты дня (.tl-track на transform),
+   из-за бага WebKit backdrop-filter не работал и сквозь полупрозрачный фон просвечивали
+   события. Теперь над зоной ничего нет — просвечивать нечему, фон может быть прозрачным. */
+.planner-allday-bar { flex: none; margin: 0 0 7px; }
+.allday { display: flex; flex-direction: column; gap: 7px; padding: 9px 16px 0 20px; }
 .allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; row-gap: 7px;
   align-content: start; align-items: center; position: relative; }
-.allday.empty { padding: 8px 16px 8px 20px; }
+.allday.empty { padding: 4px 16px 0 20px; }
 /* При наведении драга НЕ подсвечиваем всю зону — фидбэк даёт сама капсула. */
 .allday-hint { font-size: 12px; color: var(--text-mute); transition: color .25s ease; }
 .allday.drop .allday-hint { color: var(--accent); }
@@ -1391,9 +1389,12 @@ textarea.input { resize: vertical; }
    что у .tl: центрируется, сдвиг 32px, левый край контента = 58px как у блоков,
    правый = 8px) и делаем задачи компактнее. */
 @media (min-width: 861px) {
+  /* Полосу выравниваем по правому краю карточки-сетки (у неё margin-right:16px), чтобы
+     центрированная зона совпала по колонке с сеткой часов. Фон прозрачный (фон страницы). */
+  .planner-allday-bar { margin-right: 16px; }
   .allday { box-sizing: border-box; position: relative; left: 32px; width: 100%; max-width: 720px;
-    margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; background: var(--surface); }
-  .allday.empty { padding: 5px 8px 5px 58px; }
+    margin: 0 auto; padding: 7px 8px 0 58px; gap: 5px; }
+  .allday.empty { padding: 3px 8px 0 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
   .allday-title { font-size: 11.5px; font-weight: 500; }
@@ -1414,9 +1415,9 @@ textarea.input { resize: vertical; }
 @media (max-width: 860px) {
   .allday { box-sizing: border-box; height: var(--adh, 52px);
     overflow-y: auto; -webkit-overflow-scrolling: touch; border-bottom: none; }
+  /* Ручка-шторка на прозрачной полосе — без белого фона и рамки, только «грип». */
   .allday-handle { display: flex; align-items: center; justify-content: center; flex: none;
-    height: 18px; touch-action: none; cursor: ns-resize;
-    background: var(--surface); border-bottom: 1px solid var(--border); }
+    height: 16px; touch-action: none; cursor: ns-resize; background: transparent; }
   .allday-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--border);
     transition: background-color .15s ease, width .15s ease; }
   .allday-handle:active .allday-grip { background: var(--text-mute); width: 54px; }
