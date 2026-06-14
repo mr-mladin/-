@@ -202,7 +202,8 @@ function Planner() {
   const weekTrackRef = useRef(null);   // трек-карусель строки дат (3 недели), едет за пальцем
   const weekRecenterRef = useRef(false); // после коммита недели вернуть трек в центр без мигания
   const weekBarFinalizeRef = useRef(null); // финализатор доводки недели (защита от двойного вызова)
-  const weekWheelRef = useRef(0);      // троттлинг горизонтального колеса (десктоп-трекпад)
+  const weekWheelDxRef = useRef(0);    // накопленный сдвиг трека недели от трекпада (десктоп)
+  const weekWheelTimerRef = useRef(null); // «конец жеста» трекпада (события колеса прекратились)
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
   const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
@@ -2081,11 +2082,21 @@ function Planner() {
     track.style.transition = "transform .25s cubic-bezier(.22,.61,.36,1)";
     track.style.transform = "translateX(-100%)";
   }
-  // Десктоп-трекпад: горизонтальный жест колесом — шаг на неделю (без покадровой анимации).
+  // Десктоп-трекпад: горизонтальный жест колесом физически тянет трек (как сетка дня),
+  // доводка/возврат — когда события колеса прекратились (у трекпада нет «отпустил пальцы»).
   function onWeekStripWheel(e) {
-    if (Math.abs(e.deltaX) < 18 || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
-    const now = Date.now(); if (now - weekWheelRef.current < 350) return;
-    weekWheelRef.current = now; shiftWeek(e.deltaX > 0 ? 1 : -1);
+    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — не трогаем
+    const track = weekTrackRef.current; if (!track) return;
+    e.preventDefault();
+    const vp = track.parentElement; const W = vp ? vp.getBoundingClientRect().width : window.innerWidth;
+    weekWheelDxRef.current = Math.max(-W, Math.min(W, weekWheelDxRef.current - e.deltaX));
+    track.style.transition = "none";
+    track.style.transform = `translateX(calc(-100% + ${weekWheelDxRef.current}px))`;
+    clearTimeout(weekWheelTimerRef.current);
+    weekWheelTimerRef.current = setTimeout(() => {
+      const dx = weekWheelDxRef.current; weekWheelDxRef.current = 0;
+      if (Math.abs(dx) > Math.min(60, W * 0.16)) weekBarCommit(dx < 0 ? 1 : -1); else weekBarSnapBack();
+    }, 140);
   }
   function onDaySwipeStart(e) {
     // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
@@ -2733,8 +2744,8 @@ function Planner() {
                   return allDay.map(cell);
                 })()}
               </div>
-              </div>
               <div class="allday-handle" onPointerDown=${onAllDayHandleDown} onTouchStart=${e => e.stopPropagation()}><span class="allday-grip"></span></div>
+              </div>
               <div class=${"tl" + (drag ? " busy" : "")} ref=${innerRef} onPointerDown=${onGridPointerDown} style=${`height:${24 * hourPx}px;`}>
                 ${Array.from({ length: 25 }, (_, h) => html`<div class="grid-hour" style=${`top:${h * hourPx}px;`} key=${h}>
                   <span class=${"grid-hour-label" + (h === 24 ? " last" : "")}>${(h % 24 === 0 ? "00" : String(h).padStart(2, "0"))}:00</span></div>`)}

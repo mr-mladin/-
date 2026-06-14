@@ -163,7 +163,10 @@ textarea.input { resize: vertical; }
 /* Карусель дней: лента из трёх панелей (вчера/сегодня/завтра), двигаем её при
    свайпе. По центру — текущий день, по бокам — соседние (для предпросмотра). */
 .tl-track { display: flex; transform: translateX(-100%); will-change: transform; }
-.tl-pane { flex: 0 0 100%; position: relative; }
+/* isolation: isolate — свой контекст наложения, чтобы закреплённая зона «весь день»
+   (.allday-stick, z-index выше) гарантированно рисовалась ПОВЕРХ сетки (.tl), а не под ней.
+   Без него sticky внутри transform-трека в Safari игнорировал z-index и сетка просвечивала. */
+.tl-pane { flex: 0 0 100%; position: relative; isolation: isolate; }
 .modal-back { position: fixed; inset: 0; background: rgba(2, 6, 23, 0.5);
   display: grid; place-items: center; padding: 16px; z-index: 50; animation: overlayIn .16s ease; }
 .modal { width: 100%; max-width: 460px; background: var(--surface);
@@ -1336,6 +1339,16 @@ textarea.input { resize: vertical; }
   font-size: 11px; color: var(--text); padding: 0; }
 
 /* ---- Зона «весь день»: задачи с датой, но без времени — сверху внутри сетки ---- */
+/* Обёртка .allday-stick ЗАКРЕПЛЕНА сверху при скролле (на десктопе И телефоне). Перекрытие
+   сетки: полупрозрачный фон + backdrop-filter (фильтр должен быть «виден» → фон НЕ полностью
+   непрозрачный, иначе слой не создаётся). isolation на .tl-pane гарантирует, что зона рисуется
+   над сеткой (обход Safari-квирка sticky внутри transform-трека). top:-3px перекрывает шов
+   сверху. Во время свайпа дня blur снимаем (.swiping) — иначе тормозит карусель. */
+.allday-stick { position: sticky; top: -3px; z-index: 9;
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
+.planner-grid-scroll.swiping .allday-stick { -webkit-backdrop-filter: none; backdrop-filter: none;
+  background: var(--surface); }
 .allday { display: flex; flex-direction: column; gap: 7px; padding: 11px 16px 11px 20px;
   border-bottom: 1px solid var(--border); transition: background-color .3s cubic-bezier(.22,1,.36,1); }
 .allday.grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); column-gap: 16px; row-gap: 7px;
@@ -1383,20 +1396,6 @@ textarea.input { resize: vertical; }
 @media (min-width: 861px) {
   .allday { box-sizing: border-box; position: relative; left: 32px; width: 100%; max-width: 720px;
     margin: 0 auto; padding: 7px 8px 7px 58px; gap: 5px; background: var(--surface); }
-  /* Зона «весь день» ЗАКРЕПЛЕНА сверху при скролле: липкой делаем ОБЁРТКУ .allday-stick
-     (full-width, БЕЗ transform — как рабочий .week-head в недельном виде), а .allday внутри
-     по-прежнему центрируется и сдвигается на 32px под сетку (relative; left:32px). Прошлый
-     заход (sticky+transform прямо на .allday) не залипал: self-transform на sticky-элементе
-     в Safari ломает залипание.
-     Перекрытие сетки: **полупрозрачный** фон + backdrop-filter на обёртке (как у .week-head).
-     ВАЖНО: фон должен быть НЕ полностью непрозрачным — иначе браузер «выкидывает»
-     backdrop-filter (он невидим), композитный слой не создаётся, и Safari-квирк (sticky
-     внутри transform-трека не поднимается по z-index) возвращается — сетка просвечивает.
-     При полупрозрачном фоне фильтр активен → слой поднимается над сеткой. Внутренняя .allday
-     остаётся непрозрачной (сплошное перекрытие области с задачами); фрост-края — без событий. */
-  .allday-stick { position: sticky; top: -3px; z-index: 9;
-    background: color-mix(in srgb, var(--surface) 92%, transparent);
-    -webkit-backdrop-filter: saturate(1.5) blur(14px); backdrop-filter: saturate(1.5) blur(14px); }
   .allday.empty { padding: 5px 8px 5px 58px; }
   .allday.grid { column-gap: 10px; row-gap: 5px; }
   .allday-item { gap: 6px; min-height: 20px; padding: 2px 8px; border-radius: 10px; }
