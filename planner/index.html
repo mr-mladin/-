@@ -6,6 +6,7 @@
     <meta name="format-detection" content="telephone=no" />
     <!-- Цвет строки статуса/обводки браузера: голубой в светлой теме, тёмный — в тёмной
          (иначе в тёмной теме сверху остаётся ярко-голубая полоса, не совпадающая с фоном). -->
+    <meta name="theme-color" content="#0ea5e9" />
     <meta name="theme-color" content="#0ea5e9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#0a0f17" media="(prefers-color-scheme: dark)" />
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -33,11 +34,10 @@
         } catch (e) { document.documentElement.setAttribute("data-theme", "light"); }
       })();
     </script>
-    <link rel="stylesheet" href="./styles.css?v=120" />
+    <link rel="stylesheet" href="./styles.css?v=121" />
     <script>
-      // Диагностика загрузки: если код не стартовал за 10с или случилась ошибка
-      // импорта модулей — показываем текст ошибки вместо вечной крутилки.
-      // Это временно, чтобы понять причину зависания на мобильном.
+      // Диагностика загрузки: если код не стартовал за 15с или случилась ошибка
+      // импорта модулей — показываем экран ошибки вместо вечной крутилки.
       window.__bootErrors = [];
       function __bootFail(msg) {
         var el = document.getElementById("app");
@@ -74,13 +74,13 @@
   </head>
   <body>
     <div id="app"><div class="boot"><div class="boot-spinner"></div></div></div>
-    <script type="module" src="./main.js?v=125"></script>
+    <script type="module" src="./main.js?v=126"></script>
     <script>
       // Регистрируем SW планера: он кэширует только библиотеки с CDN (esm.sh),
       // файлы приложения всегда из сети. Ускоряет запуск с домашней иконки.
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", function () {
-          navigator.serviceWorker.register("./sw.js").catch(function () {});
+          navigator.serviceWorker.register("./sw.js").catch(function (e) { window.__bootErrors && window.__bootErrors.push("sw: " + ((e && e.message) || e)); });
         });
       }
     </script>

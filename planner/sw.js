@@ -6,8 +6,11 @@
 //    кэш и при сетевом сбое/тайм-ауте отдаём его. Это спасает от «вечной крутилки»
 //    на плохом мобильном интернете: приложение стартует из кэша, а не висит.
 
-const CDN_CACHE = "planner-cdn-v1";
-const APP_CACHE = "planner-app-v1";
+// Версию кэша бампаем вместе с релизом — на activate старые кэши удаляются (ниже),
+// чтобы один раз осевший «битый»/устаревший файл не жил вечно.
+const VERSION = "v2";
+const CDN_CACHE = "planner-cdn-" + VERSION;
+const APP_CACHE = "planner-app-" + VERSION;
 const CDN_HOSTS = ["esm.sh"];
 const NET_TIMEOUT = 7000; // дольше не ждём ответ — иначе старт «висит» на плохой сети
 
@@ -43,7 +46,9 @@ self.addEventListener("fetch", (e) => {
       const cached = await cache.match(req);
       if (cached) return cached;
       const res = await fetchTimeout(req);
-      if (res && (res.ok || res.type === "opaque")) cache.put(req, res.clone());
+      // Только успешные CORS-ответы (не opaque/ошибки): иначе «битый» модуль осядет
+      // в cache-first навсегда и даст белый экран, не лечащийся перезагрузкой.
+      if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
       return res;
     })());
     return;
@@ -57,11 +62,17 @@ self.addEventListener("fetch", (e) => {
       const cache = await caches.open(APP_CACHE);
       try {
         const res = await fetchTimeout(req, { cache: "reload" });
-        if (res && res.ok) cache.put(req, res.clone());
+        if (res && res.ok) cache.put(req, res.clone()).catch(() => {});
         return res;
       } catch (err) {
-        const cached = await cache.match(req) || await caches.match(req);
+        const cached = await cache.match(req, { ignoreSearch: true }) || await caches.match(req, { ignoreSearch: true });
         if (cached) return cached;
+        // Навигация офлайн без точного совпадения — отдаём закэшированную оболочку,
+        // чтобы не было белого экрана при запуске с иконки без сети.
+        if (req.mode === "navigate") {
+          const shell = await cache.match("./", { ignoreSearch: true }) || await cache.match("./index.html", { ignoreSearch: true });
+          if (shell) return shell;
+        }
         throw err;
       }
     })());

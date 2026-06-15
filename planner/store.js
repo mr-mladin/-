@@ -35,6 +35,7 @@ function writeCache(lists, tasks, areas) {
 function clearCache() {
   try { localStorage.removeItem("planner.cache"); } catch (e) {}
 }
+let toastSeq = 0; // монотонный счётчик id тостов (без коллизий Math.random)
 
 function reducer(state, action) {
   switch (action.type) {
@@ -107,6 +108,7 @@ export function StoreProvider({ children }) {
       // перезагрузку данных откладываем через setTimeout — уже вне блокировки.
       if (event === "TOKEN_REFRESHED" || event === "USER_UPDATED") return;
       const user = session?.user || null;
+      rolledFor.current = null; // смена пользователя/сессии — автоперенос пересчитать заново
       dispatch({ type: "set", payload: { user, loading: !!user } });
       if (user) setTimeout(loadAll, 0);
       else {
@@ -157,6 +159,7 @@ export function StoreProvider({ children }) {
 
   async function loadAll() {
     const myEpoch = ++loadEpoch.current;
+    const startedAt = Date.now(); // чтобы не затереть правки, сделанные во время загрузки
     const tryOnce = () => Promise.all([
       supabase.from("lists").select("*").order("sort_order").order("created_at"),
       supabase.from("tasks").select("*"),
@@ -191,12 +194,18 @@ export function StoreProvider({ children }) {
     const lists = listsRes.data || [], rows = tasksRes.data || [];
     // Области добавлены позже задач — на старой базе их таблицы может не быть.
     const areas = areasRes.error ? [] : (areasRes.data || []);
-    writeCache(lists, rows, areas);
+    // Если во время загрузки была оптимистичная правка — серверный снимок задач уже
+    // устарел относительно неё. НЕ затираем задачи (иначе правка «прыгает назад»);
+    // проекты/области обновляем, задачи подтянем следующей перечиткой.
+    const tasksStale = writeAt.current > startedAt;
+    if (!tasksStale) writeCache(lists, rows, areas);
     dispatch({
       type: "set",
-      payload: { loading: false, ready: true, taskLists: lists, tasks: rows, areas },
+      payload: tasksStale
+        ? { loading: false, ready: true, taskLists: lists, areas }
+        : { loading: false, ready: true, taskLists: lists, tasks: rows, areas },
     });
-    rollOverdue(rows);
+    if (!tasksStale) rollOverdue(rows);
   }
 
   // Перенос: все невыполненные разовые ЗАДАЧИ с прошедших дней переезжают на
@@ -215,12 +224,16 @@ export function StoreProvider({ children }) {
     overdue.forEach(t => {
       dispatch({ type: "upsertOne", key: "tasks", item: { ...t, date: today, ...patch } });
       supabase.from("tasks").update({ date: today, ...patch }).eq("id", t.id).select().single()
-        .then(({ data }) => { if (data) dispatch({ type: "upsertOne", key: "tasks", item: data }); });
+        .then(({ data, error }) => {
+          if (error) { dispatch({ type: "upsertOne", key: "tasks", item: t }); return; } // сбой — откат на исходную дату
+          if (data) dispatch({ type: "upsertOne", key: "tasks", item: data });
+        })
+        .catch(() => dispatch({ type: "upsertOne", key: "tasks", item: t }));
     });
   }
 
   function pushToast(text, type = "info") {
-    const id = Math.random().toString(36).slice(2);
+    const id = "t" + (++toastSeq);
     setToasts(t => [...t, { id, text, type }]);
     const tm = setTimeout(() => { toastTimers.current.delete(tm); setToasts(t => t.filter(x => x.id !== id)); }, 3000);
     toastTimers.current.add(tm);
@@ -536,7 +549,7 @@ export function StoreProvider({ children }) {
     emptyTrash: async () => {
       const trashed = state.tasks.filter(t => t.deleted_at);
       trashed.forEach(t => dispatch({ type: "removeOne", key: "tasks", id: t.id }));
-      if (trashed.length) await supabase.from("tasks").delete().not("deleted_at", "is", null);
+      if (trashed.length) await supabase.from("tasks").delete().in("id", trashed.map(t => t.id));
     },
     // Отметить/снять подзадачу прямо в сетке (без открытия редактора).
     toggleSub: (taskId, subId) => {

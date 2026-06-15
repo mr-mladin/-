@@ -190,7 +190,6 @@ function Planner() {
   const swipingRef = useRef(false); // идёт горизонтальный свайп дней
   const createActiveRef = useRef(false); // идёт создание новой задачи (растягивание в сетке) — карусель дня не вмешивается
   const kbPrimerRef = useRef(null);   // скрытое поле: поднять клавиатуру синхронно в жесте, затем фокус уедет в форму
-  const dndGeomRef = useRef(null);    // ширина/левый край сетки для плавающей капсулы при переносе из «весь день»
   const primeKeyboard = () => { try { kbPrimerRef.current && kbPrimerRef.current.focus({ preventScroll: true }); } catch (e) { try { kbPrimerRef.current.focus(); } catch (e2) {} } };
   const projRef = useRef(null);
   const asideRef = useRef(null);
@@ -672,7 +671,6 @@ function Planner() {
   const trashTasks = useMemo(() => tasks
     .filter(t => t.deleted_at)
     .sort((a, b) => (b.deleted_at || "").localeCompare(a.deleted_at || "")), [tasks]);
-  const trayTasks = useMemo(() => projTasks.filter(t => !gridIds.has(t.id) && !allDayIds.has(t.id)), [projTasks, gridIds, allDayIds]);
 
   const week = useMemo(() => {
     const base = fromISO(pendingDate || date);
@@ -768,7 +766,7 @@ function Planner() {
     if (track) { track.style.transition = "none"; track.style.transform = "translateX(-100%)"; }
   }, [date]);
 
-  const yToMin = (clientY) => ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60;
+  const yToMin = (clientY) => innerRef.current ? ((clientY - innerRef.current.getBoundingClientRect().top) / hourPx) * 60 : 0;
   const colorOf = (i) => i.color || listById[i.list_id]?.color || "var(--inbox)";
 
   // FLIP: карточки «весь день» плавно доезжают на новые места при перестановке,
@@ -2127,16 +2125,6 @@ function Planner() {
     // (liftedNowRef) — runDaySwipe сам уступает, и задача переносится, а не листает.
     runDaySwipe(e.touches[0], false);
   }
-  function rowToItem(row) {
-    return {
-      key: row.id, kind: "concrete", id: row.id, templateId: null,
-      occDate: row.date, recurring: false, done: !!row.done,
-      title: row.title || "", notes: row.notes || "", color: row.color || null,
-      icon: row.icon || null, list_id: row.list_id || null,
-      start_min: row.start_min, duration_min: row.duration_min,
-      subtasks: Array.isArray(row.subtasks) ? row.subtasks : [],
-    };
-  }
   function openPreview(item) { openEdit(item); }
 
   const d = fromISO(date);
@@ -2891,18 +2879,6 @@ function Planner() {
       <span class="dnd-ghost-dot"></span>${dnd.title}
       ${dnd.zone === "tray" ? html`<span class="dnd-ghost-hint">${dnd.source === "grid" ? "убрать из дня" : "снять время"}</span>` : ""}
     </div>`}
-    ${dnd && dnd.source === "tray" && dnd.zone === "grid" && dndGeomRef.current && (() => {
-      // Перенос из «весь день» в сетку — тот же вид, что и подъём обычной задачи:
-      // капсула свободно едет под пальцем (2D), а призрак времени привязан к разметке (см. выше).
-      const g = dndGeomRef.current, h = Math.max(MIN_EVENT_PX, (dnd.dur / 60) * hourPx);
-      return html`<div class="tl-event tl-lift-overlay lifted" style=${`top:${dnd.y - h / 2}px;left:${g.left + (dnd.x - g.startX)}px;width:${g.width}px;height:${h}px;--c:${dnd.color};transform:scale(1.04);`}>
-        <div class="tl-pill"></div>
-        <div class="tl-body"><div class="tl-text">
-          <div class="tl-titlerow"><div class="tl-title">${dnd.title}</div></div>
-          <div class="tl-meta">${minRangeLabel(dnd.gridMin, dnd.dur)} (${durHuman(dnd.dur)})</div>
-        </div></div>
-      </div>`;
-    })()}
     ${ctx && html`<div class="ctx-back" onPointerDown=${() => setCtx(null)} onContextMenu=${e => { e.preventDefault(); setCtx(null); }}>
       <div class="ctx-menu" style=${`left:${Math.min(ctx.x, (typeof window !== "undefined" ? window.innerWidth : 9999) - 176)}px;top:${ctx.y}px;`} onPointerDown=${e => e.stopPropagation()}>
         ${ctx.area
@@ -3025,10 +3001,5 @@ function layoutColumns(items, drag) {
 function countOpen(tasks, listId) {
   const n = tasks.filter(t => !t.recurrence_parent && !t.done && !t.deleted_at && !t.date
     && (listId ? t.list_id === listId : (!t.list_id && !t.area_id))).length;
-  return n || "";
-}
-function countArea(tasks, areaId, areaOfList) {
-  const n = tasks.filter(t => !t.recurrence_parent && !t.done && !t.deleted_at && !t.date
-    && (t.area_id === areaId || (t.list_id && areaOfList(t.list_id) === areaId))).length;
   return n || "";
 }

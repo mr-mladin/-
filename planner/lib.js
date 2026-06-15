@@ -24,6 +24,8 @@ function fetchWithTimeout(input, init = {}) {
   const method = (init.method || "GET").toUpperCase();
   const idempotent = method === "GET" || method === "PATCH" || method === "DELETE" || method === "PUT";
   const attempt = (n) => {
+    // Уже отменён вызывающим (supabase) до старта — не плодим лишний fetch/таймер.
+    if (init.signal && init.signal.aborted) return Promise.reject(new DOMException("Aborted", "AbortError"));
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT);
     // Свой тайм-аут-сигнал + (если есть) сигнал отмены от supabase.
@@ -148,13 +150,17 @@ export function relLabel(iso) {
 
 // ---------- Время ----------
 export function minToHHMM(m) {
+  m = Number(m);
+  if (!Number.isFinite(m)) m = 0; // защита от NaN — иначе в UI протекало "NaN:NaN"
   m = ((Math.round(m) % 1440) + 1440) % 1440;
   const h = Math.floor(m / 60), mm = m % 60;
   return String(h).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
 }
 export function hhmmToMin(s) {
-  const [h, m] = String(s || "0:0").split(":").map(Number);
-  return (h || 0) * 60 + (m || 0);
+  // Строгий разбор "HH:MM" — мусор не превращаем тихо в осмысленное время.
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(s || ""));
+  if (!m) return 0;
+  return (+m[1]) * 60 + (+m[2]);
 }
 export function minRangeLabel(start, dur) {
   if (start === null || start === undefined) return "";
@@ -174,12 +180,14 @@ export function durHuman(m) {
 // (модификаторы тона кожи 🏻–🏿, ZWJ-последовательности, флаги собираются
 // в один символ). Прежняя регулярка теряла тон кожи и оставляла «битый»
 // остаток в названии.
+const GRAPHEME_SEG = (typeof Intl !== "undefined" && Intl.Segmenter)
+  ? new Intl.Segmenter(undefined, { granularity: "grapheme" }) : null;
 export function splitEmoji(title) {
   const t = title || "";
   if (!t) return { emoji: "", text: "" };
   let first = "";
   try {
-    const it = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t);
+    const it = (GRAPHEME_SEG || new Intl.Segmenter(undefined, { granularity: "grapheme" })).segment(t);
     first = it[Symbol.iterator]().next().value?.segment || "";
   } catch (e) {
     const m = t.match(/^\p{Extended_Pictographic}[‍️\p{Emoji_Modifier}\p{Extended_Pictographic}]*/u);

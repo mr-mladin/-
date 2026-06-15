@@ -33,7 +33,7 @@ export function Modal({ title, onClose, children, footer }) {
   }, [onClose]);
   return html`
     <div class="modal-back" onClick=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
-      <div class="modal" role="dialog">
+      <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-head"><h3>${title}</h3>
           <button class="btn-mini" onClick=${onClose} aria-label="Закрыть">${Icon.close()}</button></div>
         <div class="modal-body">${children}</div>
@@ -89,7 +89,7 @@ export function SearchModal({ onClose, onPick }) {
     : [];
   return html`
     <div class="modal-back search-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
-      <div class="search-box" role="dialog">
+      <div class="search-box" role="dialog" aria-modal="true">
         <div class="search-head">
           <span class="search-ico">${Icon.search()}</span>
           <input class="search-input" ref=${inputRef} placeholder="Поиск по задачам…"
@@ -198,13 +198,21 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
 
   const cardRef = useRef(null);
   const titleRef = useRef(null);
+  const busyRef = useRef(false); // синхронный замок от двойного сохранения (Enter+клик → дубль)
   useEffect(() => {
     const onKey = e => { if (e.key === "Escape") onClose?.(); };
     document.addEventListener("keydown", onKey);
-    // Клик вне карточки — закрыть (без сохранения изменений-черновика).
-    const onDown = e => { if (cardRef.current && !cardRef.current.contains(e.target)) onClose?.(); };
-    setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
-    return () => { document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
+    // Клик вне карточки — закрыть (без сохранения изменений-черновика). НО: открытый
+    // системный пикер даты/времени всплывает ВНЕ карточки — если в фокусе наше поле
+    // даты/времени, клик по пикеру форму не закрывает (иначе выбор даты терялся бы).
+    const onDown = e => {
+      if (!cardRef.current || cardRef.current.contains(e.target)) return;
+      const ae = document.activeElement;
+      if (ae && cardRef.current.contains(ae) && (ae.type === "date" || ae.type === "time")) return;
+      onClose?.();
+    };
+    const t = setTimeout(() => document.addEventListener("pointerdown", onDown), 0);
+    return () => { clearTimeout(t); document.removeEventListener("keydown", onKey); document.removeEventListener("pointerdown", onDown); };
   }, [onClose, editing]);
 
   function changeDate(v) { setDate(v); if (!endDate || endDate < v) setEndDate(v); if (!v) { setStartTime(""); setRecurrence(""); } }
@@ -245,19 +253,21 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
     };
   }
   async function save() {
+    if (busyRef.current) return; // уже сохраняем — второй Enter/клик не плодит дубль задачи
     if (!title.trim()) { setError("Введите название задачи"); titleRef.current?.focus(); return; }
-    setBusy(true);
+    busyRef.current = true; setBusy(true);
     try {
       if (editing) await store.actions.tasks.update(initial.id, payload());
       else await store.actions.tasks.create(payload());
       store.pushToast(isEvent ? (editing ? "Событие обновлено" : "Событие добавлено") : (editing ? "Задача обновлена" : "Задача добавлена"), "success");
       onClose();
-    } catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); }
+    } catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); busyRef.current = false; }
   }
   async function run(fn, msg) {
-    setBusy(true);
+    if (busyRef.current) return;
+    busyRef.current = true; setBusy(true);
     try { await fn(); store.pushToast(msg, "success"); onClose(); }
-    catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); }
+    catch (e) { const m = dbHint(e.message); setError(m); store.pushToast(m, "error"); } finally { setBusy(false); busyRef.current = false; }
   }
 
   const recurLabel = (RECUR_OPTIONS.find(o => o.value === recurrence) || RECUR_OPTIONS[0]).label;
@@ -278,7 +288,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
 
       <div class="ed-headgroup">
         <div class="ed-head">
-          <textarea class="ed-title" rows="1" placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
+          <textarea class="ed-title" rows="1" aria-label=${isEvent ? "Название события" : "Название задачи"} placeholder=${isEvent ? "Название события" : "Название задачи"} enterkeyhint="done"
             ref=${el => { if (el) { titleRef.current = el; if (!editing && !el._af) { el._af = true; try { el.focus({ preventScroll: true }); } catch (e) { el.focus(); } } } }}
             value=${title} onInput=${e => { setTitle(e.target.value); onLiveTitle && onLiveTitle(e.target.value); }}
             onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); save(); } }}></textarea>
@@ -301,7 +311,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
               </div>`}
           </div>
         </div>
-        <textarea class="ed-notes" rows="1" placeholder="Заметка"
+        <textarea class="ed-notes" rows="1" aria-label="Заметка" placeholder="Заметка"
           value=${notes} onInput=${e => setNotes(e.target.value)}></textarea>
       </div>
 
@@ -360,7 +370,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
                         aria-label="Дата начала" onInput=${e => changeDate(e.target.value)} />
                     </div>
                     <input class="ed-timepill" type="time" value=${startTime}
-                      aria-label="Время начала" onInput=${e => { if (e.target.value) setStartTime(e.target.value); }} />
+                      aria-label="Время начала" onInput=${e => setStartTime(e.target.value)} />
                   </div>
                 </div>
                 <div class="ed-daterow">
@@ -373,7 +383,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
                         aria-label="Дата конца" onInput=${e => { const v = e.target.value; setEndDate(v < date ? date : v); }} />
                     </div>
                     <input class="ed-timepill" type="time" value=${endTime || startTime}
-                      aria-label="Время конца" onInput=${e => { if (e.target.value) setEndTime(e.target.value); }} />
+                      aria-label="Время конца" onInput=${e => setEndTime(e.target.value)} />
                   </div>
                 </div>`}
             <div class="ed-daterow">
@@ -395,7 +405,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
                 <div class="ed-datepill">
                   <span class="ed-datepill-text">${until ? medDate(until) : "Никогда"}</span>
                   <span class="ed-datepill-chev">${Icon.down()}</span>
-                  <input class="ed-date-over" type="date" value=${until}
+                  <input class="ed-date-over" type="date" value=${until} min=${date}
                     aria-label="Повтор до" onInput=${e => setUntil(e.target.value)} />
                 </div>
                 ${until && html`<button class="ed-mini-clear" type="button" title="Убрать дату окончания" onClick=${() => setUntil("")}>${Icon.close()}</button>`}
@@ -419,7 +429,7 @@ export function TaskEditor({ initial, defaults, occ, onClose, onLiveTitle }) {
                 <button class=${"task-check sm" + (s.done ? " on" : "")} type="button"
                   style=${s.done ? `background:${dotColor};border-color:${dotColor};` : ""}
                   onClick=${() => setSub(s.id, { done: !s.done })}>${Icon.check()}</button>
-                <input class="ed-sub-input" placeholder="Подзадача" value=${s.title}
+                <input class="ed-sub-input" aria-label="Подзадача" placeholder="Подзадача" value=${s.title}
                   onInput=${e => setSub(s.id, { title: e.target.value })}
                   onKeyDown=${e => { if (e.key === "Enter") { e.preventDefault(); addSub(); } }} />
                 <button class="ed-sub-del" type="button" title="Убрать" onClick=${() => delSub(s.id)}>${Icon.close()}</button>
