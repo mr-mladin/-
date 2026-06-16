@@ -203,6 +203,8 @@ function Planner() {
   const weekBarFinalizeRef = useRef(null); // финализатор доводки недели (защита от двойного вызова)
   const weekWheelDxRef = useRef(0);    // накопленный сдвиг трека недели от трекпада (десктоп)
   const weekWheelTimerRef = useRef(null); // «конец жеста» трекпада (события колеса прекратились)
+  const weekWheelPeakVxRef = useRef(0); // пиковая скорость жеста колеса, px/мс (для «быстрого смаха»)
+  const weekWheelLastTRef = useRef(0);  // время прошлого события колеса (для оценки скорости)
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
   const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
@@ -2092,13 +2094,24 @@ function Planner() {
     const track = weekTrackRef.current; if (!track) return;
     e.preventDefault();
     const vp = track.parentElement; const W = vp ? vp.getBoundingClientRect().width : window.innerWidth;
+    // Оценка скорости: пик мгновенной |deltaX|/dt за жест. Нужен «быстрый смах» —
+    // короткий резкий флик листает, даже если путь не дотянул до позиционного порога.
+    const now = performance.now();
+    if (weekWheelDxRef.current === 0) { weekWheelPeakVxRef.current = 0; weekWheelLastTRef.current = now; } // новый жест
+    const dt = Math.max(1, now - weekWheelLastTRef.current);
+    weekWheelLastTRef.current = now;
+    const ivx = Math.abs(e.deltaX) / dt;
+    if (ivx > weekWheelPeakVxRef.current) weekWheelPeakVxRef.current = ivx;
     weekWheelDxRef.current = Math.max(-W, Math.min(W, weekWheelDxRef.current - e.deltaX));
     track.style.transition = "none";
     track.style.transform = `translateX(calc(-100% + ${weekWheelDxRef.current}px))`;
     clearTimeout(weekWheelTimerRef.current);
     weekWheelTimerRef.current = setTimeout(() => {
-      const dx = weekWheelDxRef.current; weekWheelDxRef.current = 0;
-      if (Math.abs(dx) > Math.min(60, W * 0.16)) weekBarCommit(dx < 0 ? 1 : -1); else weekBarSnapBack();
+      const dx = weekWheelDxRef.current, peakVx = weekWheelPeakVxRef.current;
+      weekWheelDxRef.current = 0; weekWheelPeakVxRef.current = 0; weekWheelLastTRef.current = 0;
+      // Позиционный порог снижен 16%→12% (как у сетки дня) + флик по пиковой скорости.
+      const commit = Math.abs(dx) > Math.min(60, W * 0.12) || (peakVx > 0.5 && Math.abs(dx) > 12);
+      if (commit) weekBarCommit(dx < 0 ? 1 : -1); else weekBarSnapBack();
     }, 140);
   }
   function onDaySwipeStart(e) {
