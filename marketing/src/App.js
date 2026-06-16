@@ -154,8 +154,8 @@ export function App() {
         <div class="brand">
           <div class="brand__mark">◆</div>
           <div>
-            <h1 class="brand__title">Отчётность по рекламе</h1>
-            <div class="brand__sub">VK Ads · обновлено сегодня в 06:00</div>
+            <h1 class="brand__title">Маркетинг</h1>
+            <div class="brand__sub">Отчётность по рекламе · обновлено сегодня в 06:00</div>
           </div>
         </div>
         <div class="topbar__right">
