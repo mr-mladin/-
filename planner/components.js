@@ -1,5 +1,5 @@
 import { html } from "htm/preact";
-import { useState, useEffect, useRef } from "preact/hooks";
+import { useState, useEffect, useRef, useMemo } from "preact/hooks";
 import { useStore } from "./store.js";
 import { Icon, todayISO, toISO, fromISO, RECUR_OPTIONS, monthGen } from "./lib.js";
 import { minToHHMM, hhmmToMin, waveDataUrl } from "./lib.js";
@@ -73,6 +73,8 @@ export function SettingsModal({ onClose }) {
 export function SearchModal({ onClose, onPick }) {
   const store = useStore();
   const [q, setQ] = useState("");
+  const [debouncedQ, setDebouncedQ] = useState("");
+  const [active, setActive] = useState(0);
   const inputRef = useRef(null);
   useEffect(() => {
     inputRef.current?.focus();
@@ -80,26 +82,37 @@ export function SearchModal({ onClose, onPick }) {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
-  const lists = store.taskLists;
-  const listById = Object.fromEntries(lists.map(l => [l.id, l]));
-  const term = q.trim().toLowerCase();
-  const results = term
+  // Дебаунс ввода — на большом списке фильтрация не дёргается на каждую букву.
+  useEffect(() => { const t = setTimeout(() => setDebouncedQ(q), 120); return () => clearTimeout(t); }, [q]);
+  const listById = useMemo(() => Object.fromEntries(store.taskLists.map(l => [l.id, l])), [store.taskLists]);
+  const term = debouncedQ.trim().toLowerCase();
+  const results = useMemo(() => term
     ? store.tasks.filter(t => !t.recurrence_parent && !t.deleted_at && (t.title || "").toLowerCase().includes(term))
         .sort((a, b) => (a.done - b.done)).slice(0, 60)
-    : [];
+    : [], [term, store.tasks]);
+  useEffect(() => { setActive(0); }, [term]); // новые результаты — курсор на первый
+  // Навигация клавиатурой: ↑/↓ по результатам, Enter — открыть выбранный.
+  const onInputKey = e => {
+    if (!results.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); setActive(i => Math.min(i + 1, results.length - 1)); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); setActive(i => Math.max(i - 1, 0)); }
+    else if (e.key === "Enter") { e.preventDefault(); const r = results[active]; if (r) onPick?.(r); }
+  };
   return html`
     <div class="modal-back search-back" onPointerDown=${e => { if (e.target === e.currentTarget) onClose?.(); }}>
       <div class="search-box" role="dialog" aria-modal="true">
         <div class="search-head">
           <span class="search-ico">${Icon.search()}</span>
-          <input class="search-input" ref=${inputRef} placeholder="Поиск по задачам…"
-            value=${q} onInput=${e => setQ(e.target.value)} />
-          <button class="btn-mini" title="Закрыть" onClick=${onClose}>${Icon.close()}</button>
+          <input class="search-input" ref=${inputRef} placeholder="Поиск по задачам…" aria-label="Поиск по задачам"
+            role="combobox" aria-expanded=${results.length > 0} aria-controls="search-results"
+            value=${q} onInput=${e => setQ(e.target.value)} onKeyDown=${onInputKey} />
+          <button class="btn-mini" title="Закрыть" aria-label="Закрыть" onClick=${onClose}>${Icon.close()}</button>
         </div>
-        ${term && html`<div class="search-results">
+        ${term && html`<div class="search-results" id="search-results" role="listbox">
           ${results.length === 0
             ? html`<div class="search-empty">Ничего не найдено</div>`
-            : results.map(t => html`<button class=${"search-item" + (t.done ? " done" : "")} key=${t.id}
+            : results.map((t, i) => html`<button class=${"search-item" + (t.done ? " done" : "") + (i === active ? " active" : "")} key=${t.id}
+                role="option" aria-selected=${i === active} onMouseMove=${() => active !== i && setActive(i)}
                 onClick=${() => onPick?.(t)}>
                 <span class=${"task-check sm" + (t.done ? " on" : "")}>${Icon.check()}</span>
                 <span class="search-item-title">${t.title}</span>

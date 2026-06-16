@@ -226,7 +226,13 @@ export function occursOn(tmpl, dateISO) {
     case "weekdays": return wd >= 1 && wd <= 5;
     case "weekly": return daysBetween(tmpl.date, dateISO) % 7 === 0;
     case "biweekly": return daysBetween(tmpl.date, dateISO) % 14 === 0;
-    case "monthly": return fromISO(tmpl.date).getDate() === d.getDate();
+    case "monthly": {
+      // Как в Apple Календаре: если числа-якоря в этом месяце нет (напр. 31-е в феврале),
+      // показываем в ПОСЛЕДНИЙ день месяца — задача не «теряется».
+      const anchor = fromISO(tmpl.date).getDate();
+      const dim = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); // дней в месяце даты d
+      return d.getDate() === Math.min(anchor, dim);
+    }
     default: return false;
   }
 }
