@@ -2905,7 +2905,7 @@ function Planner() {
       const evCls = isEv ? " tl-ev tl-bar-" + (it.card_bar || "none") + " tl-bg-" + (it.card_bg || "clean") : "";
       const waveVar = (isEv && (it.card_bg === "waves" || it.card_bg === "waves2")) ? "--wave:" + waveDataUrl(colorOf(it), it.card_bg) + ";" : "";
       return html`<div class=${"tl-event tl-lift-overlay" + evCls + density + (it.done ? " done" : "") + (landing ? " landing" : " lifted")}
-        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};${waveVar}transform:translate(${liftDrag.dx}px,${liftDrag.dy}px)${landing ? "" : " scale(1.04)"};`}>
+        style=${`top:${g.top}px;left:${g.left}px;width:${g.width}px;height:${g.height}px;--c:${colorOf(it)};${waveVar}transform:translate(${liftDrag.dx}px,${liftDrag.dy}px);`}>
         ${isEv && it.card_bar && it.card_bar !== "none" && html`<div class=${"tl-evbar " + it.card_bar}></div>`}
         <div class="tl-pill">${!isEv ? html`<button class=${"tl-pill-check" + (it.done ? " on" : "")} type="button">${Icon.check()}</button>` : ""}</div>
         <div class="tl-body"><div class="tl-text">
