@@ -1433,6 +1433,6 @@ html[data-theme="dark"] .search-box { box-shadow: 0 20px 55px rgba(0,0,0,0.65); 
   .allday-handle:active .allday-grip { background: var(--text-mute); width: 54px; }
 }
 
-/* Видимый фокус для клавиатуры (a11y). :focus-visible не срабатывает на клик мышью/
-   пальцем — вид при обычном использовании не меняется, кольцо только для Tab-навигации. */
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Владелец просит не показывать рамку фокуса клавиатуры. Поля ввода и пилюли
+   времени всё равно подсвечивают фокус (border-color / box-shadow выше). */
+:focus-visible { outline: none; }
