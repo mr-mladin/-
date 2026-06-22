@@ -175,6 +175,7 @@ function Planner() {
   const cancelSnapRef = useRef(null);  // отменить текущую анимацию snap (для смены даты извне)
   const daySwipeStateRef = useRef(null); // управление каруселью дня извне (reset)
   const dayTouchGestureRef = useRef(null); // активный однопальцевый свайп; второй палец отменяет его перед зумом
+  const daySwipeContinueRef = useRef(false); // смена даты между двумя быстрыми свайпами не должна обнулять второй жест
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
@@ -201,11 +202,9 @@ function Planner() {
   const adGridRef = useRef(null);   // контейнер зоны «весь день»
   const weekTrackRef = useRef(null);   // трек-карусель строки дат (3 недели), едет за пальцем
   const weekRecenterRef = useRef(false); // после коммита недели вернуть трек в центр без мигания
+  const weekSwipeContinueRef = useRef(false); // быстрый следующий свайп сохраняет своё смещение при смене недели
   const weekBarFinalizeRef = useRef(null); // финализатор доводки недели (защита от двойного вызова)
-  const weekWheelDxRef = useRef(0);    // накопленный сдвиг трека недели от трекпада (десктоп)
-  const weekWheelTimerRef = useRef(null); // «конец жеста» трекпада (события колеса прекратились)
-  const weekWheelPeakVxRef = useRef(0); // пиковая скорость жеста колеса, px/мс (для «быстрого смаха»)
-  const weekWheelLastTRef = useRef(0);  // время прошлого события колеса (для оценки скорости)
+  const weekWheelRef = useRef({ phase: "idle", axis: null, dx: 0, peakVx: 0, peakAbs: 0, lastAbs: 0, minAbs: Infinity, lastT: 0, endTimer: null, resetTimer: null });
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
   const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
@@ -470,10 +469,13 @@ function Planner() {
     let wheelEndTimer = null;
     let wheelResetTimer = null;
     let wheelAxis = null;
-    let wheelActive = false;
+    let wheelPhase = "idle";
     let wheelLastT = 0;
     let wheelVx = 0;
     let wheelPeakVx = 0;
+    let wheelPeakAbs = 0;
+    let wheelLastAbs = 0;
+    let wheelMinAbs = Infinity;
 
     const width = () => el.clientWidth || 1;
     const apply = () => {
@@ -506,14 +508,28 @@ function Planner() {
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
+    // Если пользователь начал следующий свайп, пока предыдущий день ещё доезжает,
+    // не заставляем его ждать transitionend: завершаем прошлый шаг синхронно,
+    // возвращаем трек в центр уже на новой дате и принимаем новый жест.
+    const interruptForInput = () => {
+      if (!settle) return dx;
+      const target = settle.target;
+      clearSettle(false);
+      if (Math.abs(target) > 1) {
+        daySwipeContinueRef.current = true;
+        finishCommit(target);
+        dx = 0;
+        apply();
+        return 0;
+      }
+      return dx;
+    };
     const targetFor = (vx) => {
       const w = width();
-      const projected = clamp(dx + (vx || 0) * 180, -w, w);
-      const fast = Math.abs(vx || 0) > 0.3 && Math.abs(dx) > 10;
-      const far = Math.abs(dx) > w * 0.3;
-      const projectedFar = Math.abs(projected) > w * 0.22;
-      if (!fast && !far && !projectedFar) return 0;
-      const direction = Math.abs(vx || 0) > 0.16 ? Math.sign(vx) : Math.sign(projected || dx);
+      const commit = Math.abs(dx) > Math.min(60, w * 0.14)
+        || (Math.abs(vx || 0) > 0.18 && Math.abs(dx) > 5);
+      if (!commit) return 0;
+      const direction = Math.abs(dx) > 1 ? Math.sign(dx) : Math.sign(vx || 0);
       return direction < 0 ? -w : w;
     };
     const settleTo = (target, vx = 0, forcedDuration = null) => {
@@ -528,10 +544,7 @@ function Planner() {
         else schedulePeekOff();
         return;
       }
-      const duration = forcedDuration ?? clamp(
-        Math.round(210 + (distance / w) * 105 - Math.min(Math.abs(vx), 1.4) * 55),
-        170, 330,
-      );
+      const duration = forcedDuration ?? (target ? 300 : 250);
       const token = {};
       const done = (ev) => {
         if (settle?.token !== token || (ev && ev.target !== track)) return;
@@ -541,26 +554,49 @@ function Planner() {
         dx = target;
         track.style.transition = "none";
         track.style.transform = `translateX(calc(-100% + ${dx}px))`;
-        if (target) finishCommit(target);
-        else schedulePeekOff();
+        if (target) {
+          finishCommit(target);
+          dx = 0;
+          apply();
+        } else schedulePeekOff();
       };
-      settle = { token, done, timer: setTimeout(() => done(), duration + 90) };
+      if (target) haptic();
+      settle = { token, target, done, timer: setTimeout(() => done(), duration + 80) };
       track.addEventListener("transitionend", done);
-      track.style.transition = `transform ${duration}ms cubic-bezier(.18,.82,.22,1)`;
+      track.style.transition = `transform ${duration}ms cubic-bezier(.22,.61,.36,1)`;
       void track.offsetWidth;
       dx = target;
       track.style.transform = `translateX(calc(-100% + ${target}px))`;
+    };
+    const beginWheel = () => {
+      interruptForInput();
+      clearTimeout(peekTimerRef.current);
+      setPeek(true);
+      wheelPhase = "drag";
+      wheelVx = 0;
+      wheelPeakVx = 0;
+      wheelPeakAbs = 0;
+      wheelLastAbs = 0;
+      wheelMinAbs = Infinity;
+    };
+    const finishWheel = () => {
+      if (wheelPhase !== "drag") return;
+      wheelPhase = "drain";
+      const releaseVx = Math.abs(wheelPeakVx) > Math.abs(wheelVx) * 1.6
+        ? wheelPeakVx * 0.55 : wheelVx;
+      settleTo(targetFor(releaseVx), releaseVx);
     };
     daySwipeStateRef.current = {
       reset: () => {
         clearSettle(false);
         clearTimeout(wheelEndTimer);
         dx = 0;
+        wheelPhase = "idle";
         track.style.transition = "none";
         track.style.transform = "translateX(-100%)";
       },
       getDx: () => dx,
-      interrupt: () => clearSettle(true),
+      interrupt: interruptForInput,
       setDx: (v) => { dx = clamp(v, -width(), width()); apply(); },
       settle: (vx) => { clearTimeout(wheelEndTimer); settleTo(targetFor(vx), vx); },
       abort: (immediate = false) => {
@@ -577,47 +613,60 @@ function Planner() {
       if (e.ctrlKey || zoomingRef.current) return; // зум обрабатывает другой effect
       const now = performance.now();
       const prevWheelT = wheelLastT;
+      const wheelGap = prevWheelT ? now - prevWheelT : Infinity;
       if (!wheelLastT || now - wheelLastT > 260) {
         wheelAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.85 ? "h" : "v";
-        wheelActive = false;
+        wheelPhase = "idle";
         wheelVx = 0;
         wheelPeakVx = 0;
+        wheelPeakAbs = 0;
+        wheelLastAbs = 0;
+        wheelMinAbs = Infinity;
       }
       const dt = Math.max(1, now - (prevWheelT || now - 16));
       wheelLastT = now;
       clearTimeout(wheelResetTimer);
       wheelResetTimer = setTimeout(() => {
         wheelAxis = null;
-        wheelActive = false;
+        wheelPhase = "idle";
         wheelLastT = 0;
         wheelVx = 0;
         wheelPeakVx = 0;
+        wheelPeakAbs = 0;
+        wheelLastAbs = 0;
+        wheelMinAbs = Infinity;
       }, 320);
       if (wheelAxis !== "h") return; // вертикальный жест остаётся нативной прокруткой
       e.preventDefault();
-      if (!wheelActive) {
-        clearSettle(true);
-        clearTimeout(peekTimerRef.current);
-        setPeek(true);
-        wheelActive = true;
-        wheelVx = 0;
-        wheelPeakVx = 0;
+      const abs = Math.abs(e.deltaX);
+      const newImpulse = wheelLastAbs > 0
+        && abs > Math.max(wheelLastAbs + 4, wheelLastAbs * 1.7)
+        && wheelLastAbs < wheelPeakAbs * 0.65;
+      if (wheelPhase === "drain") {
+        wheelMinAbs = Math.min(wheelMinAbs, abs);
+        if (!(wheelGap > 75 || abs > Math.max(4, wheelMinAbs + 3))) {
+          wheelLastAbs = abs;
+          return; // остаточная системная инерция прошлого свайпа
+        }
+        wheelPhase = "idle";
+      } else if (wheelPhase === "drag" && newImpulse) {
+        finishWheel();
+        wheelPhase = "idle";
       }
+      if (wheelPhase === "idle") beginWheel();
       const delta = -e.deltaX;
       const instantVx = delta / dt;
       wheelVx = wheelVx * 0.58 + instantVx * 0.42;
       if (Math.abs(instantVx) > Math.abs(wheelPeakVx)) wheelPeakVx = instantVx;
+      wheelPeakAbs = Math.max(wheelPeakAbs, abs);
+      wheelMinAbs = Math.min(wheelMinAbs, abs);
+      wheelLastAbs = abs;
       dx = clamp(dx + delta, -width(), width());
       apply();
       clearTimeout(wheelEndTimer);
-      // Трекпад не сообщает момент отпускания. После окончания его инерционных
-      // wheel-событий прогнозируем цель по пройденному пути и пиковой скорости.
-      wheelEndTimer = setTimeout(() => {
-        wheelActive = false;
-        const releaseVx = Math.abs(wheelPeakVx) > Math.abs(wheelVx) * 1.6
-          ? wheelPeakVx * 0.55 : wheelVx;
-        daySwipeStateRef.current?.settle(releaseVx);
-      }, 105);
+      // Системная инерция трекпада может длиться секунды. Заканчиваем жест по
+      // короткой паузе, а её хвост игнорируем до нового явного импульса.
+      wheelEndTimer = setTimeout(finishWheel, 85);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
@@ -633,6 +682,10 @@ function Planner() {
   // в 0: новая «текущая» панель уже в центре, dx должен быть 0.
   useLayoutEffect(() => {
     if (view !== "day") return;
+    if (daySwipeContinueRef.current) {
+      daySwipeContinueRef.current = false;
+      return;
+    }
     daySwipeStateRef.current?.reset();
   }, [date, view]);
 
@@ -846,6 +899,11 @@ function Planner() {
   // Карусель строки дат: после смены недели свайпом возвращаем трек в центр (-100%)
   // ДО отрисовки — новая неделя уже в центральной панели, поэтому без мигания.
   useLayoutEffect(() => {
+    if (weekSwipeContinueRef.current) {
+      weekSwipeContinueRef.current = false;
+      weekRecenterRef.current = false;
+      return;
+    }
     if (!weekRecenterRef.current) return;
     weekRecenterRef.current = false;
     const track = weekTrackRef.current;
@@ -2094,9 +2152,8 @@ function Planner() {
       const t = find(ev.touches); if (!t) return;
       const dxF = t.clientX - sx, dyF = t.clientY - sy;
       if (horiz === null && (Math.abs(dxF) > 7 || Math.abs(dyF) > 7)) {
-        if (Math.abs(dxF) > Math.abs(dyF) * 1.08) horiz = true;
-        else if (Math.abs(dyF) > Math.abs(dxF) * 1.08) { cleanup(); return; }
-        else return; // диагональ пока неоднозначна — ждём ещё движения
+        horiz = Math.abs(dxF) > Math.abs(dyF);
+        if (!horiz) { cleanup(); return; }
         // Прерываем текущую анимацию ТОЛЬКО когда реально начали горизонтальный свайп.
         // Иначе обычный тап (без свайпа) останавливал бы доводку дня на полпути → залипание.
         startDx = st.interrupt();
@@ -2106,8 +2163,7 @@ function Planner() {
       ev.preventDefault();
       const now = performance.now();
       if (now > lastT) {
-        const instantVx = (t.clientX - lastX) / (now - lastT);
-        vx = vx * 0.55 + instantVx * 0.45;
+        vx = (t.clientX - lastX) / (now - lastT);
       }
       lastX = t.clientX; lastT = now;
       st.setDx(startDx + dxF);
@@ -2132,7 +2188,17 @@ function Planner() {
     document.addEventListener("touchcancel", end);
   }
   // ---- Строка дат: карусель из 3 недель, трек физически едет за пальцем (как сетка дня) ----
-  function shiftWeek(dir) { setDate(addDaysISO(date, dir * 7)); }
+  function shiftWeek(dir) {
+    dateRef.current = addDaysISO(dateRef.current, dir * 7);
+    setDate(dateRef.current);
+  }
+  function finishWeekBarForNext(track) {
+    if (!weekBarFinalizeRef.current) return;
+    weekSwipeContinueRef.current = true;
+    weekBarFinalizeRef.current();
+    track.style.transition = "none";
+    track.style.transform = "translateX(-100%)";
+  }
   function onWeekBarTouchStart(e) {
     if (e.touches.length !== 1) return;
     const track = weekTrackRef.current; if (!track) return;
@@ -2145,6 +2211,7 @@ function Planner() {
       if (horiz === null && (Math.abs(dx) > 5 || Math.abs(dy) > 5)) { horiz = Math.abs(dx) > Math.abs(dy); if (!horiz) { cleanup(); return; } }
       if (!horiz) return;
       ev.preventDefault();
+      if (lastX === sx) finishWeekBarForNext(track);
       const now = performance.now(); if (now > lastT) vx = (t.clientX - lastX) / (now - lastT); lastX = t.clientX; lastT = now;
       track.style.transition = "none";
       track.style.transform = `translateX(calc(-100% + ${dx}px))`;
@@ -2163,6 +2230,7 @@ function Planner() {
   // трек в центр уже с новой неделей — без мигания (как карусель дня).
   function weekBarCommit(dir) {
     const track = weekTrackRef.current; if (!track) return;
+    finishWeekBarForNext(track);
     haptic();
     const done = () => {
       if (weekBarFinalizeRef.current !== done) return;
@@ -2185,29 +2253,59 @@ function Planner() {
   // Десктоп-трекпад: горизонтальный жест колесом физически тянет трек (как сетка дня),
   // доводка/возврат — когда события колеса прекратились (у трекпада нет «отпустил пальцы»).
   function onWeekStripWheel(e) {
-    if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return; // вертикаль — не трогаем
     const track = weekTrackRef.current; if (!track) return;
-    e.preventDefault();
     const vp = track.parentElement; const W = vp ? vp.getBoundingClientRect().width : window.innerWidth;
-    // Оценка скорости: пик мгновенной |deltaX|/dt за жест. Нужен «быстрый смах» —
-    // короткий резкий флик листает, даже если путь не дотянул до позиционного порога.
+    const s = weekWheelRef.current;
     const now = performance.now();
-    if (weekWheelDxRef.current === 0) { weekWheelPeakVxRef.current = 0; weekWheelLastTRef.current = now; } // новый жест
-    const dt = Math.max(1, now - weekWheelLastTRef.current);
-    weekWheelLastTRef.current = now;
-    const ivx = Math.abs(e.deltaX) / dt;
-    if (ivx > weekWheelPeakVxRef.current) weekWheelPeakVxRef.current = ivx;
-    weekWheelDxRef.current = Math.max(-W, Math.min(W, weekWheelDxRef.current - e.deltaX));
+    const wheelGap = s.lastT ? now - s.lastT : Infinity;
+    if (!s.lastT || now - s.lastT > 260) {
+      s.axis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
+      s.phase = "idle"; s.dx = 0; s.peakVx = 0; s.peakAbs = 0; s.lastAbs = 0; s.minAbs = Infinity;
+    }
+    const dt = Math.max(1, now - (s.lastT || now - 16));
+    s.lastT = now;
+    clearTimeout(s.resetTimer);
+    s.resetTimer = setTimeout(() => {
+      s.phase = "idle"; s.axis = null; s.dx = 0; s.peakVx = 0; s.peakAbs = 0; s.lastAbs = 0; s.minAbs = Infinity; s.lastT = 0;
+    }, 320);
+    if (s.axis !== "h") return;
+    e.preventDefault();
+    const abs = Math.abs(e.deltaX);
+    const finish = () => {
+      if (s.phase !== "drag") return;
+      s.phase = "drain";
+      const dx = s.dx, peakVx = s.peakVx;
+      const commit = Math.abs(dx) > Math.min(60, W * 0.14)
+        || (Math.abs(peakVx) > 0.18 && Math.abs(dx) > 5);
+      if (commit) weekBarCommit((dx || -peakVx) < 0 ? 1 : -1);
+      else weekBarSnapBack();
+    };
+    const start = () => {
+      finishWeekBarForNext(track);
+      s.phase = "drag"; s.dx = 0; s.peakVx = 0; s.peakAbs = 0; s.lastAbs = 0; s.minAbs = Infinity;
+    };
+    const newImpulse = s.lastAbs > 0
+      && abs > Math.max(s.lastAbs + 4, s.lastAbs * 1.7)
+      && s.lastAbs < s.peakAbs * 0.65;
+    if (s.phase === "drain") {
+      s.minAbs = Math.min(s.minAbs, abs);
+      if (!(wheelGap > 75 || abs > Math.max(4, s.minAbs + 3))) { s.lastAbs = abs; return; }
+      s.phase = "idle";
+    } else if (s.phase === "drag" && newImpulse) {
+      finish();
+      s.phase = "idle";
+    }
+    if (s.phase === "idle") start();
+    const ivx = -e.deltaX / dt;
+    if (Math.abs(ivx) > Math.abs(s.peakVx)) s.peakVx = ivx;
+    s.peakAbs = Math.max(s.peakAbs, abs);
+    s.minAbs = Math.min(s.minAbs, abs);
+    s.lastAbs = abs;
+    s.dx = Math.max(-W, Math.min(W, s.dx - e.deltaX));
     track.style.transition = "none";
-    track.style.transform = `translateX(calc(-100% + ${weekWheelDxRef.current}px))`;
-    clearTimeout(weekWheelTimerRef.current);
-    weekWheelTimerRef.current = setTimeout(() => {
-      const dx = weekWheelDxRef.current, peakVx = weekWheelPeakVxRef.current;
-      weekWheelDxRef.current = 0; weekWheelPeakVxRef.current = 0; weekWheelLastTRef.current = 0;
-      // Позиционный порог снижен 16%→12% (как у сетки дня) + флик по пиковой скорости.
-      const commit = Math.abs(dx) > Math.min(60, W * 0.12) || (peakVx > 0.5 && Math.abs(dx) > 12);
-      if (commit) weekBarCommit(dx < 0 ? 1 : -1); else weekBarSnapBack();
-    }, 140);
+    track.style.transform = `translateX(calc(-100% + ${s.dx}px))`;
+    clearTimeout(s.endTimer);
+    s.endTimer = setTimeout(finish, 85);
   }
   function onDaySwipeStart(e) {
     // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
