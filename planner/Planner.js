@@ -176,6 +176,7 @@ function Planner() {
   const daySwipeStateRef = useRef(null); // управление каруселью дня извне (reset)
   const dayTouchGestureRef = useRef(null); // активный однопальцевый свайп; второй палец отменяет его перед зумом
   const daySwipeContinueRef = useRef(false); // смена даты между двумя быстрыми свайпами не должна обнулять второй жест
+  const nativeDayRecenterRef = useRef(false); // десктопный scroll-snap: после смены даты вернуть окно на центральную панель
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
@@ -203,8 +204,8 @@ function Planner() {
   const weekTrackRef = useRef(null);   // трек-карусель строки дат (3 недели), едет за пальцем
   const weekRecenterRef = useRef(false); // после коммита недели вернуть трек в центр без мигания
   const weekSwipeContinueRef = useRef(false); // быстрый следующий свайп сохраняет своё смещение при смене недели
+  const nativeWeekRecenterRef = useRef(false); // десктопный scroll-snap строки дат
   const weekBarFinalizeRef = useRef(null); // финализатор доводки недели (защита от двойного вызова)
-  const weekWheelRef = useRef({ phase: "idle", axis: null, dx: 0, peakVx: 0, peakAbs: 0, lastAbs: 0, minAbs: Infinity, lastT: 0, endTimer: null, resetTimer: null });
   const adRects = useRef(new Map()); // позиции карточек для FLIP-анимации
   const lastTap = useRef({ key: null, t: 0 });
   const clipRef = useRef(null); // внутренний буфер копирования задач/событий (Cmd+C → Cmd+V)
@@ -457,25 +458,14 @@ function Planner() {
     };
   }, [view, special]);
 
-  // Свайп дней: палец/трекпад двигает ленту напрямую, отпускание запускает ОДНУ
-  // CSS-доводку. В отличие от прежнего requestAnimationFrame-цикла браузер сам
-  // композитит transform без паузы между жестом и инерцией. Новое касание может
-  // снять текущую позицию из computed transform и сразу продолжить движение.
+  // Мобильный свайп дней: палец двигает ленту напрямую, отпускание запускает
+  // CSS-доводку. На десктопе используется отдельный нативный scroll-snap ниже:
+  // только браузер знает точный момент завершения жеста тачпада.
   useEffect(() => {
     const el = scrollRef.current, track = trackRef.current;
-    if (view !== "day" || !el || !track) return;
+    if (view !== "day" || !isMobile || !el || !track) return;
     let dx = 0;                 // минус = лента ушла влево, виден следующий день
     let settle = null;          // { done, timer } активной CSS-доводки
-    let wheelEndTimer = null;
-    let wheelResetTimer = null;
-    let wheelAxis = null;
-    let wheelPhase = "idle";
-    let wheelLastT = 0;
-    let wheelVx = 0;
-    let wheelPeakVx = 0;
-    let wheelPeakAbs = 0;
-    let wheelLastAbs = 0;
-    let wheelMinAbs = Infinity;
 
     const width = () => el.clientWidth || 1;
     const apply = () => {
@@ -568,39 +558,18 @@ function Planner() {
       dx = target;
       track.style.transform = `translateX(calc(-100% + ${target}px))`;
     };
-    const beginWheel = () => {
-      interruptForInput();
-      clearTimeout(peekTimerRef.current);
-      setPeek(true);
-      wheelPhase = "drag";
-      wheelVx = 0;
-      wheelPeakVx = 0;
-      wheelPeakAbs = 0;
-      wheelLastAbs = 0;
-      wheelMinAbs = Infinity;
-    };
-    const finishWheel = () => {
-      if (wheelPhase !== "drag") return;
-      wheelPhase = "drain";
-      const releaseVx = Math.abs(wheelPeakVx) > Math.abs(wheelVx) * 1.6
-        ? wheelPeakVx * 0.55 : wheelVx;
-      settleTo(targetFor(releaseVx), releaseVx);
-    };
     daySwipeStateRef.current = {
       reset: () => {
         clearSettle(false);
-        clearTimeout(wheelEndTimer);
         dx = 0;
-        wheelPhase = "idle";
         track.style.transition = "none";
         track.style.transform = "translateX(-100%)";
       },
       getDx: () => dx,
       interrupt: interruptForInput,
       setDx: (v) => { dx = clamp(v, -width(), width()); apply(); },
-      settle: (vx) => { clearTimeout(wheelEndTimer); settleTo(targetFor(vx), vx); },
+      settle: (vx) => settleTo(targetFor(vx), vx),
       abort: (immediate = false) => {
-        clearTimeout(wheelEndTimer);
         if (immediate) {
           clearSettle(false);
           dx = 0;
@@ -609,79 +578,91 @@ function Planner() {
         } else settleTo(0, 0, 160);
       },
     };
-    const onWheel = (e) => {
-      if (e.ctrlKey || zoomingRef.current) return; // зум обрабатывает другой effect
-      const now = performance.now();
-      const prevWheelT = wheelLastT;
-      const wheelGap = prevWheelT ? now - prevWheelT : Infinity;
-      if (!wheelLastT || now - wheelLastT > 260) {
-        wheelAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.85 ? "h" : "v";
-        wheelPhase = "idle";
-        wheelVx = 0;
-        wheelPeakVx = 0;
-        wheelPeakAbs = 0;
-        wheelLastAbs = 0;
-        wheelMinAbs = Infinity;
-      }
-      const dt = Math.max(1, now - (prevWheelT || now - 16));
-      wheelLastT = now;
-      clearTimeout(wheelResetTimer);
-      wheelResetTimer = setTimeout(() => {
-        wheelAxis = null;
-        wheelPhase = "idle";
-        wheelLastT = 0;
-        wheelVx = 0;
-        wheelPeakVx = 0;
-        wheelPeakAbs = 0;
-        wheelLastAbs = 0;
-        wheelMinAbs = Infinity;
-      }, 320);
-      if (wheelAxis !== "h") return; // вертикальный жест остаётся нативной прокруткой
-      e.preventDefault();
-      const abs = Math.abs(e.deltaX);
-      const newImpulse = wheelLastAbs > 0
-        && abs > Math.max(wheelLastAbs + 4, wheelLastAbs * 1.7)
-        && wheelLastAbs < wheelPeakAbs * 0.65;
-      if (wheelPhase === "drain") {
-        wheelMinAbs = Math.min(wheelMinAbs, abs);
-        if (!(wheelGap > 75 || abs > Math.max(4, wheelMinAbs + 3))) {
-          wheelLastAbs = abs;
-          return; // остаточная системная инерция прошлого свайпа
-        }
-        wheelPhase = "idle";
-      } else if (wheelPhase === "drag" && newImpulse) {
-        finishWheel();
-        wheelPhase = "idle";
-      }
-      if (wheelPhase === "idle") beginWheel();
-      const delta = -e.deltaX;
-      const instantVx = delta / dt;
-      wheelVx = wheelVx * 0.58 + instantVx * 0.42;
-      if (Math.abs(instantVx) > Math.abs(wheelPeakVx)) wheelPeakVx = instantVx;
-      wheelPeakAbs = Math.max(wheelPeakAbs, abs);
-      wheelMinAbs = Math.min(wheelMinAbs, abs);
-      wheelLastAbs = abs;
-      dx = clamp(dx + delta, -width(), width());
-      apply();
-      clearTimeout(wheelEndTimer);
-      // Системная инерция трекпада может длиться секунды. Заканчиваем жест по
-      // короткой паузе, а её хвост игнорируем до нового явного импульса.
-      wheelEndTimer = setTimeout(finishWheel, 85);
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       daySwipeStateRef.current = null;
       clearSettle(false);
-      clearTimeout(wheelEndTimer);
-      clearTimeout(wheelResetTimer);
-      el.removeEventListener("wheel", onWheel);
     };
-  }, [view, special]);
+  }, [view, special, isMobile]);
+
+  // Десктоп: настоящая горизонтальная карусель. Никаких таймеров «отпускания»
+  // и ручной физики wheel: scroll-snap ведёт панель вместе с пальцами, различает
+  // диагональный/вертикальный жест и доводит страницу только после release.
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (view !== "day" || special || isMobile || !el) return;
+    let fallback = null;
+    let horizontal = false;
+    const hasScrollEnd = "onscrollend" in el;
+    const center = () => (el.clientWidth || 1) * 4; // 9 панелей, текущая — пятая
+    const recenter = () => {
+      el.style.scrollBehavior = "auto";
+      el.style.scrollSnapType = "none";
+      el.scrollLeft = center();
+      void el.offsetWidth;
+      el.style.scrollBehavior = "";
+      el.style.scrollSnapType = "";
+    };
+    recenter();
+    const finish = () => {
+      clearTimeout(fallback);
+      if (!horizontal) return;
+      const w = el.clientWidth || 1;
+      const pages = Math.round((el.scrollLeft - center()) / w);
+      if (!pages) { horizontal = false; schedulePeekOff(); return; }
+      horizontal = false;
+      nativeDayRecenterRef.current = true;
+      keepScrollRef.current = true;
+      dateRef.current = addDaysISO(dateRef.current, clamp(pages, -4, 4));
+      setDate(dateRef.current);
+    };
+    const onWheel = (e) => {
+      if (e.ctrlKey || zoomingRef.current) return;
+      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      horizontal = true;
+      clearTimeout(peekTimerRef.current);
+      setPeek(true);
+    };
+    const onScroll = () => {
+      if (Math.abs(el.scrollLeft - center()) < 1) return;
+      if (!horizontal) {
+        clearTimeout(peekTimerRef.current);
+        setPeek(true);
+      }
+      horizontal = true;
+      if (!hasScrollEnd) {
+        clearTimeout(fallback);
+        fallback = setTimeout(finish, 180);
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: true });
+    el.addEventListener("scroll", onScroll, { passive: true });
+    if (hasScrollEnd) el.addEventListener("scrollend", finish);
+    return () => {
+      clearTimeout(fallback);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("scroll", onScroll);
+      if (hasScrollEnd) el.removeEventListener("scrollend", finish);
+    };
+  }, [view, special, isMobile]);
 
   // После смены даты (от свайпа или клика по дню) сбрасываем смещение карусели
   // в 0: новая «текущая» панель уже в центре, dx должен быть 0.
   useLayoutEffect(() => {
     if (view !== "day") return;
+    if (!isMobileRef.current && nativeDayRecenterRef.current) {
+      nativeDayRecenterRef.current = false;
+      const el = scrollRef.current;
+      if (el) {
+        el.style.scrollBehavior = "auto";
+        el.style.scrollSnapType = "none";
+        el.scrollLeft = (el.clientWidth || 1) * 4;
+        void el.offsetWidth;
+        el.style.scrollBehavior = "";
+        el.style.scrollSnapType = "";
+      }
+      schedulePeekOff();
+      return;
+    }
     if (daySwipeContinueRef.current) {
       daySwipeContinueRef.current = false;
       return;
@@ -899,6 +880,19 @@ function Planner() {
   // Карусель строки дат: после смены недели свайпом возвращаем трек в центр (-100%)
   // ДО отрисовки — новая неделя уже в центральной панели, поэтому без мигания.
   useLayoutEffect(() => {
+    if (!isMobileRef.current && nativeWeekRecenterRef.current) {
+      nativeWeekRecenterRef.current = false;
+      const vp = weekTrackRef.current?.parentElement;
+      if (vp) {
+        vp.style.scrollBehavior = "auto";
+        vp.style.scrollSnapType = "none";
+        vp.scrollLeft = (vp.clientWidth || 1) * 4;
+        void vp.offsetWidth;
+        vp.style.scrollBehavior = "";
+        vp.style.scrollSnapType = "";
+      }
+      return;
+    }
     if (weekSwipeContinueRef.current) {
       weekSwipeContinueRef.current = false;
       weekRecenterRef.current = false;
@@ -2250,63 +2244,58 @@ function Planner() {
     track.style.transition = "transform .25s cubic-bezier(.22,.61,.36,1)";
     track.style.transform = "translateX(-100%)";
   }
-  // Десктоп-трекпад: горизонтальный жест колесом физически тянет трек (как сетка дня),
-  // доводка/возврат — когда события колеса прекратились (у трекпада нет «отпустил пальцы»).
-  function onWeekStripWheel(e) {
-    const track = weekTrackRef.current; if (!track) return;
-    const vp = track.parentElement; const W = vp ? vp.getBoundingClientRect().width : window.innerWidth;
-    const s = weekWheelRef.current;
-    const now = performance.now();
-    const wheelGap = s.lastT ? now - s.lastT : Infinity;
-    if (!s.lastT || now - s.lastT > 260) {
-      s.axis = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? "h" : "v";
-      s.phase = "idle"; s.dx = 0; s.peakVx = 0; s.peakAbs = 0; s.lastAbs = 0; s.minAbs = Infinity;
-    }
-    const dt = Math.max(1, now - (s.lastT || now - 16));
-    s.lastT = now;
-    clearTimeout(s.resetTimer);
-    s.resetTimer = setTimeout(() => {
-      s.phase = "idle"; s.axis = null; s.dx = 0; s.peakVx = 0; s.peakAbs = 0; s.lastAbs = 0; s.minAbs = Infinity; s.lastT = 0;
-    }, 320);
-    if (s.axis !== "h") return;
-    e.preventDefault();
-    const abs = Math.abs(e.deltaX);
+
+  // Десктопная строка дат использует тот же нативный scroll-snap, что и сетка:
+  // трек не «угадывает» конец wheel-жеста и не переключается под пальцами.
+  useLayoutEffect(() => {
+    const track = weekTrackRef.current, vp = track?.parentElement;
+    if (view !== "day" || special || isMobile || !vp) return;
+    let fallback = null;
+    let horizontal = false;
+    const hasScrollEnd = "onscrollend" in vp;
+    const center = () => (vp.clientWidth || 1) * 4;
+    const recenter = () => {
+      vp.style.scrollBehavior = "auto";
+      vp.style.scrollSnapType = "none";
+      vp.scrollLeft = center();
+      void vp.offsetWidth;
+      vp.style.scrollBehavior = "";
+      vp.style.scrollSnapType = "";
+    };
+    recenter();
     const finish = () => {
-      if (s.phase !== "drag") return;
-      s.phase = "drain";
-      const dx = s.dx, peakVx = s.peakVx;
-      const commit = Math.abs(dx) > Math.min(60, W * 0.14)
-        || (Math.abs(peakVx) > 0.18 && Math.abs(dx) > 5);
-      if (commit) weekBarCommit((dx || -peakVx) < 0 ? 1 : -1);
-      else weekBarSnapBack();
+      clearTimeout(fallback);
+      if (!horizontal) return;
+      const w = vp.clientWidth || 1;
+      const pages = Math.round((vp.scrollLeft - center()) / w);
+      if (!pages) { horizontal = false; return; }
+      horizontal = false;
+      nativeWeekRecenterRef.current = true;
+      dateRef.current = addDaysISO(dateRef.current, clamp(pages, -4, 4) * 7);
+      setDate(dateRef.current);
     };
-    const start = () => {
-      finishWeekBarForNext(track);
-      s.phase = "drag"; s.dx = 0; s.peakVx = 0; s.peakAbs = 0; s.lastAbs = 0; s.minAbs = Infinity;
+    const onWheel = (e) => {
+      if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      horizontal = true;
     };
-    const newImpulse = s.lastAbs > 0
-      && abs > Math.max(s.lastAbs + 4, s.lastAbs * 1.7)
-      && s.lastAbs < s.peakAbs * 0.65;
-    if (s.phase === "drain") {
-      s.minAbs = Math.min(s.minAbs, abs);
-      if (!(wheelGap > 75 || abs > Math.max(4, s.minAbs + 3))) { s.lastAbs = abs; return; }
-      s.phase = "idle";
-    } else if (s.phase === "drag" && newImpulse) {
-      finish();
-      s.phase = "idle";
-    }
-    if (s.phase === "idle") start();
-    const ivx = -e.deltaX / dt;
-    if (Math.abs(ivx) > Math.abs(s.peakVx)) s.peakVx = ivx;
-    s.peakAbs = Math.max(s.peakAbs, abs);
-    s.minAbs = Math.min(s.minAbs, abs);
-    s.lastAbs = abs;
-    s.dx = Math.max(-W, Math.min(W, s.dx - e.deltaX));
-    track.style.transition = "none";
-    track.style.transform = `translateX(calc(-100% + ${s.dx}px))`;
-    clearTimeout(s.endTimer);
-    s.endTimer = setTimeout(finish, 85);
-  }
+    const onScroll = () => {
+      if (Math.abs(vp.scrollLeft - center()) < 1) return;
+      horizontal = true;
+      if (!hasScrollEnd) {
+        clearTimeout(fallback);
+        fallback = setTimeout(finish, 180);
+      }
+    };
+    vp.addEventListener("wheel", onWheel, { passive: true });
+    vp.addEventListener("scroll", onScroll, { passive: true });
+    if (hasScrollEnd) vp.addEventListener("scrollend", finish);
+    return () => {
+      clearTimeout(fallback);
+      vp.removeEventListener("wheel", onWheel);
+      vp.removeEventListener("scroll", onScroll);
+      if (hasScrollEnd) vp.removeEventListener("scrollend", finish);
+    };
+  }, [view, special, isMobile]);
   function onDaySwipeStart(e) {
     // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
     if (liftDragRef.current || createActiveRef.current) { runDaySwipe(e.changedTouches[0], true); return; }
@@ -2899,10 +2888,12 @@ function Planner() {
                 </div>`)}
           </div>`}
 
-          ${!special && view === "day" && html`<div class="planner-week-vp"
-            onTouchStart=${onWeekBarTouchStart} onWheel=${onWeekStripWheel}>
+          ${!special && view === "day" && html`<div class=${"planner-week-vp" + (!isMobile ? " native-carousel" : "")}
+            onTouchStart=${isMobile ? onWeekBarTouchStart : null}>
             <div class="planner-week-track" ref=${weekTrackRef}>
-              ${[barWeek(addDaysISO(date, -7)), week, barWeek(addDaysISO(date, 7))].map((wk, pi) => html`
+              ${(isMobile
+                ? [barWeek(addDaysISO(date, -7)), week, barWeek(addDaysISO(date, 7))]
+                : [-28, -21, -14, -7, 0, 7, 14, 21, 28].map(n => barWeek(addDaysISO(date, n)))).map((wk, pi) => html`
                 <div class="planner-week" key=${"wk" + pi}>
                   ${wk.map(w => html`<button key=${w.iso}
                     class=${"wday" + (w.iso === (pendingDate || date) ? " active" : "") + (w.iso === todayISO() ? " today" : "")}
@@ -2914,9 +2905,11 @@ function Planner() {
 
           ${!special && view === "day" && html`<div class="planner-body">
             ${store.loading && tasks.length === 0 ? html`<div class="grid-loading"><div class="boot-spinner"></div></div>` : ""}
-            <div class=${"planner-grid-scroll" + (peek ? " swiping" : "")} ref=${scrollRef} onTouchStart=${onDaySwipeStart}
+            <div class=${"planner-grid-scroll" + (!isMobile ? " native-carousel" : "") + (peek ? " swiping" : "")} ref=${scrollRef}
+              onTouchStart=${isMobile ? onDaySwipeStart : null}
               onDragOver=${e => { if (e.dataTransfer) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop=${onExternalDrop}>
               <div class="tl-track" ref=${trackRef}>
+                ${!isMobile && [-4, -3, -2].map(n => html`<div class="tl-pane" key=${"day" + n}>${peek ? dayPeekPane(addDaysISO(date, n)) : null}</div>`)}
                 <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
               <div class="allday-stick">
@@ -3063,8 +3056,9 @@ function Planner() {
                   <div class="tl-ghost-pill"></div>
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
               </div>
-              </div>
-              <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
+                </div>
+                <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
+                ${!isMobile && [2, 3, 4].map(n => html`<div class="tl-pane" key=${"day" + n}>${peek ? dayPeekPane(addDaysISO(date, n)) : null}</div>`)}
               </div>
             </div>
           </div>`}
