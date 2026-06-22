@@ -174,6 +174,7 @@ function Planner() {
   const keepGridTopRef = useRef(null); // позиция сетки относительно вьюпорта — чтобы час под глазами не прыгал при смене дня
   const cancelSnapRef = useRef(null);  // отменить текущую анимацию snap (для смены даты извне)
   const daySwipeStateRef = useRef(null); // управление каруселью дня извне (reset)
+  const dayTouchGestureRef = useRef(null); // активный однопальцевый свайп; второй палец отменяет его перед зумом
   const pendingRecenterRef = useRef(false);
   const commitFinalizeRef = useRef(null);
   const peekTimerRef = useRef(null);
@@ -351,6 +352,7 @@ function Planner() {
     const end = (ev) => {
       if (ev.touches && ev.touches.length >= 2) return; // ещё держат двумя — продолжаем
       zoomingRef.current = false;
+      zoomFocus.current = null;
       document.removeEventListener("touchmove", move);
       document.removeEventListener("touchend", end);
       document.removeEventListener("touchcancel", end);
@@ -405,17 +407,17 @@ function Planner() {
     return () => ro.disconnect();
   }, [view, special]);
 
-  // Сетка дня: горизонтальный свайп между днями обрабатывает САМ браузер через
-  // CSS scroll-snap — лента из 3 панелей (вчера/сегодня/завтра) с обязательным
-  // снапом по горизонтали. Браузер знает, когда пальцы на тачпаде, а когда нет,
-  // даёт нативную инерцию и плавный снап. Мы только: (а) держим зум по Ctrl+
-  // колесо и Safari-pinch, (б) слушаем когда снап завершился и обновляем дату.
+  // Зум сетки отделён от горизонтального свайпа: Ctrl+колесо и Safari gesture
+  // сначала отменяют карусель дня, затем меняют только вертикальный масштаб.
+  // Сам движок свайпа живёт в следующем effect.
   useEffect(() => {
     const el = scrollRef.current;
     if (view !== "day" || !el) return;
     const onWheel = (e) => {
       if (e.ctrlKey) {
         e.preventDefault();
+        dayTouchGestureRef.current?.abort(true);
+        daySwipeStateRef.current?.abort(true);
         markZooming(); markZoomed();
         zoomAnchorAt(e.clientY);
         setHourPx(prev => clamp(Math.round(prev * Math.exp(-e.deltaY * 0.01)), fitMinPx(), HOUR_MAX));
@@ -428,6 +430,8 @@ function Planner() {
       if (isMobileRef.current) return; // мобильный масштаб — вертикальным щипком (см. startVertZoom)
       if (liftDragRef.current || createActiveRef.current) return; // идёт перенос/создание — масштаб не трогаем
       e.preventDefault();
+      dayTouchGestureRef.current?.abort(true);
+      daySwipeStateRef.current?.abort(true);
       zoomingRef.current = true;
       base = hourPxRef.current;
     };
@@ -454,39 +458,45 @@ function Planner() {
     };
   }, [view, special]);
 
-  // Свайп дней — карусель на CSS transform (ручное управление, без нативного скролла
-  // по горизонтали). Браузер не вмешивается → можем дать живой драг, низкий порог
-  // коммита и мгновенное прерывание новым свайпом.
+  // Свайп дней: палец/трекпад двигает ленту напрямую, отпускание запускает ОДНУ
+  // CSS-доводку. В отличие от прежнего requestAnimationFrame-цикла браузер сам
+  // композитит transform без паузы между жестом и инерцией. Новое касание может
+  // снять текущую позицию из computed transform и сразу продолжить движение.
   useEffect(() => {
     const el = scrollRef.current, track = trackRef.current;
     if (view !== "day" || !el || !track) return;
-    let dx = 0;             // текущее смещение ленты в пикселях (минус = ушли влево, видно следующий день)
-    let lastInputT = 0;     // время последнего пользовательского события
-    let endTimer = null;    // таймер «жест с инерцией закончился»
-    let animFrame = null;
-    let animating = false;
-    const apply = () => { track.style.transition = "none"; track.style.transform = `translateX(calc(-100% + ${dx}px))`; };
-    const cancelAnim = () => { if (animFrame) cancelAnimationFrame(animFrame); animFrame = null; animating = false; };
-    const animateTo = (target, duration) => {
-      cancelAnim();
-      if (Math.abs(target - dx) < 0.5) { dx = target; apply(); finishCommit(target); schedulePeekOff(); return; }
-      // Длительность зависит от остатка пути: полноэкранный доезд плавный (как
-      // переход недели/месяца), короткая дотяжка — быстрая. Жёсткие 320мс на любой
-      // путь делали доезд от низкого порога слишком резким (большой путь за то же время).
-      const w = el.clientWidth || 1;
-      if (duration == null) duration = clamp(Math.round(280 + (Math.abs(target - dx) / w) * 180), 280, 460);
-      const start = dx, diff = target - dx, t0 = performance.now();
-      animating = true;
-      const step = (now) => {
-        if (!animating) return;
-        const t = Math.min((now - t0) / duration, 1);
-        const ease = 1 - Math.pow(1 - t, 3); // ease-out cubic
-        dx = start + diff * ease;
-        apply();
-        if (t < 1) animFrame = requestAnimationFrame(step);
-        else { animating = false; animFrame = null; finishCommit(target); schedulePeekOff(); }
-      };
-      animFrame = requestAnimationFrame(step);
+    let dx = 0;                 // минус = лента ушла влево, виден следующий день
+    let settle = null;          // { done, timer } активной CSS-доводки
+    let wheelEndTimer = null;
+    let wheelResetTimer = null;
+    let wheelAxis = null;
+    let wheelActive = false;
+    let wheelLastT = 0;
+    let wheelVx = 0;
+    let wheelPeakVx = 0;
+
+    const width = () => el.clientWidth || 1;
+    const apply = () => {
+      track.style.transition = "none";
+      track.style.transform = `translateX(calc(-100% + ${dx}px))`;
+    };
+    const transformX = () => {
+      const tr = getComputedStyle(track).transform;
+      if (!tr || tr === "none") return -width() + dx;
+      const m3 = tr.match(/^matrix3d\((.+)\)$/);
+      if (m3) return +(m3[1].split(",")[12] || 0);
+      const m2 = tr.match(/^matrix\((.+)\)$/);
+      return m2 ? +(m2[1].split(",")[4] || 0) : -width() + dx;
+    };
+    const clearSettle = (capture) => {
+      if (!settle) return dx;
+      if (capture) dx = clamp(transformX() + width(), -width(), width());
+      track.removeEventListener("transitionend", settle.done);
+      clearTimeout(settle.timer);
+      settle = null;
+      apply();
+      void track.offsetWidth;
+      return dx;
     };
     const finishCommit = (target) => {
       if (Math.abs(target) < 1) return; // вернулись в центр — день не меняем
@@ -496,51 +506,125 @@ function Planner() {
       dateRef.current = toISO(d);
       setDate(dateRef.current);
     };
-    // vx — скорость в px/мс (для «флика»): быстрый короткий смах листает, даже если путь
-    // не дотянул до позиционного порога (как в карусели строки дат).
-    const triggerSnap = (vx) => {
-      const w = el.clientWidth;
-      if (!w) return;
-      const threshold = w * 0.12; // низкий позиционный порог — даже короткий свайп листает
-      const flick = Math.abs(vx || 0) > 0.25; // быстрый смах
-      let target = 0;
-      if (dx < -threshold) target = -w;
-      else if (dx > threshold) target = w;
-      else if (flick) target = (vx < 0) ? -w : w; // короткий быстрый смах — по направлению скорости
-      if (target !== 0) haptic(); // лёгкая вибрация в начале листания (как в неделе/месяце)
-      animateTo(target);
+    const targetFor = (vx) => {
+      const w = width();
+      const projected = clamp(dx + (vx || 0) * 180, -w, w);
+      const fast = Math.abs(vx || 0) > 0.3 && Math.abs(dx) > 10;
+      const far = Math.abs(dx) > w * 0.3;
+      const projectedFar = Math.abs(projected) > w * 0.22;
+      if (!fast && !far && !projectedFar) return 0;
+      const direction = Math.abs(vx || 0) > 0.16 ? Math.sign(vx) : Math.sign(projected || dx);
+      return direction < 0 ? -w : w;
+    };
+    const settleTo = (target, vx = 0, forcedDuration = null) => {
+      clearSettle(true);
+      const w = width();
+      target = clamp(target, -w, w);
+      const distance = Math.abs(target - dx);
+      if (distance < 0.5) {
+        dx = target;
+        apply();
+        if (target) finishCommit(target);
+        else schedulePeekOff();
+        return;
+      }
+      const duration = forcedDuration ?? clamp(
+        Math.round(210 + (distance / w) * 105 - Math.min(Math.abs(vx), 1.4) * 55),
+        170, 330,
+      );
+      const token = {};
+      const done = (ev) => {
+        if (settle?.token !== token || (ev && ev.target !== track)) return;
+        track.removeEventListener("transitionend", done);
+        clearTimeout(settle.timer);
+        settle = null;
+        dx = target;
+        track.style.transition = "none";
+        track.style.transform = `translateX(calc(-100% + ${dx}px))`;
+        if (target) finishCommit(target);
+        else schedulePeekOff();
+      };
+      settle = { token, done, timer: setTimeout(() => done(), duration + 90) };
+      track.addEventListener("transitionend", done);
+      track.style.transition = `transform ${duration}ms cubic-bezier(.18,.82,.22,1)`;
+      void track.offsetWidth;
+      dx = target;
+      track.style.transform = `translateX(calc(-100% + ${target}px))`;
     };
     daySwipeStateRef.current = {
-      reset: () => { cancelAnim(); dx = 0; track.style.transition = "none"; track.style.transform = "translateX(-100%)"; },
+      reset: () => {
+        clearSettle(false);
+        clearTimeout(wheelEndTimer);
+        dx = 0;
+        track.style.transition = "none";
+        track.style.transform = "translateX(-100%)";
+      },
       getDx: () => dx,
-      setDx: (v) => { cancelAnim(); const w = el.clientWidth; dx = Math.max(-w, Math.min(w, v)); apply(); },
-      snap: (vx) => { clearTimeout(endTimer); triggerSnap(vx); },
-      cancel: () => { cancelAnim(); clearTimeout(endTimer); },
+      interrupt: () => clearSettle(true),
+      setDx: (v) => { dx = clamp(v, -width(), width()); apply(); },
+      settle: (vx) => { clearTimeout(wheelEndTimer); settleTo(targetFor(vx), vx); },
+      abort: (immediate = false) => {
+        clearTimeout(wheelEndTimer);
+        if (immediate) {
+          clearSettle(false);
+          dx = 0;
+          apply();
+          schedulePeekOff();
+        } else settleTo(0, 0, 160);
+      },
     };
     const onWheel = (e) => {
-      if (e.ctrlKey) return; // зум обрабатывает другой effect
-      // Горизонтальный жест ведёт нас, вертикальный — нативный скролл
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (e.ctrlKey || zoomingRef.current) return; // зум обрабатывает другой effect
+      const now = performance.now();
+      const prevWheelT = wheelLastT;
+      if (!wheelLastT || now - wheelLastT > 260) {
+        wheelAxis = Math.abs(e.deltaX) > Math.abs(e.deltaY) * 0.85 ? "h" : "v";
+        wheelActive = false;
+        wheelVx = 0;
+        wheelPeakVx = 0;
+      }
+      const dt = Math.max(1, now - (prevWheelT || now - 16));
+      wheelLastT = now;
+      clearTimeout(wheelResetTimer);
+      wheelResetTimer = setTimeout(() => {
+        wheelAxis = null;
+        wheelActive = false;
+        wheelLastT = 0;
+        wheelVx = 0;
+        wheelPeakVx = 0;
+      }, 320);
+      if (wheelAxis !== "h") return; // вертикальный жест остаётся нативной прокруткой
       e.preventDefault();
-      clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни — только на время жеста
-      lastInputT = performance.now();
-      // Любое новое событие колеса прерывает идущую доводку и продолжает тянуть ленту
-      // с текущего места — иначе доводка-анимация дерётся с жестом (зависание + рывок).
-      if (animating) cancelAnim();
-      const w = el.clientWidth;
-      dx = Math.max(-w, Math.min(w, dx - e.deltaX));
+      if (!wheelActive) {
+        clearSettle(true);
+        clearTimeout(peekTimerRef.current);
+        setPeek(true);
+        wheelActive = true;
+        wheelVx = 0;
+        wheelPeakVx = 0;
+      }
+      const delta = -e.deltaX;
+      const instantVx = delta / dt;
+      wheelVx = wheelVx * 0.58 + instantVx * 0.42;
+      if (Math.abs(instantVx) > Math.abs(wheelPeakVx)) wheelPeakVx = instantVx;
+      dx = clamp(dx + delta, -width(), width());
       apply();
-      clearTimeout(endTimer);
-      // У трекпада нет события «отпустил пальцы» — считаем, что жест закончился, когда
-      // события колеса прекратились на ~160мс (сюда же попадает затухание инерции).
-      // Пауза заметно больше прежних 80мс, чтобы лента не уезжала при замедлении свайпа.
-      endTimer = setTimeout(triggerSnap, 160);
+      clearTimeout(wheelEndTimer);
+      // Трекпад не сообщает момент отпускания. После окончания его инерционных
+      // wheel-событий прогнозируем цель по пройденному пути и пиковой скорости.
+      wheelEndTimer = setTimeout(() => {
+        wheelActive = false;
+        const releaseVx = Math.abs(wheelPeakVx) > Math.abs(wheelVx) * 1.6
+          ? wheelPeakVx * 0.55 : wheelVx;
+        daySwipeStateRef.current?.settle(releaseVx);
+      }, 105);
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => {
       daySwipeStateRef.current = null;
-      cancelAnim();
-      clearTimeout(endTimer);
+      clearSettle(false);
+      clearTimeout(wheelEndTimer);
+      clearTimeout(wheelResetTimer);
       el.removeEventListener("wheel", onWheel);
     };
   }, [view, special]);
@@ -1958,11 +2042,8 @@ function Planner() {
     peekTimerRef.current = setTimeout(() => setPeek(false), 700);
   }
 
-  // Свайп по сетке дня — карусель «как в Apple»: лента из трёх дней (вчера/
-  // сегодня/завтра) едет за пальцем с лёгким сопротивлением, соседний день виден
-  // Сетка дня: касаниями карусель листает САМ браузер (CSS scroll-snap). Здесь
-  // обрабатываем только: (а) свайп от левого края — открыть шторку проектов,
-  // (б) два пальца — зафиксировать точку для зум-якоря.
+  // Сетка дня: один палец ведёт трёхпанельную карусель, два пальца принадлежат
+  // только вертикальному зуму, жест от левого края — только шторке проектов.
   // Ручка-шторка зоны «весь день»: тянем пальцем — высота меняется ровно за пальцем,
   // от полностью закрытой (0) до половины экрана. Часы при этом заполняют остаток
   // (hp = остаток/24), поэтому день всегда вписан без прокрутки и пустоты. Отпустил
@@ -2002,36 +2083,50 @@ function Planner() {
   function runDaySwipe(touch, multi) {
     const st = daySwipeStateRef.current;
     if (view !== "day" || !st || !touch) return;
+    dayTouchGestureRef.current?.abort(true);
     const id = touch.identifier;
     const sx = touch.clientX, sy = touch.clientY;
     let horiz = null, startDx = 0, lastX = sx, lastT = performance.now(), vx = 0;
     const find = (list) => { for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i]; return null; };
     const move = (ev) => {
-      if (!multi && (createActiveRef.current || liftedNowRef.current)) { if (horiz === true) st.snap(0); cleanup(); return; } // обычный свайп уступил создание/подъёму задачи
+      if (!multi && (zoomingRef.current || ev.touches.length > 1)) { abort(true); return; }
+      if (!multi && (createActiveRef.current || liftedNowRef.current)) { if (horiz === true) st.abort(); cleanup(); return; } // обычный свайп без коммита уступил созданию/подъёму задачи
       const t = find(ev.touches); if (!t) return;
       const dxF = t.clientX - sx, dyF = t.clientY - sy;
-      if (horiz === null && (Math.abs(dxF) > 5 || Math.abs(dyF) > 5)) {
-        horiz = Math.abs(dxF) > Math.abs(dyF) * 0.7;
-        if (!horiz) { cleanup(); return; }
+      if (horiz === null && (Math.abs(dxF) > 7 || Math.abs(dyF) > 7)) {
+        if (Math.abs(dxF) > Math.abs(dyF) * 1.08) horiz = true;
+        else if (Math.abs(dyF) > Math.abs(dxF) * 1.08) { cleanup(); return; }
+        else return; // диагональ пока неоднозначна — ждём ещё движения
         // Прерываем текущую анимацию ТОЛЬКО когда реально начали горизонтальный свайп.
         // Иначе обычный тап (без свайпа) останавливал бы доводку дня на полпути → залипание.
-        startDx = st.getDx(); st.cancel();
+        startDx = st.interrupt();
         clearTimeout(peekTimerRef.current); setPeek(true); // соседние дни рисуем только на время свайпа
       }
       if (!horiz) return;
       ev.preventDefault();
-      const now = performance.now(); if (now > lastT) vx = (t.clientX - lastX) / (now - lastT); lastX = t.clientX; lastT = now;
+      const now = performance.now();
+      if (now > lastT) {
+        const instantVx = (t.clientX - lastX) / (now - lastT);
+        vx = vx * 0.55 + instantVx * 0.45;
+      }
+      lastX = t.clientX; lastT = now;
       st.setDx(startDx + dxF);
     };
     const end = (ev) => {
       if (find(ev.touches)) return; // наш палец ещё на экране — свайп продолжается
-      cleanup(); if (horiz === true) st.snap(vx);
+      cleanup(); if (horiz === true) st.settle(vx);
+    };
+    const abort = (immediate = false) => {
+      if (horiz === true) st.abort(immediate);
+      cleanup();
     };
     const cleanup = () => {
       document.removeEventListener("touchmove", move, { passive: false });
       document.removeEventListener("touchend", end);
       document.removeEventListener("touchcancel", end);
+      if (dayTouchGestureRef.current?.abort === abort) dayTouchGestureRef.current = null;
     };
+    dayTouchGestureRef.current = { abort };
     document.addEventListener("touchmove", move, { passive: false });
     document.addEventListener("touchend", end);
     document.addEventListener("touchcancel", end);
@@ -2117,7 +2212,11 @@ function Planner() {
   function onDaySwipeStart(e) {
     // Держим задачу/капсулу → НОВЫЙ (второй) палец листает день той же каруселью.
     if (liftDragRef.current || createActiveRef.current) { runDaySwipe(e.changedTouches[0], true); return; }
-    if (e.touches.length === 2) {
+    if (e.touches.length > 1) {
+      // Как только появился второй палец, обычный свайп больше не имеет права
+      // двигать ленту. Возвращаем её в центр и только после этого решаем, это зум или нет.
+      dayTouchGestureRef.current?.abort(true);
+      if (e.touches.length !== 2) return;
       // Зум сетки — только ВЕРТИКАЛЬНЫМ щипком: пальцы должны быть разнесены по
       // вертикали (один выше, другой ниже) и сходиться/расходиться вверх-вниз.
       // Горизонтальный/диагональный щипок масштаб не трогает.
@@ -2125,8 +2224,11 @@ function Planner() {
       const dy0 = Math.abs(t1.clientY - t2.clientY);
       const dx0 = Math.abs(t1.clientX - t2.clientX);
       const midY = (t1.clientY + t2.clientY) / 2;
-      zoomFocus.current = computeAnchor(midY);
-      if (dy0 > dx0 && dy0 > 24) { e.preventDefault(); startVertZoom(midY, dy0); }
+      if (dy0 > dx0 && dy0 > 24) {
+        e.preventDefault();
+        zoomFocus.current = computeAnchor(midY);
+        startVertZoom(midY, dy0);
+      }
       return;
     }
     if (e.touches.length !== 1) return;

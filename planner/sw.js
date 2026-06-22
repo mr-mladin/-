@@ -8,7 +8,7 @@
 
 // Версию кэша бампаем вместе с релизом — на activate старые кэши удаляются (ниже),
 // чтобы один раз осевший «битый»/устаревший файл не жил вечно.
-const VERSION = "v2";
+const VERSION = "v3";
 const CDN_CACHE = "planner-cdn-" + VERSION;
 const APP_CACHE = "planner-app-" + VERSION;
 const CDN_HOSTS = ["esm.sh"];
