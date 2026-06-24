@@ -1,7 +1,7 @@
 import { render } from "preact";
 import { html } from "htm/preact";
 import { StoreProvider } from "./store.js";
-import { App } from "./Planner.js?v=132";
+import { App } from "./Planner.js?v=133";
 
 // Высоту приложения держит CSS: html/body зафиксированы по размеру экрана
 // (position: fixed; inset: 0), .app = 100%. Документ не прокручивается, поэтому

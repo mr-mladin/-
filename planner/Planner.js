@@ -150,8 +150,10 @@ function Planner() {
   // { x, y, count, dropList } — dropList: id проекта | "inbox" | "area:<id>" | "__allday__" | null.
   const [selDrag, setSelDrag] = useState(null);
   const [hourPx, setHourPx] = useState(readHourPx());
-  // Соседние дни карусели рисуем только во время горизонтального свайпа —
-  // иначе зум (масштаб сетки) тормозил бы из-за перерисовки сразу трёх дней.
+  // На мобильном соседние дни рисуем только во время горизонтального свайпа —
+  // иначе зум тормозит из-за перерисовки сразу трёх дней. На десктопе ближайшие
+  // соседние панели держим готовыми: нативный scroll-snap не должен стартовать
+  // с пустого/холодного кадра.
   const [peek, setPeek] = useState(false);
   const [projOpen, setProjOpen] = useState(false);
   const [ctx, setCtx] = useState(null);
@@ -592,6 +594,11 @@ function Planner() {
     if (view !== "day" || special || isMobile || !el) return;
     let fallback = null;
     let horizontal = false;
+    let axis = null;
+    let axisX = 0;
+    let axisY = 0;
+    let axisTimer = null;
+    let axisUnlockTimer = null;
     const hasScrollEnd = "onscrollend" in el;
     const center = () => (el.clientWidth || 1) * 4; // 9 панелей, текущая — пятая
     const recenter = () => {
@@ -601,6 +608,22 @@ function Planner() {
       void el.offsetWidth;
       el.style.scrollBehavior = "";
       el.style.scrollSnapType = "";
+    };
+    const unlockAxisSoon = () => {
+      clearTimeout(axisTimer);
+      axisTimer = setTimeout(() => { axis = null; axisX = 0; axisY = 0; }, 180);
+    };
+    const keepCentered = () => {
+      clearTimeout(fallback);
+      if (Math.abs(el.scrollLeft - center()) < 1) return;
+      el.style.scrollBehavior = "auto";
+      el.style.scrollSnapType = "none";
+      el.scrollLeft = center();
+      clearTimeout(axisUnlockTimer);
+      axisUnlockTimer = setTimeout(() => {
+        el.style.scrollBehavior = "";
+        el.style.scrollSnapType = "";
+      }, 0);
     };
     recenter();
     const finish = () => {
@@ -617,13 +640,28 @@ function Planner() {
     };
     const onWheel = (e) => {
       if (e.ctrlKey || zoomingRef.current) return;
-      if (Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
+      axisX += ax; axisY += ay;
+      if (!axis && axisX + axisY < 8) axis = "pending";
+      if ((axis === null || axis === "pending") && axisX + axisY >= 8) axis = axisX > axisY * 1.08 ? "x" : "y";
+      if ((axis === "pending" || axis === "y") && axisX > axisY * 1.35 && axisX > 18) axis = "x";
+      // Нативный overflow-x иначе ловит мелкий диагональный хвост трекпада и
+      // может начать доводить день, хотя пользователь скроллил сетку по вертикали.
+      if (axis !== "x") {
+        horizontal = false;
+        keepCentered();
+        unlockAxisSoon();
+        return;
+      }
+      axis = "x";
       horizontal = true;
+      unlockAxisSoon();
       clearTimeout(peekTimerRef.current);
       setPeek(true);
     };
     const onScroll = () => {
       if (Math.abs(el.scrollLeft - center()) < 1) return;
+      if (axis === "pending" || axis === "y") { keepCentered(); return; }
       if (!horizontal) {
         clearTimeout(peekTimerRef.current);
         setPeek(true);
@@ -639,6 +677,8 @@ function Planner() {
     if (hasScrollEnd) el.addEventListener("scrollend", finish);
     return () => {
       clearTimeout(fallback);
+      clearTimeout(axisTimer);
+      clearTimeout(axisUnlockTimer);
       el.removeEventListener("wheel", onWheel);
       el.removeEventListener("scroll", onScroll);
       if (hasScrollEnd) el.removeEventListener("scrollend", finish);
@@ -2252,6 +2292,11 @@ function Planner() {
     if (view !== "day" || special || isMobile || !vp) return;
     let fallback = null;
     let horizontal = false;
+    let axis = null;
+    let axisX = 0;
+    let axisY = 0;
+    let axisTimer = null;
+    let axisUnlockTimer = null;
     const hasScrollEnd = "onscrollend" in vp;
     const center = () => (vp.clientWidth || 1) * 4;
     const recenter = () => {
@@ -2261,6 +2306,22 @@ function Planner() {
       void vp.offsetWidth;
       vp.style.scrollBehavior = "";
       vp.style.scrollSnapType = "";
+    };
+    const unlockAxisSoon = () => {
+      clearTimeout(axisTimer);
+      axisTimer = setTimeout(() => { axis = null; axisX = 0; axisY = 0; }, 180);
+    };
+    const keepCentered = () => {
+      clearTimeout(fallback);
+      if (Math.abs(vp.scrollLeft - center()) < 1) return;
+      vp.style.scrollBehavior = "auto";
+      vp.style.scrollSnapType = "none";
+      vp.scrollLeft = center();
+      clearTimeout(axisUnlockTimer);
+      axisUnlockTimer = setTimeout(() => {
+        vp.style.scrollBehavior = "";
+        vp.style.scrollSnapType = "";
+      }, 0);
     };
     recenter();
     const finish = () => {
@@ -2275,11 +2336,25 @@ function Planner() {
       setDate(dateRef.current);
     };
     const onWheel = (e) => {
-      if (e.ctrlKey || Math.abs(e.deltaX) <= Math.abs(e.deltaY)) return;
+      if (e.ctrlKey) return;
+      const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
+      axisX += ax; axisY += ay;
+      if (!axis && axisX + axisY < 8) axis = "pending";
+      if ((axis === null || axis === "pending") && axisX + axisY >= 8) axis = axisX > axisY * 1.08 ? "x" : "y";
+      if ((axis === "pending" || axis === "y") && axisX > axisY * 1.35 && axisX > 18) axis = "x";
+      if (axis !== "x") {
+        horizontal = false;
+        keepCentered();
+        unlockAxisSoon();
+        return;
+      }
+      axis = "x";
       horizontal = true;
+      unlockAxisSoon();
     };
     const onScroll = () => {
       if (Math.abs(vp.scrollLeft - center()) < 1) return;
+      if (axis === "pending" || axis === "y") { keepCentered(); return; }
       horizontal = true;
       if (!hasScrollEnd) {
         clearTimeout(fallback);
@@ -2291,6 +2366,8 @@ function Planner() {
     if (hasScrollEnd) vp.addEventListener("scrollend", finish);
     return () => {
       clearTimeout(fallback);
+      clearTimeout(axisTimer);
+      clearTimeout(axisUnlockTimer);
       vp.removeEventListener("wheel", onWheel);
       vp.removeEventListener("scroll", onScroll);
       if (hasScrollEnd) vp.removeEventListener("scrollend", finish);
@@ -2910,7 +2987,7 @@ function Planner() {
               onDragOver=${e => { if (e.dataTransfer) { e.preventDefault(); e.dataTransfer.dropEffect = "copy"; } }} onDrop=${onExternalDrop}>
               <div class="tl-track" ref=${trackRef}>
                 ${!isMobile && [-4, -3, -2].map(n => html`<div class="tl-pane" key=${"day" + n}>${peek ? dayPeekPane(addDaysISO(date, n)) : null}</div>`)}
-                <div class="tl-pane">${peek ? dayPeekPane(prevDate) : null}</div>
+                <div class="tl-pane">${(!isMobile || peek) ? dayPeekPane(prevDate) : null}</div>
                 <div class="tl-pane">
               <div class="allday-stick">
               <div class=${"allday" + (allDay.length === 0 ? " empty" : "") + (allDay.length ? " grid" : "") + ((dnd && dnd.zone === "allday") || (liftDrag && liftDrag.allday) || (treeDrag && treeDrag.zone === "allday") || (selDrag && selDrag.dropList === "__allday__") ? " drop" : "")} ref=${adGridRef} style=${`--adh:${adH}px`}
@@ -3057,7 +3134,7 @@ function Planner() {
                   <div class="tl-ghost-label">${minRangeLabel(drag.start, drag.dur)} (${durHuman(drag.dur)})</div></div>`}
               </div>
                 </div>
-                <div class="tl-pane">${peek ? dayPeekPane(nextDate) : null}</div>
+                <div class="tl-pane">${(!isMobile || peek) ? dayPeekPane(nextDate) : null}</div>
                 ${!isMobile && [2, 3, 4].map(n => html`<div class="tl-pane" key=${"day" + n}>${peek ? dayPeekPane(addDaysISO(date, n)) : null}</div>`)}
               </div>
             </div>
